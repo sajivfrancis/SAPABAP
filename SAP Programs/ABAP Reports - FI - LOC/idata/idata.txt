@@ -1,0 +1,264 @@
+*&---------------------------------------------------------------------*
+*&  Include           IDATA
+*&---------------------------------------------------------------------*
+* ---- This include contains the data for the selection report ---- *
+TABLES: t001,
+        bseg,
+        bkpf,
+        kna1,
+        t007s,
+        dd03l,
+        sscrfields, lfa1,   " --> Fields on selection screens
+        IDITSR_DOCTYP. "N1680193
+
+CONSTANTS: const_x TYPE c VALUE 'X',
+           const_b TYPE c VALUE ' ',
+           const_s TYPE c VALUE 'S'.
+
+* ---- Data needed for ALV display list ---- *
+TYPE-POOLS: slis.
+
+DATA : gt_fieldcat            TYPE slis_t_fieldcat_alv,
+                                                        "fieldattributes
+       gs_layout              TYPE slis_layout_alv,     " list layout
+       g_structure            TYPE slis_tabname,        " table name
+       g_outtab               TYPE slis_tabname,        " table name
+       g_repid                LIKE sy-repid,            " reportname
+       gs_keyinfo             TYPE slis_keyinfo_alv,    "relation
+                                     "between header + item table
+       g_tabname_header       TYPE slis_tabname,        "name header
+       g_tabname_item         TYPE slis_tabname.        "name item
+
+* ---- internal tables definition ---- *
+DATA: it_bseg TYPE STANDARD TABLE OF bseg,
+      wa_bseg LIKE LINE OF it_bseg,
+      wa_bseg_temp LIKE LINE OF it_bseg,
+      it_ekkn TYPE STANDARD TABLE OF ekkn,
+      wa_ekkn LIKE LINE OF it_ekkn,
+* CBR S03CCR Begin Service entry sheets
+      it_mseg TYPE STANDARD TABLE OF mseg,
+      wa_mseg LIKE LINE OF it_mseg.
+* CBR S03CCR End Service entry sheets
+        Data : wa_filter_bp_line like LINE OF it_bseg."N1680193
+        Data : ind_cust_vend type bseg-VERTT."N1680193
+* ---- internal tables for ALV display ---- *
+* ---- table for the header line of ALV list ---- *
+DATA: BEGIN OF output_header OCCURS 0,
+       expand       TYPE c,                " FLAG: expand/contract
+       bukrs        LIKE bseg-bukrs,
+       butxt        LIKE t001-butxt,
+       correction   TYPE iditsr_corr,
+       itsr_id      LIKE iditsr_output-itsr_id,
+       itsr_id_f    LIKE iditsr_output-itsr_id_f,
+       cp_fname     LIKE fsabe-fname,
+       cp_lname     LIKE fsabe-lname,
+       cp_phone     LIKE fsabe-telf1,
+       cp_fax       LIKE fsabe-telfx,
+       cp_mail      LIKE fsabe-intad,
+      END OF output_header.
+DATA: wa_header LIKE LINE OF output_header.
+
+* ---- table for the line item of ALV list ---- *
+DATA: BEGIN OF output_item OCCURS 0,
+       bukrs           LIKE bseg-bukrs,
+       country         LIKE t005-intca3,
+       itsr_doctype    LIKE iditsr_doctyp-itsr_doctype,
+       part_nr         LIKE kna1-kunnr,
+       name            LIKE kna1-name1,
+       hkont           LIKE bseg-hkont,
+       belnr           LIKE bseg-belnr,
+       buzei           LIKE bseg-buzei,
+       waers           LIKE t005-waers,
+       isocd           LIKE tcurc-isocd,
+       HWAER           LIKE bkpf-HWAER,     "1344276
+       position_number LIKE iditsr_posnum-position_number,
+       shkzg           LIKE bseg-shkzg,
+       wrbtr           LIKE bseg-wrbtr,
+       dmbtr           LIKE bseg-dmbtr,
+       budat           LIKE bkpf-budat,                "cbr-france
+       trad_prtnr      LIKE bseg-vbund,"bp 1/8
+      END OF output_item.
+DATA: wa_item LIKE LINE OF output_item.
+
+* ---- Additional data ---- *
+DATA: butxt       LIKE t001-butxt,
+      country     LIKE t001-land1,
+      spras       LIKE t001-spras,
+      iso_country LIKE t005-intca3,
+      rep_country LIKE t001-land1,
+      iso_curr    LIKE tcurc-isocd,
+      kalsm       LIKE t005-kalsm.
+
+
+* ---- data needed for the calls to the logical databases ---- *
+* ---- Logical database SDF (G/L Accounts) ---- *
+DATA: it_callback_gl TYPE TABLE OF ldbcb,
+      it_seltab_gl   TYPE TABLE OF rsparams,
+      wa_seltab_gl   LIKE LINE OF it_seltab_gl.
+
+* ----- Logical database DDF (Customer Accounts) ---- *
+DATA: it_callback_ar TYPE TABLE OF ldbcb,
+      it_seltab_ar   TYPE TABLE OF rsparams,
+      wa_seltab_ar   LIKE LINE OF it_seltab_ar.
+
+* ----- Logical database KDF (Vendor Accounts) ---- *
+DATA: it_callback_ap TYPE TABLE OF ldbcb,
+      it_seltab_ap   TYPE TABLE OF rsparams,
+      wa_seltab_ap   LIKE LINE OF it_seltab_ap.
+
+
+*---- Tables and work areas used for data selection and processing ----
+**
+
+* ---- the internal table IT_VECUGL contains ALL the data selected from
+*      the database according to the selection criteria entered in the
+*      selection screen by the user ---- *
+DATA: BEGIN OF it_vecugl OCCURS 0.
+        INCLUDE STRUCTURE bseg.
+DATA:  country         LIKE t005-land1,   " Country of the partner
+       part_nr         LIKE kna1-kunnr,
+       name            LIKE kna1-name1,
+       itsr_id         LIKE iditsr_output-itsr_id,
+       blart           LIKE bkpf-blart,
+       waers           LIKE tcurc-waers,
+       itsr_seqno      LIKE iditsr_select-itsr_seqno,
+       itsr_doctype    LIKE iditsr_doctyp-itsr_doctype,
+       priority        LIKE iditsr_select-priority,
+       position_number LIKE iditsr_posnum-position_number,
+       grouping        LIKE iditsr_select-grouping,
+       dindstry        LIKE kna1-brsch,
+       kindstry        LIKE lfa1-brsch,
+       fright          LIKE lfa1-sfrgr,
+       budat           TYPE bkpf-budat.
+DATA:  END OF it_vecugl.
+DATA: wa_vecugl LIKE LINE OF it_vecugl.
+
+DATA: BEGIN OF it_group OCCURS 0.
+        INCLUDE STRUCTURE it_vecugl.
+DATA: END OF it_group.
+DATA: wa_group LIKE LINE OF it_group.
+
+* CBR S03CCR Begin User Exit
+*DATA: BEGIN OF it_assign OCCURS 0.
+*        INCLUDE STRUCTURE bseg.
+*DATA: country         LIKE t005-land1,   " Country of the partner
+*      part_nr         LIKE kna1-kunnr,
+*      name            LIKE kna1-name1,
+*      itsr_id         LIKE iditsr_output-itsr_id,
+*      blart           LIKE bkpf-blart,
+*      waers           LIKE tcurc-waers,
+*      itsr_doctype    LIKE iditsr_doctyp-itsr_doctype,
+*      priority        LIKE iditsr_select-priority,
+*      position_number LIKE iditsr_posnum-position_number,
+*      grouping        LIKE iditsr_select-grouping.
+*DATA: END OF it_assign.
+*User Exit
+DATA : it_assign TYPE TABLE OF iditsr_assign.
+* CBR S03CCR End - User Exit
+DATA: wa_assign LIKE LINE OF it_assign.
+
+DATA: BEGIN OF it_prel_out OCCURS 0.
+        INCLUDE STRUCTURE iditsr_output.
+*DATA:  shkzg           LIKE bseg-shkzg,
+*"cbr-france
+data:  wrbtr           LIKE bseg-wrbtr,
+"cbr-france
+       dmbtr           LIKE bseg-dmbtr.
+DATA: END OF it_prel_out.
+DATA: wa_prel_out LIKE LINE OF it_prel_out.
+
+*---- this table contains the selection criteria as stored in the
+*customizing
+*      table IDITSR_SELECT ---- *
+DATA: it_select LIKE STANDARD TABLE OF iditsr_select,
+      wa_select LIKE LINE OF it_select.
+
+* CBR S03CCR Begin - Layout
+DATA: sav_var LIKE disvariant.
+* CBR S03CCR End - Layout
+
+* ---- internal table for the company code related information ---- *
+DATA: BEGIN OF it_t001 OCCURS 0,
+        bukrs LIKE t001-bukrs,
+        land1 LIKE t001-bukrs,
+      END OF it_t001.
+DATA: wa_t001 LIKE LINE OF it_t001.
+
+*---- this table will contain all the BSEG fields entered in the
+*customizing
+*      table IDITSR_SELECT ---- *
+DATA: BEGIN OF it_fieldname OCCURS 0,
+      fieldname LIKE dd03l-fieldname,
+      END OF it_fieldname.
+DATA: wa_fieldname LIKE LINE OF it_fieldname.
+
+
+*---- internal table used for passing the data selected to the dme
+*generator ---- *
+DATA: it_output TYPE TABLE OF iditsr_output,
+      wa_output LIKE LINE OF it_output.
+
+* ---- additional tables ---- *
+*---- this table contains the selection criteria, stored in the
+*customizing
+*table IDITSR_SELECT, which are single values (i.e. the table field
+*      fieldvalue_high is initial)  ---- *
+DATA: BEGIN OF it_select_single OCCURS 0,
+        fieldname       LIKE iditsr_select-fieldname,
+        fieldvalue_low  LIKE iditsr_select-fieldvalue_low,
+        itsr_seqno      LIKE iditsr_select-itsr_seqno ,
+        priority        LIKE iditsr_select-priority,
+        itsr_doctype    LIKE iditsr_select-itsr_doctype,
+        position_number LIKE iditsr_select-position_number,
+        grouping        LIKE iditsr_select-grouping,
+      END OF it_select_single.
+DATA: wa_select_single LIKE LINE OF it_select_single.
+
+*---- this table contains the selection criteria, stored in the
+*customizing
+*      table IDITSR_SELECT, which are range values (i.e. the table field
+*      fieldvalue_high is NOT initial)  ---- *
+DATA: BEGIN OF it_select_range OCCURS 0,
+        fieldname       LIKE iditsr_select-fieldname,
+        fieldvalue_low  LIKE iditsr_select-fieldvalue_low,
+        fieldvalue_high LIKE iditsr_select-fieldvalue_high,
+        itsr_seqno      LIKE iditsr_select-itsr_seqno ,
+        priority        LIKE iditsr_select-priority,
+        itsr_doctype    LIKE iditsr_select-itsr_doctype,
+        position_number LIKE iditsr_select-position_number,
+        grouping        LIKE iditsr_select-grouping,
+      END OF it_select_range.
+DATA: wa_select_range LIKE LINE OF it_select_range.
+
+* CBR S03CCR Begin
+* Parameters For download the file
+DATA : pr_fname TYPE rlgrap-filename.
+DATA : BEGIN OF dtatab OCCURS 0,
+       line(1) TYPE c,
+       END OF dtatab.
+DATA : ln_len TYPE i,
+       fl_len TYPE i,
+       fl_name TYPE string,
+       hlp_ans(1) TYPE c,
+       fl_sts(1)  TYPE c VALUE 'X'.
+
+DATA : group_code TYPE iditsr_group_cod-group_code.
+
+CONSTANTS gc_filename                                       "1533533
+  TYPE fileintern                                           "1533533
+  VALUE 'FI_RFIDITSR00_FILE'.
+
+* CBR S03CCR End download the file
+*Note 1533999 Start
+*F01MER : for storing commercial margin
+DATA : it_com_margin TYPE TABLE OF iditsr_assign.
+DATA : wa_com_margin LIKE LINE OF it_com_margin.
+DATA : tot_sales TYPE iditsr_output-AMOUNT.
+DATA : tot_purchase TYPE iditsr_output-AMOUNT.
+"stores clearing date for F01MER
+DATA : it_blgdt like TABLE OF it_vecugl  WITH HEADER LINE .
+DATA : it_blgdt1 like TABLE OF it_vecugl  WITH HEADER LINE .
+*Note 1533999 End
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

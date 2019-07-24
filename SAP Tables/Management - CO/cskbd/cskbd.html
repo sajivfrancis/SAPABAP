@@ -1,0 +1,268 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- CSKBD</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   background-color:#E0E7ED;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   background-color:#F2F4F7;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: CSKBD</h2>
+  <h3>Description: Cost Element: Extra Fields for CSKA and CSKB</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>RKOKRS</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>KOKRS</td>
+  <td>CACCD</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Controlling Area</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>RKSTAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>RKSTAR</td>
+  <td>KSTAR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Reference Cost Element</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>DATAB_ANFO</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>DATAB</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Valid-From Date</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>DATBI_ANFO</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>DATBI</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Valid To Date</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>KOKRS_TEXT</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>BEZEI</td>
+  <td>TEXT25</td>
+  <td>CHAR</td>
+  <td>25</td>
+  <td>X</td>
+  <td>Name of the controlling area</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>TXFLG</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>TXFLG</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Text indicator</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>KATYP_TEXT</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>KLTXT</td>
+  <td>TEXT40</td>
+  <td>CHAR</td>
+  <td>40</td>
+  <td>X</td>
+  <td>Description</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>EIGEN_TEXT</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>KA4E_ZTEXT</td>
+  <td>TEXT40</td>
+  <td>CHAR</td>
+  <td>40</td>
+  <td>X</td>
+  <td>Name of cost element attribute</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>MSEHI_TEXT</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>MSEHL</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Unit of Measurement Text (Maximum 30 Characters)</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>LIVAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>VARNR_COOM</td>
+  <td>VARNR_021F</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>List Variant</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>LIVAR_TEXT</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>LTEXT_021F</td>
+  <td>TXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Fast Entry: Variant Description</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>KZ_BATCH</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>BATCHFLG</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Background Processing</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>KZ_TEST</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>ALLGTEST</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Test Run</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>KSTAR_TEXT</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>KTEXT</td>
+  <td>TEXT20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>X</td>
+  <td>General Name</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>MSEHI_CHAR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>CCMEH</td>
+  <td>CCMEH</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Unit of Measure</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>FAREA_NAME</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>FKBTX</td>
+  <td>TEXT25</td>
+  <td>CHAR</td>
+  <td>25</td>
+  <td>X</td>
+  <td>Name of the functional area</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,782 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- KNC1_BAK</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: KNC1_BAK</h2>
+  <h3>Description: Customer Master (Transaction Figures)</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>BABZG</td>
+  <td>56</td>
+  <td>&nbsp;</td>
+  <td>BABZG</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Authorized deductions (in local currency)</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>BUKRS</td>
+  <td>3</td>
+  <td>X</td>
+  <td>BUKRS</td>
+  <td>BUKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Company Code</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>ERDAT</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>ERDAT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date on Which Record Was Created</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>GJAHR</td>
+  <td>4</td>
+  <td>X</td>
+  <td>GJAHR</td>
+  <td>GJAHR</td>
+  <td>NUMC</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Fiscal Year</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>KUMAG</td>
+  <td>59</td>
+  <td>&nbsp;</td>
+  <td>KUMAG</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Accumulated clearing amount in the fiscal year</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>KUNNR</td>
+  <td>2</td>
+  <td>X</td>
+  <td>KUNNR</td>
+  <td>KUNNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Customer Number</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>KZINS</td>
+  <td>58</td>
+  <td>&nbsp;</td>
+  <td>KZINS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Acc.int.calc.numerator for payment arrears in fiscal year</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>MANDT</td>
+  <td>1</td>
+  <td>X</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>UABZG</td>
+  <td>57</td>
+  <td>&nbsp;</td>
+  <td>UABZG</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Accepted deductions taken after end of discount period</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>UM01H</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>UM01S</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>UM01U</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>UM02H</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>UM02S</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>UM02U</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>UM03H</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>17</td>
+  <td>UM03S</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>18</td>
+  <td>UM03U</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>19</td>
+  <td>UM04H</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>20</td>
+  <td>UM04S</td>
+  <td>17</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>21</td>
+  <td>UM04U</td>
+  <td>19</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>22</td>
+  <td>UM05H</td>
+  <td>21</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>23</td>
+  <td>UM05S</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>24</td>
+  <td>UM05U</td>
+  <td>22</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>25</td>
+  <td>UM06H</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>26</td>
+  <td>UM06S</td>
+  <td>23</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>27</td>
+  <td>UM06U</td>
+  <td>25</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>28</td>
+  <td>UM07H</td>
+  <td>27</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>29</td>
+  <td>UM07S</td>
+  <td>26</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>30</td>
+  <td>UM07U</td>
+  <td>28</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>31</td>
+  <td>UM08H</td>
+  <td>30</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>32</td>
+  <td>UM08S</td>
+  <td>29</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>33</td>
+  <td>UM08U</td>
+  <td>31</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>34</td>
+  <td>UM09H</td>
+  <td>33</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>35</td>
+  <td>UM09S</td>
+  <td>32</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>36</td>
+  <td>UM09U</td>
+  <td>34</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>37</td>
+  <td>UM10H</td>
+  <td>36</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>38</td>
+  <td>UM10S</td>
+  <td>35</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>39</td>
+  <td>UM10U</td>
+  <td>37</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>40</td>
+  <td>UM11H</td>
+  <td>39</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>41</td>
+  <td>UM11S</td>
+  <td>38</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>42</td>
+  <td>UM11U</td>
+  <td>40</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>43</td>
+  <td>UM12H</td>
+  <td>42</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>44</td>
+  <td>UM12S</td>
+  <td>41</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>45</td>
+  <td>UM12U</td>
+  <td>43</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>46</td>
+  <td>UM13H</td>
+  <td>45</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>47</td>
+  <td>UM13S</td>
+  <td>44</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>48</td>
+  <td>UM13U</td>
+  <td>46</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>49</td>
+  <td>UM14H</td>
+  <td>48</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>50</td>
+  <td>UM14S</td>
+  <td>47</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>51</td>
+  <td>UM14U</td>
+  <td>49</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>52</td>
+  <td>UM15H</td>
+  <td>51</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>53</td>
+  <td>UM15S</td>
+  <td>50</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>54</td>
+  <td>UM15U</td>
+  <td>52</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>55</td>
+  <td>UM16H</td>
+  <td>54</td>
+  <td>&nbsp;</td>
+  <td>UMXXH</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Credit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>56</td>
+  <td>UM16S</td>
+  <td>53</td>
+  <td>&nbsp;</td>
+  <td>UMXXS</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Total of the Debit Postings for the Month</td>
+</tr>
+<tr class="cell">
+  <td>57</td>
+  <td>UM16U</td>
+  <td>55</td>
+  <td>&nbsp;</td>
+  <td>UMXXU</td>
+  <td>UMXXX</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Sales in the Posting Period</td>
+</tr>
+<tr class="cell">
+  <td>58</td>
+  <td>UMSAV</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>UMSAV</td>
+  <td>WRTV8</td>
+  <td>CURR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Balance Carried Forward in Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>59</td>
+  <td>USNAM</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>USNAM</td>
+  <td>XUBNAME</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>User name</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

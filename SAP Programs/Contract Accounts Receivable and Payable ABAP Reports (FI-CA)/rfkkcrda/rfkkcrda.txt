@@ -1,0 +1,972 @@
+************************************************************************
+*  Report rfkkzeda                                                     *
+*                                                                      *
+*  Ausgabe des Inhaltes der Übergabedatei bei der                      *
+*  Zahlungsstapelübernahme zum Finanzwesen - VKK                       *
+*                                                                      *
+*  Konsistenzprüfungen :                                               *
+*                                                                      *
+*       - Es muß mindestens ein Satz vorh. sein                        *
+*       - Satztyp zw. 0 und 2                                          *
+*       - nach Mappensatz muß Kopfsatz folgen                          *
+*       - nach Kopfsatz muß Hauptsatz folgen                           *
+*                                                                      *
+*                                                                      *
+************************************************************************
+
+REPORT RFKKZEDA MESSAGE-ID MG LINE-SIZE 132.
+
+CONSTANTS: C_PHNAME LIKE FILENAME-FILEEXTERN
+                         VALUE ''.
+
+* Datenbanktabellen
+TABLES:
+    BFKKCGR00,
+    RLGRAP,
+    MSXXLIST,                    "Systemliste
+    D020S,
+    T100.                        "Messages
+
+* Belege buchen
+ TABLES:   BFKKCK,
+           BFKKCP.
+
+DATA:    MAPPENSATZ  LIKE BFKKCGR00-STYPE VALUE '0',
+         KOPFSATZ    LIKE BFKKCGR00-STYPE VALUE '1',
+         HAUPTSATZ   LIKE BFKKCGR00-STYPE VALUE '2'.
+************************************************************************
+*------- Workarea zum Lesen der BI-Sätze
+************************************************************************
+DATA:    BEGIN OF WA,
+           CHAR1(250)   TYPE C,
+           CHAR2(250)   TYPE C,
+           CHAR3(250)   TYPE C,
+           CHAR4(250)   TYPE C,
+           CHAR5(250)   TYPE C,
+           CHAR6(250)   TYPE C,
+           CHAR7(250)   TYPE C,
+           CHAR8(1000)  TYPE C,
+         END OF WA.
+
+*---------------------------------------------------------------------*
+*        Einzelfelder
+*---------------------------------------------------------------------*
+
+DATA:    GROUP_COUNT(6) TYPE C,    " Anzahl Mappen
+         TRANS_COUNT(6) TYPE C,    " Anzahl Transaktionen
+         SATZ_COUNT  LIKE MUEB_REST-TRANC, " Trans.zähler neu
+         H_IND_COUNT LIKE MUEB_REST-D_IND, " Index welches Feld zurücks.
+         SATZ2_COUNT(6) TYPE C.    " Anz. Sätze je Trans. ohne Kopfsatz
+
+DATA:    XEOF(1)          TYPE C,  " X=End of File erreicht
+         XHAUPTSATZ_EXIST TYPE C,  " X=Hauptsatz zum Kopf exi.
+         NODATA(1)        TYPE C.  " kein BI für dieses Feld
+
+* mk/15.08.94:
+DATA:    GROUP_OPEN(1)  TYPE C.             " X=Mappe schon geöffnet
+
+*eject
+*-----------------------------------------------------------------------
+*        Konstanten
+*-----------------------------------------------------------------------
+DATA:    C_NODATA(1)    TYPE C VALUE '/'.   " Default für NODATA
+
+* zur Übergabe der Daten an BI_EDIT_DATA
+*DATA: BEGIN OF DATEDIT OCCURS 0.
+*        INCLUDE STRUCTURE TEDATA.
+*DATA: END   OF DATEDIT.
+*
+DATA: BEGIN OF SERVER_TAB OCCURS 0.
+        INCLUDE STRUCTURE MSXXLIST.
+DATA: END   OF SERVER_TAB.
+*
+DATA: BEGIN OF PC_DATA_TAB OCCURS 0,
+      REC(3000) TYPE C,
+         END OF PC_DATA_TAB.
+
+
+
+
+
+* zur Übergabe der Daten an BI_EDIT_DATA
+DATA: DATEDIT LIKE TEDATA OCCURS 100 WITH HEADER LINE,
+      AKTNUM LIKE TEDATA-NUMMER,
+      TITLE(100),
+      ANTWORT,
+      ALTERED.
+
+* --- Definition Message - Typ ----------------------------------------
+
+TYPES: BEGIN OF T_MSG,
+            V1 LIKE SY-MSGV1,           "Argumente
+            V2 LIKE SY-MSGV2,
+            V3 LIKE SY-MSGV3,
+            V4 LIKE SY-MSGV4,
+            TY LIKE SY-MSGTY,           "Messagetype
+            NO LIKE SY-MSGNO,           "Message-No.
+       END OF T_MSG.
+
+* --- Definitionen für Dateiarbeit ------------------------------------
+
+DATA: DS_NAME LIKE FILENAME-FILEEXTERN.           "phys.(ext.) Dateiname
+
+DATA: HSTYPE  LIKE BFKKCGR00-STYPE,
+      SATZTYP LIKE BFKKCGR00-STYPE.
+
+* --- Tabelle der bereits prozessierten Satztypen zur Transaktion -----
+
+*DATA:    BEGIN OF XSATZ  OCCURS 6,
+*           STYPE LIKE BGR00-STYPE,
+*         END OF XSATZ.
+
+* --- sonstiges -------------------------------------------------------
+DATA:  X(1) TYPE C VALUE 'X'.
+DATA: MSG TYPE T_MSG,
+      XMAPPENSATZ_NOT_EXIST LIKE XHAUPTSATZ_EXIST,   " X=kein Mappensatz
+      TRANC LIKE RMMBI-MAXLI,   " evtl. auszugebene Transaktionen zählen
+                                " ( über alle Mappen )
+      S_TRANC LIKE RMMBI-MAXLI, " tats. ausgegebene Transaktionen zählen
+                                " ( über alle Mappen )
+      H_TRANC(5),
+      MINLINE_1 LIKE RMMBI-MAXLI,
+      ALTER_ALLOWED VALUE 'X'.
+
+DATA: BEGIN OF BIG_WA OCCURS 100, " interne Tabelle für WA
+        LINE LIKE WA,
+      END OF BIG_WA.
+DATA: BEGIN OF DYNP_VALUE_TAB OCCURS 0.
+        INCLUDE STRUCTURE DYNPREAD.
+DATA: END   OF DYNP_VALUE_TAB,
+      MASK(20)   TYPE C VALUE ',*.*  ,*.*.'  ,
+      DATA_FRN.
+
+* --- Parameter -------------------------------------------------------
+
+*selection-screen begin of block server with frame title text-809.
+*  selection-screen begin of block app_server with frame title text-812.
+
+*    parameters: lds_name like filename-fileintern.
+    DATA: LDS_NAME LIKE FILENAME-FILEINTERN.
+*                         DEFAULT 'NOLLTESTB'.
+*    selection-screen skip 1.
+
+*    selection-screen comment  1(12) text-851.
+
+    PARAMETERS: PH_NAME LIKE FILENAME-FILEEXTERN DEFAULT C_PHNAME.
+    SELECTION-SCREEN SKIP 1.
+
+*    selection-screen begin of line.
+*      parameters: data_app radiobutton group csbi default 'X'.
+      DATA: DATA_APP LIKE BOOLE-BOOLE VALUE 'X'.
+*      selection-screen comment  4(42) text-806.
+*    selection-screen end   of line.
+
+*    selection-screen begin of line.
+*      parameters: data_rem radiobutton group csbi.
+      DATA: DATA_REM LIKE BOOLE-BOOLE.
+*      selection-screen comment  4(42) text-808.
+*    selection-screen end   of line.
+
+*    selection-screen begin of line.
+*      selection-screen comment  4(12) text-810.
+*      parameters: server like msxxlist-name.
+      DATA: SERVER LIKE MSXXLIST-NAME.
+*    selection-screen end   of line.
+*  selection-screen end   of block app_server.
+
+* SELECTION-SCREEN SKIP 1.
+*  selection-screen begin of line.
+*    selection-screen comment  1(12) text-851.
+*  selection-screen end   of line.
+
+*  selection-screen begin of block front_end with frame title text-813.
+
+    DATA: OS_NAME LIKE RLGRAP-FILENAME.
+*    parameters: os_name like rlgrap-filename
+*                default ''.
+
+*    selection-screen begin of line.
+*     selection-screen comment  4(42) text-007.
+*    selection-screen end   of line.
+*  selection-screen end   of block front_end.
+*selection-screen end   of block server.
+
+*selection-screen begin of block file_use  with frame title text-850.
+  PARAMETERS: MIN_LINE     LIKE RMMBI-MAXLI DEFAULT '1',
+              MAX_LINE     LIKE RMMBI-MAXLI DEFAULT '100'.
+*              KZ_PRF       LIKE RMMBI-KZPRF DEFAULT SPACE.
+*selection-screen end   of block file_use.
+
+
+*---------------F4-Hilfe zur Dateisuche (Dateimanager)---------------*
+*at selection-screen on value-request for os_name.
+*
+*  move: sy-repid to d020s-prog,
+*        sy-dynnr to d020s-dnum.
+*
+*  move: 'OS_NAME' to dynp_value_tab-fieldname.
+*  append dynp_value_tab.
+*
+*  call function 'DYNP_VALUES_READ'
+*                     exporting  dyname               = d020s-prog
+*                                dynumb               = d020s-dnum
+*
+*                     tables     dynpfields           = dynp_value_tab
+*
+*                     exceptions invalid_abapworkarea = 04
+*                                invalid_dynprofield  = 08
+*                                invalid_dynproname   = 12
+*                                invalid_dynpronummer = 16
+*                                invalid_request      = 20
+*                                no_fielddescription  = 24
+*                                undefind_error       = 28.
+*
+*  read table dynp_value_tab index 1.
+*
+*  move: dynp_value_tab-fieldvalue to ds_name.
+*
+*  call function 'WS_FILENAME_GET'
+*                     exporting  def_filename     =  space
+*                                def_path         =  os_name
+*                                mask             =  mask
+*                                mode             = 'O'
+*                                title            =  text-005
+*
+*                     importing  filename         =  os_name
+*                               RC               =  DUMMY
+*
+*                     exceptions inv_winsys       =  04
+*                                no_batch         =  08
+*                                selection_cancel =  12
+*                                selection_error  =  16.
+*
+*  if sy-subrc eq '04'.
+*    message i838(29).
+*  endif.
+
+**** Programm *********************************************************
+
+AT SELECTION-SCREEN.
+
+  IF ( NOT ( LDS_NAME IS INITIAL  OR  PH_NAME IS INITIAL )
+                                   AND NOT ( OS_NAME IS INITIAL ) ). "MN
+    MESSAGE E814(29).
+  ENDIF.
+
+  IF NOT ( OS_NAME IS INITIAL ).
+    CLEAR: DATA_APP, DATA_REM.
+    DATA_FRN = X.
+    DS_NAME = OS_NAME.
+  ENDIF.
+
+  IF NOT PH_NAME IS INITIAL.               "MN
+      MOVE PH_NAME TO DS_NAME.
+  ENDIF.
+
+
+
+
+  IF DATA_FRN IS INITIAL AND NOT LDS_NAME IS INITIAL.    "MN
+     " physischen Dateinamen holen
+     CALL FUNCTION 'FILE_GET_NAME'
+          EXPORTING
+               LOGICAL_FILENAME = LDS_NAME
+          IMPORTING
+               FILE_NAME        = DS_NAME
+          EXCEPTIONS
+               FILE_NOT_FOUND   = 01.
+     IF SY-SUBRC NE 0.
+       MESSAGE E016 WITH LDS_NAME.
+     ENDIF.
+
+     IF MAX_LINE LT 0.
+       MESSAGE E012.
+     ENDIF.
+  ENDIF.
+
+  IF NOT DATA_REM IS INITIAL.
+    IF SERVER IS INITIAL.
+      MESSAGE E840(29).
+    ENDIF.
+  ENDIF.
+
+*---------------F4-Hilfe zur Serversuche-----------------------------*
+*at selection-screen on value-request for server.
+*
+*  move: '255' to msxxlist-msgtypes.
+*
+*  call function 'TH_SELECT_SERVER'
+*       exporting
+*            services                = msxxlist-msgtypes
+*       importing
+*            server                  = server
+*       exceptions
+*            no_server_list_received = 04
+*            no_server_selected      = 08.
+*
+*  case syst-subrc.
+*    when 4.
+*      message i623(00).
+*
+*    when 8.
+*      message i839(29).
+*
+*  endcase.
+
+
+START-OF-SELECTION.
+
+* --- minline - 1 besetzen und feststellen, ob aendern erlaubt ist
+  MINLINE_1 = MIN_LINE - 1.
+  IF MIN_LINE > 1.
+     CLEAR ALTER_ALLOWED.
+  ENDIF.
+*------Datei öffnen und Daten in BIG_WA einlesen -----------------------
+  PERFORM OPEN_AND_GET_DATA.
+*------1. Satz der Datei lesen------------------------------------------
+  CLEAR WA.
+  PERFORM READ_DATASET USING WA.
+  IF SY-SUBRC NE 0.
+*------keine Sätze gefunden -> Abbruch----------------------------------
+    MESSAGE E003 WITH DS_NAME.    " TODO
+  ENDIF.
+*------Reset Transaktions-Zähler --------------------------------------
+  CLEAR TRANC.
+*-----------------------------------------------------------------------
+*------erster Satz muß Mappensatz sein----------------------------------
+  IF WA(1) NE MAPPENSATZ.
+    CLEAR MSG.
+    MSG-V1 = DS_NAME.
+    MSG-NO = 004.
+    PERFORM MESSAGE_TEXT USING MSG.
+*-wenn erster Satz kein Mappensatz, werden alle weiteren Fehlermeldg. -
+*-bis zum nächsten Mappensatz unterdrückt------------------------------
+    XMAPPENSATZ_NOT_EXIST = X.
+  ENDIF.
+*------1. Mappe prüfen--------------------------------------------------
+  PERFORM NEUE_MAPPE.
+  IF TRANC >= MINLINE_1.     " == min_line - 1
+     PERFORM AUSGABE_WA USING WA.
+  ENDIF.
+*------1. Kopfsatz lesen------------------------------------------------
+  PERFORM KOPFSATZ_LESEN.
+  PERFORM KOPFSATZ_INIT.
+  IF TRANC >= MIN_LINE.
+     PERFORM AUSGABE_WA USING WA.
+  ENDIF.
+  WHILE XEOF NE X.
+    CLEAR WA.
+    PERFORM READ_DATASET USING WA.
+    IF SY-SUBRC NE 0.
+*------wenn EOF erreicht --> Exit---------------------------------------
+      XEOF = X.
+      EXIT.
+    ELSEIF WA(1) = MAPPENSATZ.
+*------nächste Mappe----------------------------------------------------
+      CLEAR XMAPPENSATZ_NOT_EXIST.  " Fehlermeldg. wieder erlauben
+      IF TRANC >= MINLINE_1.
+         PERFORM AUSGABE_WA USING WA.
+      ENDIF.
+      PERFORM NEUE_MAPPE.
+      PERFORM KOPFSATZ_LESEN.
+      PERFORM KOPFSATZ_INIT.
+    ELSEIF WA(1) = KOPFSATZ.
+*------nächste Transaktion----------------------------------------------
+      PERFORM ENDE_TRANSAKTION.
+      PERFORM KOPFSATZ_INIT.
+    ELSE.
+*------Satz zur aktuellen Transaktion-----------------------------------
+      SATZ2_COUNT = SATZ2_COUNT + 1.
+      IF WA(1) NE HAUPTSATZ.
+        CLEAR MSG.
+        MSG-V1 = TRANS_COUNT.
+        MSG-V2 = SATZ2_COUNT.
+        MSG-V3 = WA(1).
+        MSG-NO = 102.
+        PERFORM MESSAGE_TEXT USING MSG.
+      ENDIF.
+*     IF WA(1) NE HAUPTSATZ AND WA(1) NE KUN_SATZ
+*                           AND XHAUPTSATZ_EXIST IS INITIAL.
+*       CLEAR MSG.
+*       MSG-V1 = TRANS_COUNT.
+*       MSG-V2 = SATZ2_COUNT.
+*       MSG-NO = 110.
+*       PERFORM MESSAGE_TEXT USING MSG.
+*     ENDIF.
+      PERFORM SATZTYP_PRUEFEN.
+    ENDIF.
+    IF TRANC > MAX_LINE AND MAX_LINE > 0.
+      CLEAR ALTER_ALLOWED.   " Ändern verboten!
+      PERFORM AUSGABE_WA USING
+                 'I--- es sind noch mehr Transaktionen vorhanden'(011).
+      XEOF = X.
+      EXIT.
+    ELSEIF TRANC >= MIN_LINE.
+      PERFORM AUSGABE_WA USING WA.
+    ENDIF.
+  ENDWHILE.
+  " An FB übergeben
+  PERFORM AUSGABE.
+
+******** Unterprogramme ***********************************************
+FORM AUSGABE.
+ DATA: RET LIKE SY-SUBRC.
+  " evtl Info, daß nicht alle Transaktionen ausgegeben wurden
+  IF MIN_LINE > 1 OR TRANC > MAX_LINE.
+     MESSAGE S454 WITH MIN_LINE MAX_LINE.
+  ENDIF.
+  " Titel setzen
+  TITLE = '& Transaktionen der Datei &'(001).
+  WRITE S_TRANC TO H_TRANC NO-ZERO.
+  REPLACE '&' WITH H_TRANC INTO TITLE.
+  REPLACE '&' WITH DS_NAME INTO TITLE.
+  " Anzeigen und Ändern der Daten
+  CALL FUNCTION 'BI_EDIT_DATA'
+       EXPORTING
+            LIST_TITLE              = TITLE
+            ALTER_ALLOWED           = ALTER_ALLOWED
+            CREATE_TABLES_STATEMENT = X
+            NODATA_SIGN             = NODATA
+            DISPLAY_ONLY_DATA       = ' '
+       TABLES
+            DISP_DATA               = DATEDIT
+       CHANGING
+            DATA_ALTERED            = ALTERED
+       EXCEPTIONS
+            NO_TABLES_STATEMENT     = 1
+            OTHERS                  = 2.
+  IF ALTERED = X.
+     " Wollen wir speichern.
+     CALL FUNCTION 'POPUP_TO_DECIDE'
+          EXPORTING
+               DEFAULTOPTION = '1'
+               TEXTLINE2     = 'Datenfile zurückschreiben?'(002)
+               TEXTLINE1     = 'Die Daten wurden geändert'(003)
+*              TEXTLINE3     = ' '
+               TEXT_OPTION1  = 'Ja'(004)
+               TEXT_OPTION2  = 'Nein'(005)
+               TITEL         = 'Sichern ?'(006)
+*              START_COLUMN  = 25
+*              START_ROW     = 6
+          IMPORTING
+               ANSWER        = ANTWORT
+          EXCEPTIONS
+               OTHERS        = 1.
+     IF ANTWORT = '1'.
+        PERFORM SPEICHERN USING RET.
+        IF RET = 0.
+           MESSAGE S451 WITH DS_NAME.
+        ELSE.
+           MESSAGE I456.
+        ENDIF.
+     ELSEIF ANTWORT = '2'.
+        MESSAGE S452.
+     ELSE.
+        PERFORM AUSGABE.  " ok, ist rekursiv, aber einfach!
+     ENDIF.
+  ELSE.
+     MESSAGE S453.
+  ENDIF.
+ENDFORM.
+
+* speichert auf das gleiche Medium zurück
+FORM SPEICHERN USING RETCODE.
+ DATA: STRUCT(10).
+
+
+ DATA: BEGIN OF PC_DATA_TAB OCCURS 0,
+        ZEILE LIKE WA,
+       END   OF PC_DATA_TAB.
+ FIELD-SYMBOLS: <TAB>.
+
+  IF NOT DATA_APP IS INITIAL.
+    CLOSE DATASET DS_NAME.
+*    OPEN DATASET ds_name FOR OUTPUT IN TEXT MODE ENCODING DEFAULT. "Note 1584421
+*    IF sy-subrc <> 0.                                              "Note 1584421
+      retcode = 8.                                                  "Note 1584421
+      EXIT.                                                         "Note 1584421
+*    ENDIF.
+    SORT DATEDIT BY NUMMER.
+    LOOP AT DATEDIT.
+*     TRANSFER DATEDIT-DATA TO DS_NAME.
+
+      CASE DATEDIT-DATA(1).
+        WHEN '0'.
+          BFKKCGR00 = DATEDIT-DATA.
+          TRANSFER BFKKCGR00 TO DS_NAME.
+*        when '1'.
+*          bfkkko = datedit-data.
+*          transfer bfkkko to ds_name.
+        WHEN '1' OR '2' OR '3' OR '4'.
+* Die Variable struct wird mit der Tabname belegt
+          STRUCT = DATEDIT-DATA+1(10).
+* Die Tabelle wird mit Datensatz gefüllt.
+          ASSIGN (STRUCT) TO <TAB>.
+          <TAB> = DATEDIT-DATA.
+          TRANSFER <TAB> TO DS_NAME.
+       ENDCASE.
+    ENDLOOP.
+
+
+
+    CLOSE DATASET DS_NAME.
+    RETCODE = 0.
+*  ELSEIF NOT DATA_REM IS INITIAL.
+*    CALL FUNCTION 'CLBA_UPDATE_FILE_REMOTE_HOST' DESTINATION SERVER
+*         EXPORTING
+*              FILE_NAME    = DS_NAME
+*         TABLES
+*              DATA_TAB     = DATEDIT
+*         EXCEPTIONS
+*              OPEN_FAILURE = 1
+*              OTHERS       = 2.
+*    RETCODE = SY-SUBRC.
+*  ELSEIF NOT DATA_FRN IS INITIAL.
+*    MOVE:  DS_NAME TO RLGRAP-FILENAME,
+*          'ASC'    TO RLGRAP-FILETYPE.
+*
+*    REFRESH PC_DATA_TAB.
+*    LOOP AT DATEDIT.
+*      PC_DATA_TAB = DATEDIT-DATA.
+*      APPEND PC_DATA_TAB.
+*    ENDLOOP.
+*    CALL FUNCTION 'WS_DOWNLOAD'
+*         EXPORTING
+*              FILENAME            = RLGRAP-FILENAME
+*              FILETYPE            = RLGRAP-FILETYPE
+*         TABLES
+*              DATA_TAB            = PC_DATA_TAB
+*         EXCEPTIONS
+*              FILE_OPEN_ERROR     = 1
+*              FILE_WRITE_ERROR    = 2
+*              INVALID_FILESIZE    = 3
+*              INVALID_TABLE_WIDTH = 4
+*              INVALID_TYPE        = 5
+*              NO_BATCH            = 6
+*              UNKNOWN_ERROR       = 7
+*              OTHERS              = 8.
+*    RETCODE = SY-SUBRC.
+  ENDIF.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM NEUE_MAPPE                                               *
+*---------------------------------------------------------------------*
+FORM NEUE_MAPPE.
+
+  GROUP_COUNT = GROUP_COUNT + 1.       "Mappenzähler aktualisieren
+  CLEAR TRANS_COUNT.                   "Reset Transaktionszähler
+
+  CLEAR BFKKCGR00.
+  BFKKCGR00 = WA.
+  NODATA = SPACE.
+*  nodata = bfkkgr00-nodata.
+
+ENDFORM.
+
+
+*---------------------------------------------------------------------*
+*       FORM ENDE_TRANSAKTION.                                        *
+*---------------------------------------------------------------------*
+FORM ENDE_TRANSAKTION.
+
+  IF TRANS_COUNT GT 0 AND XHAUPTSATZ_EXIST IS INITIAL.
+*-- Transaktion ohne Hauptsatz ----------------------------------------
+    CLEAR MSG.
+    MSG-V1 = TRANS_COUNT.
+    MSG-NO = 113.
+    PERFORM MESSAGE_TEXT USING MSG.
+  ENDIF.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM KOPFSATZ_INIT                                            *
+*---------------------------------------------------------------------*
+*       Initialisieren der Flags je Transaktion                       *
+*---------------------------------------------------------------------*
+FORM KOPFSATZ_INIT.
+
+*------- Flags, Zähler initialisieren ----------------------------------
+  CLEAR:  SATZ2_COUNT, XHAUPTSATZ_EXIST.
+*------- hochzählen des Transaktionszählers ---------------------------
+  TRANS_COUNT = TRANS_COUNT + 1.
+*------- hochzählen des Transaktionszählers overall -------------------
+  ADD 1 TO TRANC.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM KOPFSATZ_LESEN                                           *
+*---------------------------------------------------------------------*
+*       Kopfdaten in Workarea lesen                                   *
+*---------------------------------------------------------------------*
+
+FORM KOPFSATZ_LESEN.
+
+  CLEAR WA.
+  PERFORM READ_DATASET USING WA.
+*----- wenn EOF erreicht --> Exit -------------------------------------
+  IF SY-SUBRC NE 0.
+    XEOF = X.
+    EXIT.
+  ENDIF.
+  IF WA(1) NE KOPFSATZ.
+*----- auf Mappensatz folgt kein Kopfsatz -----------------------------
+    CLEAR MSG.
+    MSG-V1 = GROUP_COUNT.
+    MSG-NO = 101.
+    PERFORM MESSAGE_TEXT USING MSG.
+  ENDIF.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM WA_UEBERTRAGEN                                           *
+*---------------------------------------------------------------------*
+FORM SATZTYP_PRUEFEN.
+
+  SATZTYP = WA(1).
+
+*  IF NOT KZ_PRF IS INITIAL.
+*    PERFORM SATZTYP_WECHSEL_PRUEFEN.
+*  ENDIF.
+  IF SATZTYP = HAUPTSATZ. "  or satztyp = zusatzsatz.
+   IF XHAUPTSATZ_EXIST IS INITIAL.
+      XHAUPTSATZ_EXIST = X.
+   ENDIF.
+  ENDIF.
+*------ akt. Satztyp für Prüfung speichern ----------------------------
+  HSTYPE = SATZTYP.
+
+ENDFORM.
+
+*------------------------------------------------------------------
+* Form SATZTYP_WECHSEL_PRUEFEN
+*
+* Es wird überprüft, ob die Sätze zu einem Satztyp zusammenhängend
+* übergeben wurden
+*------------------------------------------------------------------
+
+FORM SATZTYP_WECHSEL_PRUEFEN.
+
+*--- Rücksetzen XSATZ beim Hauptsatz ----------------------------------
+*  IF SATZTYP = HAUPTSATZ.
+*    REFRESH XSATZ.
+*  ENDIF.
+
+* IF HSTYPE NE SATZTYP AND SATZTYP NE HAUPTSATZ.
+*--- Wechsel der Satzart ----------------------------------------------
+*   READ TABLE XSATZ WITH KEY SATZTYP.
+*   IF SY-SUBRC EQ 0.
+*--- Sätze zu einem Satztyp müssen je Transaktion zusammenhängend -----
+*--- vorgegeben werden ------------------------------------------------
+*     CLEAR MSG.
+*     MSG-V1 = TRANS_COUNT.
+*     MSG-NO = 126.
+*     PERFORM MESSAGE_TEXT USING MSG.
+*   ELSE.
+*--- bereits prozessierte Satztypen 'merken' --------------------------
+*    XSATZ-STYPE = SATZTYP.
+*     APPEND XSATZ.
+*   ENDIF.
+* ENDIF.
+
+ENDFORM.
+
+*----------------------------------------------------------------------*
+*        Form  MESSAGE_TEXT                                            *
+*----------------------------------------------------------------------*
+*        MESSAGE-Text ins Protokoll ausgeben.                          *
+*----------------------------------------------------------------------*
+
+FORM MESSAGE_TEXT USING MSGL STRUCTURE MSG.
+  DATA MSGV LIKE SY-MSGV1.
+  DATA MSG_TEXT(250) TYPE C.
+
+  IF NOT XMAPPENSATZ_NOT_EXIST IS INITIAL.
+     EXIT.
+  ENDIF.
+
+  IF  T100-SPRSL <> SY-LANGU OR
+      T100-ARBGB <> 'MG' OR
+      T100-MSGNR <> MSGL-NO.
+*------ neuer Eintrag aus T100 -----------------------------------------
+    SELECT SINGLE * FROM T100 WHERE SPRSL = SY-LANGU
+                              AND   ARBGB = 'MG'
+                              AND   MSGNR = MSGL-NO.
+    IF SY-SUBRC = 0.
+      CONCATENATE '-E- ' T100-TEXT INTO MSG_TEXT.
+      DO 4 TIMES VARYING MSGV FROM MSGL-V1 NEXT MSGL-V2.
+        IF MSG_TEXT CA '$'.
+          REPLACE '$' WITH MSGV INTO MSG_TEXT.
+          CONDENSE MSG_TEXT.
+        ENDIF.
+        IF MSG_TEXT CA '&'.
+          REPLACE '&' WITH MSGV INTO MSG_TEXT.
+          CONDENSE MSG_TEXT.
+        ENDIF.
+      ENDDO.
+    ELSE.
+      MSG_TEXT = '-E- Fehlerhafte Satzreihenfolge oder Satzart'(010).
+    ENDIF.
+  ELSE.
+*------ alter Eintrag aus T100 -----------------------------------------
+    IF T100-TEXT NE SPACE.
+      CONCATENATE '-E- ' T100-TEXT INTO MSG_TEXT.
+      DO 4 TIMES VARYING MSGV FROM MSGL-V1 NEXT MSGL-V2.
+        IF MSG_TEXT CA '$'.
+          REPLACE '$' WITH MSGV INTO MSG_TEXT.
+          CONDENSE MSG_TEXT.
+        ENDIF.
+        IF MSG_TEXT CA '&'.
+          REPLACE '&' WITH MSGV INTO MSG_TEXT.
+          CONDENSE MSG_TEXT.
+        ENDIF.
+      ENDDO.
+    ELSE.
+      MSG_TEXT = TEXT-010.
+    ENDIF.
+  ENDIF.
+  SHIFT MSG_TEXT RIGHT BY 1 PLACES.
+  MSG_TEXT(1) = 'E'.
+  PERFORM AUSGABE_WA USING MSG_TEXT.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM AUSGABE_WA                                               *
+*---------------------------------------------------------------------*
+*       Inhalt der WorkArea in tabelle einlesen
+*---------------------------------------------------------------------*
+INCLUDE <LIST>.
+FORM AUSGABE_WA USING WA.
+  DATA: KENNUNG.
+  DATA: ANFANG(11) TYPE C.
+  KENNUNG = WA.   " WA(1).
+  ANFANG = WA.
+  CASE KENNUNG.
+    WHEN MAPPENSATZ. " Mappendaten
+       DATEDIT-TABNAME = 'BFKKCGR00'.
+       DATEDIT-COLOR   = COL_POSITIVE.
+       DATEDIT-TEXT = TEXT-020.
+       DATEDIT-DATA = WA.
+    WHEN KOPFSATZ.
+       S_TRANC = S_TRANC + 1.      " wieviele Ausgegeben
+       WRITE TRANC TO DATEDIT-TEXT NO-ZERO.
+       DATEDIT-TEXT = TEXT-021.
+       DATEDIT-COLOR   = COL_TOTAL.
+       DATEDIT-TABNAME = ANFANG+1(10). " 'BFKKKO'.
+       DATEDIT-DATA = WA.
+    WHEN HAUPTSATZ.
+       DATEDIT-TEXT = TEXT-022.
+       DATEDIT-COLOR   = COL_HEADING.
+       DATEDIT-TABNAME = ANFANG+1(10).
+       DATEDIT-DATA = WA.
+    WHEN 'E'.  " Spezialfall Fehlerbehandlung
+       DATEDIT-TEXT = 'Fehler!'(029).
+       DATEDIT-COLOR   = COL_NEGATIVE.
+       DATEDIT-TABNAME = SPACE.
+       DATEDIT-DATA = WA.
+    WHEN 'I'.  " Spezialfall Info
+       DATEDIT-TEXT = 'Info'(033).
+       DATEDIT-COLOR   = COL_NEGATIVE.
+       DATEDIT-TABNAME = SPACE.
+       DATEDIT-DATA = WA.
+    WHEN OTHERS.
+       DATEDIT-TABNAME = '     '.
+       DATEDIT-COLOR   = COL_NEGATIVE.
+       DATEDIT-TEXT = 'unbekannt'(030).
+       DATEDIT-DATA = KENNUNG.
+  ENDCASE.
+  AKTNUM = AKTNUM + 1.
+  DATEDIT-NUMMER = AKTNUM.
+  APPEND DATEDIT.
+ENDFORM.
+
+* Datensatz holen aus BIG_WA
+*
+DATA: BIG_INDEX LIKE SY-TABIX VALUE '0'.
+FORM READ_DATASET USING AREA.
+    BIG_INDEX = BIG_INDEX + 1.   " Ist anfangs 0
+    READ TABLE BIG_WA INDEX BIG_INDEX INTO AREA.
+ENDFORM.
+
+* Datensätze holen
+FORM OPEN_AND_GET_DATA.
+ DATA: TRANC TYPE I.
+ DATA: BEGIN OF SERVER_TAB OCCURS 0.
+         INCLUDE STRUCTURE MSXXLIST.
+ DATA: END   OF SERVER_TAB.
+ DATA: BEGIN OF PC_DATA_TAB OCCURS 0,
+         ZEILE LIKE WA,
+       END   OF PC_DATA_TAB,
+       CNT_PC TYPE I.
+
+*  IF NOT DATA_REM IS INITIAL.
+*    " Server holen: Entfernte Datei
+*    IF SERVER IS INITIAL.
+*      MESSAGE A840(29).
+*    ENDIF.
+*    MOVE: '255' TO MSXXLIST-MSGTYPES.
+*
+*    CALL FUNCTION 'TH_SERVER_LIST'
+*         EXPORTING
+*              SERVICES = MSXXLIST-MSGTYPES
+*         TABLES
+*              LIST     = SERVER_TAB.
+*
+*    DESCRIBE TABLE SERVER_TAB LINES SYST-TFILL.
+*
+*    IF SYST-TFILL EQ 0.
+*      MESSAGE E623(00).
+*    ENDIF.
+*
+*    READ TABLE SERVER_TAB WITH KEY NAME = SERVER.
+*
+*    IF SYST-SUBRC NE 0.
+*      READ TABLE SERVER_TAB WITH KEY HOST = SERVER.
+*    ENDIF.
+*
+*    IF SYST-SUBRC EQ 0.
+*      MOVE SERVER_TAB-NAME TO SERVER.
+*    ELSE.
+*      MESSAGE E841(29) WITH SERVER.
+*    ENDIF.
+*    CALL FUNCTION 'CLBA_CLASSIF_FILE_REMOTE_HOST' DESTINATION SERVER
+*         EXPORTING
+*              FILE_NAME             = DS_NAME
+*         TABLES
+*              CLASSIF_FILE          = PC_DATA_TAB
+*         EXCEPTIONS
+*              OPEN_FAILURE          = 04
+*              FILE_CONTAINS_NO_DATA = 08.
+*    CASE SYST-SUBRC.
+*      WHEN 4.
+*        READ TABLE SERVER_TAB WITH KEY NAME = SERVER.
+*
+*        MESSAGE I844(29) WITH DS_NAME SERVER_TAB-HOST.
+*        MESSAGE A821(29).
+*
+*      WHEN 8.
+*        READ TABLE SERVER_TAB WITH KEY NAME = SERVER.
+*
+*        MESSAGE I845(29) WITH DS_NAME SERVER_TAB-HOST.
+*        MESSAGE A821(29).
+*
+*    ENDCASE.
+*  ELSEIF NOT DATA_FRN IS INITIAL.
+*    " vom Präsentationsserver holen
+*    MOVE:  DS_NAME TO RLGRAP-FILENAME,
+*          'ASC'    TO RLGRAP-FILETYPE.
+*
+**    OPEN DATASET DS_NAME FOR INPUT IN TEXT MODE.    "MN150796
+**    IF SYST-SUBRC GT 0.                             "MN150796
+**      MESSAGE I800(29) WITH DS_NAME.                "MN150796
+**      MESSAGE A821(29).                             "MN150796
+**    ENDIF.                                          "MN150796
+*    CALL FUNCTION 'WS_UPLOAD'
+*         EXPORTING
+*              FILENAME        = RLGRAP-FILENAME
+*              FILETYPE        = RLGRAP-FILETYPE
+*         TABLES
+*             DATA_TAB        = PC_DATA_TAB
+*         EXCEPTIONS
+*              FILE_OPEN_ERROR = 04
+*              FILE_READ_ERROR = 08
+*              INVALID_TYPE    = 12
+*              UNKNOWN_ERROR   = 16.
+*    IF SYST-SUBRC NE 0.
+*      MESSAGE E506(ID) WITH SYST-SUBRC.
+*    ENDIF.
+*
+*  ELSE
+  IF NOT DATA_APP IS INITIAL.
+    " vom Applikationsserver holen
+*    OPEN DATASET ds_name FOR INPUT IN TEXT MODE ENCODING DEFAULT. "1584421
+*    IF syst-subrc GT 0.                                      "Note 1584421
+      MESSAGE e485(>U) WITH ds_name.                          "Note 1584421
+*     MESSAGE A821(29).
+*    ENDIF.                                                   "Note 1584421
+  ENDIF.
+
+  CNT_PC = 1.
+  DO.
+    CLEAR: BIG_WA.
+    IF DATA_APP IS INITIAL.
+      READ TABLE PC_DATA_TAB INDEX CNT_PC INTO BIG_WA.
+      IF SYST-SUBRC GT 0.
+        EXIT.
+      ENDIF.
+      CNT_PC = CNT_PC + 1.
+    ELSE.
+      READ DATASET DS_NAME INTO BIG_WA.
+      IF SYST-SUBRC GT 0.
+        EXIT.
+      ENDIF.
+    ENDIF.
+    APPEND BIG_WA.
+    IF BIG_WA(1) = KOPFSATZ.
+      TRANC = TRANC + 1.
+    ENDIF.
+    IF MAX_LINE > 0 AND TRANC > MAX_LINE.
+      EXIT.
+    ENDIF.
+  ENDDO.
+  IF NOT DATA_FRN IS INITIAL.
+    CLOSE DATASET DS_NAME.
+  ENDIF.
+ENDFORM.
+
+*Text elements
+*----------------------------------------------------------
+* 001 & Transactions from File &
+* 002 Save data file?
+* 003 Data was changed
+* 004 Y
+* 005 No
+* 006 Save?
+* 010 -E- Incorrect Record Sequence or Record Type
+* 011 I--- there are more payment lots
+* 020 File Hdr
+* 021 Header
+* 022 Item
+* 023 Addit.Sel.
+* 024 Consumptn Data
+* 025 Short Txt
+* 026 Units of Meas.
+* 027 Long Text
+* 028 Add. EANs
+* 029 Error
+* 030 Unknown
+* 031 Trans.
+* 033 Info
+* 034 Usage Text
+* 806 Read File from Application Server
+* 808 Read File from External Application Server
+* 809 Location of file to be imported
+* 810 ServerName
+* 812 Application Server
+* 813 Presentation Server
+* 850 Transactions/Checks
+* 851 Or
+
+
+*Selection texts
+*----------------------------------------------------------
+* MAX_LINE         Check Dep. Printed Up To No.
+* MIN_LINE         Check Dep. Printed from No.
+* PH_NAME         File Name (Application Server)
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 29
+*814   Enter one file name only
+*840   Enter an application server
+*
+* Message class: >U
+*485   Use Report RFKKBI_FILEEDIT
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

@@ -1,0 +1,1552 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- CSKSZ</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   background-color:#E0E7ED;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   background-color:#F2F4F7;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: CSKSZ</h2>
+  <h3>Description: Cost center: CSKS + CSKSD + CSKT</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>.INCLUDE</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Cost Center Master Data</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>MANDT</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>KOKRS</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>KOKRS</td>
+  <td>CACCD</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Controlling Area</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>KOSTL</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>KOSTL</td>
+  <td>KOSTL</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Cost Center</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>DATBI</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>DATBI</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Valid To Date</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>DATAB</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>DATAB</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Valid-From Date</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>BKZKP</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>BKZKP</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Lock Indicator for Actual Primary Postings</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>PKZKP</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>PKZKP</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Lock Indicator for Plan Primary Costs</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>BUKRS</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>BUKRS</td>
+  <td>BUKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Company Code</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>GSBER</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>GSBER</td>
+  <td>GSBER</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Business Area</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>KOSAR</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>KOSAR</td>
+  <td>KOSAR</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Cost Center Category</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>VERAK</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>VERAK</td>
+  <td>VERAK</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>X</td>
+  <td>Person Responsible</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>VERAK_USER</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>VERAK_USER</td>
+  <td>XUBNAME</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>User Responsible</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>WAERS</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>WAERS</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Currency Key</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>KALSM</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>AUFKALSM</td>
+  <td>KALSM</td>
+  <td>CHAR</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>Costing Sheet</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>TXJCD</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>TXJCD</td>
+  <td>TXJCD</td>
+  <td>CHAR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Tax Jurisdiction</td>
+</tr>
+<tr class="cell">
+  <td>17</td>
+  <td>PRCTR</td>
+  <td>17</td>
+  <td>&nbsp;</td>
+  <td>PRCTR</td>
+  <td>PRCTR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Profit Center</td>
+</tr>
+<tr class="cell">
+  <td>18</td>
+  <td>WERKS</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>WERKS_D</td>
+  <td>WERKS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Plant</td>
+</tr>
+<tr class="cell">
+  <td>19</td>
+  <td>LOGSYSTEM</td>
+  <td>19</td>
+  <td>&nbsp;</td>
+  <td>LOGSYSTEM</td>
+  <td>LOGSYS</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Logical System</td>
+</tr>
+<tr class="cell">
+  <td>20</td>
+  <td>.INCLUDE</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Cost Center Master Data</td>
+</tr>
+<tr class="cell">
+  <td>21</td>
+  <td>ERSDA</td>
+  <td>21</td>
+  <td>&nbsp;</td>
+  <td>ERFDT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Created on</td>
+</tr>
+<tr class="cell">
+  <td>22</td>
+  <td>USNAM</td>
+  <td>22</td>
+  <td>&nbsp;</td>
+  <td>ERFNM</td>
+  <td>USNAM</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>Entered by</td>
+</tr>
+<tr class="cell">
+  <td>23</td>
+  <td>BKZKS</td>
+  <td>23</td>
+  <td>&nbsp;</td>
+  <td>BKZKS</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Lock Indicator for Actual Secondary Costs</td>
+</tr>
+<tr class="cell">
+  <td>24</td>
+  <td>BKZER</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>BKZER</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Lock Indicator for Actual Revenue Postings</td>
+</tr>
+<tr class="cell">
+  <td>25</td>
+  <td>BKZOB</td>
+  <td>25</td>
+  <td>&nbsp;</td>
+  <td>BKZOB</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Lock Indicator for Commitment Update</td>
+</tr>
+<tr class="cell">
+  <td>26</td>
+  <td>PKZKS</td>
+  <td>26</td>
+  <td>&nbsp;</td>
+  <td>PKZKS</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Lock Indicator for Plan Secondary Costs</td>
+</tr>
+<tr class="cell">
+  <td>27</td>
+  <td>PKZER</td>
+  <td>27</td>
+  <td>&nbsp;</td>
+  <td>PKZER</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Lock Indicator for Planning Revenues</td>
+</tr>
+<tr class="cell">
+  <td>28</td>
+  <td>VMETH</td>
+  <td>28</td>
+  <td>&nbsp;</td>
+  <td>VMETH</td>
+  <td>VMETH</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Indicator for Allowed Allocation Methods</td>
+</tr>
+<tr class="cell">
+  <td>29</td>
+  <td>MGEFL</td>
+  <td>29</td>
+  <td>&nbsp;</td>
+  <td>MGEFL</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator for Recording Consumption Quantities</td>
+</tr>
+<tr class="cell">
+  <td>30</td>
+  <td>ABTEI</td>
+  <td>30</td>
+  <td>&nbsp;</td>
+  <td>ABTEI</td>
+  <td>ABTEI</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>X</td>
+  <td>Department</td>
+</tr>
+<tr class="cell">
+  <td>31</td>
+  <td>NKOST</td>
+  <td>31</td>
+  <td>&nbsp;</td>
+  <td>NKOST</td>
+  <td>KOSTL</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Subsequent cost center</td>
+</tr>
+<tr class="cell">
+  <td>32</td>
+  <td>KVEWE</td>
+  <td>32</td>
+  <td>&nbsp;</td>
+  <td>KVEWE</td>
+  <td>KVEWE</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Usage of the condition table</td>
+</tr>
+<tr class="cell">
+  <td>33</td>
+  <td>KAPPL</td>
+  <td>33</td>
+  <td>&nbsp;</td>
+  <td>KAPPL</td>
+  <td>KAPPL</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Application</td>
+</tr>
+<tr class="cell">
+  <td>34</td>
+  <td>KOSZSCHL</td>
+  <td>34</td>
+  <td>&nbsp;</td>
+  <td>KOSZSCHL</td>
+  <td>CHAR6</td>
+  <td>CHAR</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>CO-CCA Overhead Key</td>
+</tr>
+<tr class="cell">
+  <td>35</td>
+  <td>LAND1</td>
+  <td>35</td>
+  <td>&nbsp;</td>
+  <td>LAND1</td>
+  <td>LAND1</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Country Key</td>
+</tr>
+<tr class="cell">
+  <td>36</td>
+  <td>ANRED</td>
+  <td>36</td>
+  <td>&nbsp;</td>
+  <td>ANRED</td>
+  <td>TEXT15</td>
+  <td>CHAR</td>
+  <td>15</td>
+  <td>X</td>
+  <td>Title</td>
+</tr>
+<tr class="cell">
+  <td>37</td>
+  <td>NAME1</td>
+  <td>37</td>
+  <td>&nbsp;</td>
+  <td>NAME1_GP</td>
+  <td>NAME</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>Name 1</td>
+</tr>
+<tr class="cell">
+  <td>38</td>
+  <td>NAME2</td>
+  <td>38</td>
+  <td>&nbsp;</td>
+  <td>NAME2_GP</td>
+  <td>NAME</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>Name 2</td>
+</tr>
+<tr class="cell">
+  <td>39</td>
+  <td>NAME3</td>
+  <td>39</td>
+  <td>&nbsp;</td>
+  <td>NAME3_GP</td>
+  <td>NAME</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>Name 3</td>
+</tr>
+<tr class="cell">
+  <td>40</td>
+  <td>NAME4</td>
+  <td>40</td>
+  <td>&nbsp;</td>
+  <td>NAME4_GP</td>
+  <td>NAME</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>Name 4</td>
+</tr>
+<tr class="cell">
+  <td>41</td>
+  <td>ORT01</td>
+  <td>41</td>
+  <td>&nbsp;</td>
+  <td>ORT01_GP</td>
+  <td>TEXT35</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>City</td>
+</tr>
+<tr class="cell">
+  <td>42</td>
+  <td>ORT02</td>
+  <td>42</td>
+  <td>&nbsp;</td>
+  <td>ORT02_GP</td>
+  <td>TEXT35</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>District</td>
+</tr>
+<tr class="cell">
+  <td>43</td>
+  <td>STRAS</td>
+  <td>43</td>
+  <td>&nbsp;</td>
+  <td>STRAS_GP</td>
+  <td>TEXT35</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>House number and street</td>
+</tr>
+<tr class="cell">
+  <td>44</td>
+  <td>PFACH</td>
+  <td>44</td>
+  <td>&nbsp;</td>
+  <td>PFACH</td>
+  <td>PFACH</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>PO Box</td>
+</tr>
+<tr class="cell">
+  <td>45</td>
+  <td>PSTLZ</td>
+  <td>45</td>
+  <td>&nbsp;</td>
+  <td>PSTLZ</td>
+  <td>PSTLZ</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Postal Code</td>
+</tr>
+<tr class="cell">
+  <td>46</td>
+  <td>PSTL2</td>
+  <td>46</td>
+  <td>&nbsp;</td>
+  <td>PSTL2</td>
+  <td>PSTLZ</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>P.O. Box Postal Code</td>
+</tr>
+<tr class="cell">
+  <td>47</td>
+  <td>REGIO</td>
+  <td>47</td>
+  <td>&nbsp;</td>
+  <td>REGIO</td>
+  <td>REGIO</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Region (State, Province, County)</td>
+</tr>
+<tr class="cell">
+  <td>48</td>
+  <td>SPRAS</td>
+  <td>48</td>
+  <td>&nbsp;</td>
+  <td>SPRAS</td>
+  <td>SPRAS</td>
+  <td>LANG</td>
+  <td>1</td>
+  <td>X</td>
+  <td>Language Key</td>
+</tr>
+<tr class="cell">
+  <td>49</td>
+  <td>TELBX</td>
+  <td>49</td>
+  <td>&nbsp;</td>
+  <td>TELBX</td>
+  <td>TEXT15</td>
+  <td>CHAR</td>
+  <td>15</td>
+  <td>X</td>
+  <td>Telebox number</td>
+</tr>
+<tr class="cell">
+  <td>50</td>
+  <td>TELF1</td>
+  <td>50</td>
+  <td>&nbsp;</td>
+  <td>TELF1</td>
+  <td>TEXT16</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>X</td>
+  <td>First telephone number</td>
+</tr>
+<tr class="cell">
+  <td>51</td>
+  <td>TELF2</td>
+  <td>51</td>
+  <td>&nbsp;</td>
+  <td>TELF2</td>
+  <td>TEXT16</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>X</td>
+  <td>Second telephone number</td>
+</tr>
+<tr class="cell">
+  <td>52</td>
+  <td>TELFX</td>
+  <td>52</td>
+  <td>&nbsp;</td>
+  <td>TELFX</td>
+  <td>TEXT31</td>
+  <td>CHAR</td>
+  <td>31</td>
+  <td>X</td>
+  <td>Fax Number</td>
+</tr>
+<tr class="cell">
+  <td>53</td>
+  <td>TELTX</td>
+  <td>53</td>
+  <td>&nbsp;</td>
+  <td>TELTX</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Teletex number</td>
+</tr>
+<tr class="cell">
+  <td>54</td>
+  <td>TELX1</td>
+  <td>54</td>
+  <td>&nbsp;</td>
+  <td>TELX1</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Telex number</td>
+</tr>
+<tr class="cell">
+  <td>55</td>
+  <td>DATLT</td>
+  <td>55</td>
+  <td>&nbsp;</td>
+  <td>DATLT</td>
+  <td>TEXT14</td>
+  <td>CHAR</td>
+  <td>14</td>
+  <td>X</td>
+  <td>Data communication line no.</td>
+</tr>
+<tr class="cell">
+  <td>56</td>
+  <td>DRNAM</td>
+  <td>56</td>
+  <td>&nbsp;</td>
+  <td>KDNAM</td>
+  <td>DRNAM</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Printer destination for CCtr report</td>
+</tr>
+<tr class="cell">
+  <td>57</td>
+  <td>KHINR</td>
+  <td>57</td>
+  <td>&nbsp;</td>
+  <td>KHINR</td>
+  <td>SETNR</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>Standard Hierarchy Area</td>
+</tr>
+<tr class="cell">
+  <td>58</td>
+  <td>CCKEY</td>
+  <td>58</td>
+  <td>&nbsp;</td>
+  <td>CCKEY</td>
+  <td>CCKEY</td>
+  <td>CHAR</td>
+  <td>23</td>
+  <td>&nbsp;</td>
+  <td>Cost collector key</td>
+</tr>
+<tr class="cell">
+  <td>59</td>
+  <td>KOMPL</td>
+  <td>59</td>
+  <td>&nbsp;</td>
+  <td>KSKOM</td>
+  <td>YNFLG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Completion flag for the cost center master record</td>
+</tr>
+<tr class="cell">
+  <td>60</td>
+  <td>STAKZ</td>
+  <td>60</td>
+  <td>&nbsp;</td>
+  <td>STAKZ</td>
+  <td>CHAR1</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator. object is statistical</td>
+</tr>
+<tr class="cell">
+  <td>61</td>
+  <td>OBJNR</td>
+  <td>61</td>
+  <td>&nbsp;</td>
+  <td>J_OBJNR</td>
+  <td>J_OBJNR</td>
+  <td>CHAR</td>
+  <td>22</td>
+  <td>&nbsp;</td>
+  <td>Object number</td>
+</tr>
+<tr class="cell">
+  <td>62</td>
+  <td>FUNKT</td>
+  <td>62</td>
+  <td>&nbsp;</td>
+  <td>FUNKT_DLK</td>
+  <td>LSORT</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Function of cost center</td>
+</tr>
+<tr class="cell">
+  <td>63</td>
+  <td>AFUNK</td>
+  <td>63</td>
+  <td>&nbsp;</td>
+  <td>AFUNK_DLK</td>
+  <td>LSORT</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Alternative function of cost center</td>
+</tr>
+<tr class="cell">
+  <td>64</td>
+  <td>CPI_TEMPL</td>
+  <td>64</td>
+  <td>&nbsp;</td>
+  <td>CCA_TEMPL_CPI</td>
+  <td>ABC_TEMPL</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Template for Activity-Independent Formula Planning</td>
+</tr>
+<tr class="cell">
+  <td>65</td>
+  <td>CPD_TEMPL</td>
+  <td>65</td>
+  <td>&nbsp;</td>
+  <td>CCA_TEMPL_CPD</td>
+  <td>ABC_TEMPL</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Template for Activity-Dependent Formula Planning</td>
+</tr>
+<tr class="cell">
+  <td>66</td>
+  <td>FUNC_AREA</td>
+  <td>66</td>
+  <td>&nbsp;</td>
+  <td>FKBER</td>
+  <td>FKBER</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>Functional Area</td>
+</tr>
+<tr class="cell">
+  <td>67</td>
+  <td>SCI_TEMPL</td>
+  <td>67</td>
+  <td>&nbsp;</td>
+  <td>CCA_TEMPL_SCI</td>
+  <td>ABC_TEMPL</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Template: Activity-Independent Allocation to Cost Center</td>
+</tr>
+<tr class="cell">
+  <td>68</td>
+  <td>SCD_TEMPL</td>
+  <td>68</td>
+  <td>&nbsp;</td>
+  <td>CCA_TEMPL_SCD</td>
+  <td>ABC_TEMPL</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Template: Activity-Dependent Allocation to Cost Center</td>
+</tr>
+<tr class="cell">
+  <td>69</td>
+  <td>.INCLUDE</td>
+  <td>69</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+</tr>
+<tr class="cell">
+  <td>70</td>
+  <td>.INCLUDE</td>
+  <td>70</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>JV data: (vname,recid,etype),jv_otype,jv_jibcl,jv_jibsa</td>
+</tr>
+<tr class="cell">
+  <td>71</td>
+  <td>.INCLUDE</td>
+  <td>71</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>General assignments of application objects</td>
+</tr>
+<tr class="cell">
+  <td>72</td>
+  <td>VNAME</td>
+  <td>72</td>
+  <td>&nbsp;</td>
+  <td>JV_NAME</td>
+  <td>JV_NAME</td>
+  <td>CHAR</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>Joint Venture</td>
+</tr>
+<tr class="cell">
+  <td>73</td>
+  <td>RECID</td>
+  <td>73</td>
+  <td>&nbsp;</td>
+  <td>JV_RECIND</td>
+  <td>JV_RECIND</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Recovery Indicator</td>
+</tr>
+<tr class="cell">
+  <td>74</td>
+  <td>ETYPE</td>
+  <td>74</td>
+  <td>&nbsp;</td>
+  <td>JV_ETYPE</td>
+  <td>JV_ETYPE</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Equity type</td>
+</tr>
+<tr class="cell">
+  <td>75</td>
+  <td>JV_OTYPE</td>
+  <td>75</td>
+  <td>&nbsp;</td>
+  <td>JV_OTYPE</td>
+  <td>JV_OTYPE</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Joint Venture Object Type</td>
+</tr>
+<tr class="cell">
+  <td>76</td>
+  <td>JV_JIBCL</td>
+  <td>76</td>
+  <td>&nbsp;</td>
+  <td>JV_JIBCL</td>
+  <td>JV_JIBCL</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>JIB/JIBE Class</td>
+</tr>
+<tr class="cell">
+  <td>77</td>
+  <td>JV_JIBSA</td>
+  <td>77</td>
+  <td>&nbsp;</td>
+  <td>JV_JIBSA</td>
+  <td>JV_JIBSA</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>JIB/JIBE Subclass A</td>
+</tr>
+<tr class="cell">
+  <td>78</td>
+  <td>.INCLU--AP</td>
+  <td>78</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Append structure for Regulatory Reporting</td>
+</tr>
+<tr class="cell">
+  <td>79</td>
+  <td>FERC_IND</td>
+  <td>79</td>
+  <td>&nbsp;</td>
+  <td>FE_IND</td>
+  <td>FE_IND</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Regulatory indicator</td>
+</tr>
+<tr class="cell">
+  <td>80</td>
+  <td>.INCLUDE</td>
+  <td>80</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Cost Center: Extra Fields for CSKS</td>
+</tr>
+<tr class="cell">
+  <td>81</td>
+  <td>RKOKRS</td>
+  <td>81</td>
+  <td>&nbsp;</td>
+  <td>KOKRS</td>
+  <td>CACCD</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Controlling Area</td>
+</tr>
+<tr class="cell">
+  <td>82</td>
+  <td>RKOSTL</td>
+  <td>82</td>
+  <td>&nbsp;</td>
+  <td>RKOSTL</td>
+  <td>KOSTL</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Template cost center</td>
+</tr>
+<tr class="cell">
+  <td>83</td>
+  <td>DATAB_ANFO</td>
+  <td>83</td>
+  <td>&nbsp;</td>
+  <td>DATAB</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Valid-From Date</td>
+</tr>
+<tr class="cell">
+  <td>84</td>
+  <td>DATBI_ANFO</td>
+  <td>84</td>
+  <td>&nbsp;</td>
+  <td>DATBI</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Valid To Date</td>
+</tr>
+<tr class="cell">
+  <td>85</td>
+  <td>KOKRS_TEXT</td>
+  <td>85</td>
+  <td>&nbsp;</td>
+  <td>BEZEI</td>
+  <td>TEXT25</td>
+  <td>CHAR</td>
+  <td>25</td>
+  <td>X</td>
+  <td>Name of the controlling area</td>
+</tr>
+<tr class="cell">
+  <td>86</td>
+  <td>KHINR_TEXT</td>
+  <td>86</td>
+  <td>&nbsp;</td>
+  <td>HITXT</td>
+  <td>TEXT40</td>
+  <td>CHAR</td>
+  <td>40</td>
+  <td>X</td>
+  <td>Name of hierarchy node</td>
+</tr>
+<tr class="cell">
+  <td>87</td>
+  <td>BUKRS_TEXT</td>
+  <td>87</td>
+  <td>&nbsp;</td>
+  <td>BUTXT</td>
+  <td>TEXT25</td>
+  <td>CHAR</td>
+  <td>25</td>
+  <td>X</td>
+  <td>Name of Company Code or Company</td>
+</tr>
+<tr class="cell">
+  <td>88</td>
+  <td>GSBER_TEXT</td>
+  <td>88</td>
+  <td>&nbsp;</td>
+  <td>GTEXT</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Business area description</td>
+</tr>
+<tr class="cell">
+  <td>89</td>
+  <td>PRCTR_TEXT</td>
+  <td>89</td>
+  <td>&nbsp;</td>
+  <td>KTEXT</td>
+  <td>TEXT20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>X</td>
+  <td>General Name</td>
+</tr>
+<tr class="cell">
+  <td>90</td>
+  <td>KOSAR_TEXT</td>
+  <td>90</td>
+  <td>&nbsp;</td>
+  <td>KTEXT</td>
+  <td>TEXT20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>X</td>
+  <td>General Name</td>
+</tr>
+<tr class="cell">
+  <td>91</td>
+  <td>VNAME_TEXT</td>
+  <td>91</td>
+  <td>&nbsp;</td>
+  <td>LTEXT_8JV</td>
+  <td>TEXT35</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>Joint Venture Description</td>
+</tr>
+<tr class="cell">
+  <td>92</td>
+  <td>RECID_TEXT</td>
+  <td>92</td>
+  <td>&nbsp;</td>
+  <td>LTEXT_8JJ</td>
+  <td>TEXT35</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>Recovery Indicator Description</td>
+</tr>
+<tr class="cell">
+  <td>93</td>
+  <td>ETYPE_TEXT</td>
+  <td>93</td>
+  <td>&nbsp;</td>
+  <td>LTEXT_8JE</td>
+  <td>TEXT35</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>Investment Type Description</td>
+</tr>
+<tr class="cell">
+  <td>94</td>
+  <td>JIBCL_TEXT</td>
+  <td>94</td>
+  <td>&nbsp;</td>
+  <td>LTEXT_8J6A</td>
+  <td>TEXT35</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>JIB/JIBE Text</td>
+</tr>
+<tr class="cell">
+  <td>95</td>
+  <td>JIBSA_TEXT</td>
+  <td>95</td>
+  <td>&nbsp;</td>
+  <td>LTEXT_8J6C</td>
+  <td>TEXT35</td>
+  <td>CHAR</td>
+  <td>35</td>
+  <td>X</td>
+  <td>Text</td>
+</tr>
+<tr class="cell">
+  <td>96</td>
+  <td>LIVAR</td>
+  <td>96</td>
+  <td>&nbsp;</td>
+  <td>VARNR_COOM</td>
+  <td>VARNR_021F</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>List Variant</td>
+</tr>
+<tr class="cell">
+  <td>97</td>
+  <td>LIVAR_TEXT</td>
+  <td>97</td>
+  <td>&nbsp;</td>
+  <td>LTEXT_021F</td>
+  <td>TXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Fast Entry: Variant Description</td>
+</tr>
+<tr class="cell">
+  <td>98</td>
+  <td>KZ_BATCH</td>
+  <td>98</td>
+  <td>&nbsp;</td>
+  <td>BATCHFLG</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Background Processing</td>
+</tr>
+<tr class="cell">
+  <td>99</td>
+  <td>KZ_TEST</td>
+  <td>99</td>
+  <td>&nbsp;</td>
+  <td>ALLGTEST</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Test Run</td>
+</tr>
+<tr class="cell">
+  <td>100</td>
+  <td>KZ_MARKE</td>
+  <td>100</td>
+  <td>&nbsp;</td>
+  <td>FLG_MARKE</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Selection</td>
+</tr>
+<tr class="cell">
+  <td>101</td>
+  <td>KOSTL_TEXT</td>
+  <td>101</td>
+  <td>&nbsp;</td>
+  <td>KTEXT</td>
+  <td>TEXT20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>X</td>
+  <td>General Name</td>
+</tr>
+<tr class="cell">
+  <td>102</td>
+  <td>KALSM_TEXT</td>
+  <td>102</td>
+  <td>&nbsp;</td>
+  <td>VTXTM</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Description</td>
+</tr>
+<tr class="cell">
+  <td>103</td>
+  <td>CPI_TEMPL_TEXT</td>
+  <td>103</td>
+  <td>&nbsp;</td>
+  <td>ABC_TEMPLT</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Template Text</td>
+</tr>
+<tr class="cell">
+  <td>104</td>
+  <td>CPD_TEMPL_TEXT</td>
+  <td>104</td>
+  <td>&nbsp;</td>
+  <td>ABC_TEMPLT</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Template Text</td>
+</tr>
+<tr class="cell">
+  <td>105</td>
+  <td>SCI_TEMPL_TEXT</td>
+  <td>105</td>
+  <td>&nbsp;</td>
+  <td>ABC_TEMPLT</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Template Text</td>
+</tr>
+<tr class="cell">
+  <td>106</td>
+  <td>SCD_TEMPL_TEXT</td>
+  <td>106</td>
+  <td>&nbsp;</td>
+  <td>ABC_TEMPLT</td>
+  <td>TEXT30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>X</td>
+  <td>Template Text</td>
+</tr>
+<tr class="cell">
+  <td>107</td>
+  <td>GJAHR</td>
+  <td>107</td>
+  <td>&nbsp;</td>
+  <td>GJAHR</td>
+  <td>GJAHR</td>
+  <td>NUMC</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Fiscal Year</td>
+</tr>
+<tr class="cell">
+  <td>108</td>
+  <td>KZ_DETAILLISTE</td>
+  <td>108</td>
+  <td>&nbsp;</td>
+  <td>DETAILFLG</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Display Detailed Lists</td>
+</tr>
+<tr class="cell">
+  <td>109</td>
+  <td>PERIOD_FROM</td>
+  <td>109</td>
+  <td>&nbsp;</td>
+  <td>RPMAX</td>
+  <td>RPMAX</td>
+  <td>NUMC</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Period</td>
+</tr>
+<tr class="cell">
+  <td>110</td>
+  <td>PERIOD_TO</td>
+  <td>110</td>
+  <td>&nbsp;</td>
+  <td>RPMAX</td>
+  <td>RPMAX</td>
+  <td>NUMC</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Period</td>
+</tr>
+<tr class="cell">
+  <td>111</td>
+  <td>FAREA_NAME</td>
+  <td>111</td>
+  <td>&nbsp;</td>
+  <td>FKBTX</td>
+  <td>TEXT25</td>
+  <td>CHAR</td>
+  <td>25</td>
+  <td>X</td>
+  <td>Name of the functional area</td>
+</tr>
+<tr class="cell">
+  <td>112</td>
+  <td>VERAK_USER_TEXT</td>
+  <td>112</td>
+  <td>&nbsp;</td>
+  <td>AD_NAMTEXT</td>
+  <td>TEXT80</td>
+  <td>CHAR</td>
+  <td>80</td>
+  <td>X</td>
+  <td>Full Name of Person</td>
+</tr>
+<tr class="cell">
+  <td>113</td>
+  <td>SPRAS2</td>
+  <td>113</td>
+  <td>&nbsp;</td>
+  <td>SPRAS</td>
+  <td>SPRAS</td>
+  <td>LANG</td>
+  <td>1</td>
+  <td>X</td>
+  <td>Language Key</td>
+</tr>
+<tr class="cell">
+  <td>114</td>
+  <td>KTEXT</td>
+  <td>114</td>
+  <td>&nbsp;</td>
+  <td>KTEXT</td>
+  <td>TEXT20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>X</td>
+  <td>General Name</td>
+</tr>
+<tr class="cell">
+  <td>115</td>
+  <td>LTEXT</td>
+  <td>115</td>
+  <td>&nbsp;</td>
+  <td>KLTXT</td>
+  <td>TEXT40</td>
+  <td>CHAR</td>
+  <td>40</td>
+  <td>X</td>
+  <td>Description</td>
+</tr>
+<tr class="cell">
+  <td>116</td>
+  <td>MCTXT</td>
+  <td>116</td>
+  <td>&nbsp;</td>
+  <td>MCDS3</td>
+  <td>CHAR20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Search term for matchcode use</td>
+</tr>
+<tr class="cell">
+  <td>117</td>
+  <td>.INCLUDE</td>
+  <td>117</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Cost Center: Screen Controls (Buttons and List Boxes)</td>
+</tr>
+<tr class="cell">
+  <td>118</td>
+  <td>BUTLONGTEXT</td>
+  <td>118</td>
+  <td>&nbsp;</td>
+  <td>ICON_TEXT</td>
+  <td>SYCHAR132</td>
+  <td>CHAR</td>
+  <td>132</td>
+  <td>&nbsp;</td>
+  <td>Carrier field for icons</td>
+</tr>
+<tr class="cell">
+  <td>119</td>
+  <td>BUTVSTOGGLE</td>
+  <td>119</td>
+  <td>&nbsp;</td>
+  <td>ICON_TEXT</td>
+  <td>SYCHAR132</td>
+  <td>CHAR</td>
+  <td>132</td>
+  <td>&nbsp;</td>
+  <td>Carrier field for icons</td>
+</tr>
+<tr class="cell">
+  <td>120</td>
+  <td>BUTACTCHECK</td>
+  <td>120</td>
+  <td>&nbsp;</td>
+  <td>ICON_TEXT</td>
+  <td>SYCHAR132</td>
+  <td>CHAR</td>
+  <td>132</td>
+  <td>&nbsp;</td>
+  <td>Carrier field for icons</td>
+</tr>
+<tr class="cell">
+  <td>121</td>
+  <td>BUTACTIVATE</td>
+  <td>121</td>
+  <td>&nbsp;</td>
+  <td>ICON_TEXT</td>
+  <td>SYCHAR132</td>
+  <td>CHAR</td>
+  <td>132</td>
+  <td>&nbsp;</td>
+  <td>Carrier field for icons</td>
+</tr>
+<tr class="cell">
+  <td>122</td>
+  <td>BUTUNDOCHNG</td>
+  <td>122</td>
+  <td>&nbsp;</td>
+  <td>ICON_TEXT</td>
+  <td>SYCHAR132</td>
+  <td>CHAR</td>
+  <td>132</td>
+  <td>&nbsp;</td>
+  <td>Carrier field for icons</td>
+</tr>
+<tr class="cell">
+  <td>123</td>
+  <td>TXTACTSTATE</td>
+  <td>123</td>
+  <td>&nbsp;</td>
+  <td>CMDT_STATUS_60</td>
+  <td>DDTEXT</td>
+  <td>CHAR</td>
+  <td>60</td>
+  <td>X</td>
+  <td>Activation Status of Generic Master Record</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

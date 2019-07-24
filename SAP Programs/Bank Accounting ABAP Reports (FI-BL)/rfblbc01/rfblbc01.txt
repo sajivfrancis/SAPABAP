@@ -1,0 +1,356 @@
+*&---------------------------------------------------------------------*
+*& Report  RFBLBC01                                                    *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  RFBLBC01.
+
+*-- type pools ---------------------------------------------------------
+TYPE-POOLS: SLIS.
+
+TABLES: T001,
+        T012,
+        T012K.
+
+
+* internal tables
+DATA: BEGIN OF T_BUKRS OCCURS 0,
+        BUKRS LIKE PAYRQ-BUKRS,
+      END OF T_BUKRS.
+
+* further data
+DATA: HLP_FBTCH(2) TYPE C,
+      G_AKTYP(1) TYPE C,
+      G_CHANGED LIKE BOOLE-BOOLE,
+      G_BANKS_FR LIKE T012-BANKS,
+      G_BANKS_TO LIKE T012-BANKS,
+      G_BANKL_FR LIKE T012-BANKL,
+      G_BANKL_TO LIKE T012-BANKL,
+      G_BANKN_FR LIKE T012K-BANKN,
+      G_BANKN_TO LIKE T012K-BANKN,
+      G_NO_BANK_DATA LIKE BOOLE-BOOLE.
+
+* selection screen parameters
+SELECTION-SCREEN BEGIN OF BLOCK 1 WITH FRAME TITLE TEXT-011.
+PARAMETERS: BUKRS_FR LIKE FIBl_HKTID_SEARCH-BUKRS,
+            HBKID_FR LIKE FIBl_HKTID_SEARCH-HBKID,
+            HKTID_FR LIKE FIBl_HKTID_SEARCH-HKTID.
+SELECTION-SCREEN END OF BLOCK 1.
+SELECTION-SCREEN BEGIN OF BLOCK 2 WITH FRAME TITLE TEXT-012.
+PARAMETERS: BUKRS_TO LIKE FIBl_HKTID_SEARCH2-BUKRS,
+            HBKID_TO LIKE FIBl_HKTID_SEARCH2-HBKID,
+            HKTID_TO LIKE FIBl_HKTID_SEARCH2-HKTID.
+SELECTION-SCREEN END OF BLOCK 2.
+SELECTION-SCREEN BEGIN OF BLOCK 3 WITH FRAME TITLE TEXT-013.
+PARAMETERS: WAERS LIKE TBCHAIN21-WAERS,
+            UZAWE LIKE TBCHAIN21-UZAWE.
+SELECTION-SCREEN END OF BLOCK 3.
+SELECTION-SCREEN BEGIN OF BLOCK 4 WITH FRAME TITLE TEXT-014.
+SELECTION-SCREEN: BEGIN OF LINE.
+PARAMETERS: PAYM_OUT LIKE BOOLE-BOOLE RADIOBUTTON GROUP PAYM.
+SELECTION-SCREEN:
+  COMMENT (25)        TEXT-016 FOR FIELD PAYM_OUT,
+  END OF LINE,
+  BEGIN OF LINE.
+PARAMETERS: PAYM_IN LIKE BOOLE-BOOLE RADIOBUTTON GROUP PAYM.
+SELECTION-SCREEN:
+  COMMENT (25)        TEXT-015 FOR FIELD PAYM_IN,
+  END OF LINE.
+SELECTION-SCREEN END OF BLOCK 4.
+
+*-------- INITIALIZE ---------------------------------------------------
+INITIALIZATION.
+  if sy-tcode(4) ne 'FIBT'.
+    message e101(fibc).
+  endif.
+  IF SY-TCODE = 'FIBTU'.
+    SY-TITLE = TEXT-100.
+  ELSE.
+    SY-TITLE = TEXT-101.
+  ENDIF.
+  PERFORM BANKCHAIN_ACTIVE.
+
+*-------- AT SELECTION-SCEEN -------------------------------------------
+AT SELECTION-SCREEN.
+  PERFORM CHECK_PARAMETERS.
+  PERFORM CHECK_AUTHORITY.
+
+*-------- TOP-OF-PAGE --------------------------------------------------
+*top-of-page.
+*  perform top_of_page.
+
+*-------- START OF SELECTION -------------------------------------------
+START-OF-SELECTION.
+  PERFORM SELECT_HOUSE_BANK.
+
+*-------- END OF SELECTION ---------------------------------------------
+END-OF-SELECTION.
+  PERFORM MAINTAIN_CHAIN.
+
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_AUTHORITY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM CHECK_AUTHORITY.
+
+  DATA: L_LINES LIKE SY-TABIX,
+        L_AUTH_FAILED LIKE BOOLE-BOOLE.
+
+* set aktyp
+  IF SY-TCODE = 'FIBTU'.
+    G_AKTYP = 'U'.
+    HLP_FBTCH = '02'.
+  ELSE.
+    G_AKTYP = 'S'.
+    HLP_FBTCH = '03'.
+  ENDIF.
+
+* get company codes
+  T_BUKRS-BUKRS = BUKRS_FR. APPEND T_BUKRS.
+  T_BUKRS-BUKRS = BUKRS_TO. APPEND T_BUKRS.
+
+  SORT T_BUKRS.
+
+  LOOP AT T_BUKRS.
+    AUTHORITY-CHECK OBJECT 'F_BNKA_BUK'
+      ID 'BUKRS' FIELD T_BUKRS-BUKRS
+      ID 'ACTVT' FIELD HLP_FBTCH.
+    IF SY-SUBRC NE 0.
+      if HLP_FBTCH eq '03'.
+        message e218(F4) with T_BUKRS-BUKRS.
+      else.
+        message e219(F4) with T_BUKRS-BUKRS.
+      endif.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                               " CHECK_AUTHORITY
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_HOUSE_BANK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SELECT_HOUSE_BANK.
+
+* select bank from
+  SELECT SINGLE BANKS BANKL FROM  T012 INTO (G_BANKS_FR,G_BANKL_FR)
+         WHERE  BUKRS       = BUKRS_FR
+         AND    HBKID       = HBKID_FR.
+
+  SELECT SINGLE BANKN FROM  T012K INTO (G_BANKN_FR)
+         WHERE  BUKRS       = BUKRS_FR
+         AND    HBKID       = HBKID_FR
+         AND    HKTID       = HKTID_FR.
+
+  SELECT SINGLE BANKS BANKL FROM  T012 INTO (G_BANKS_TO,G_BANKL_TO)
+         WHERE  BUKRS       = BUKRS_TO
+         AND    HBKID       = HBKID_TO.
+
+  SELECT SINGLE BANKN FROM  T012K INTO (G_BANKN_TO)
+         WHERE  BUKRS       = BUKRS_TO
+         AND    HBKID       = HBKID_TO
+         AND    HKTID       = HKTID_TO.
+
+ENDFORM.                               " SELECT_HOUSE_BANK
+*&---------------------------------------------------------------------*
+*&      Form  BANKCHAIN_ACTIVE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM BANKCHAIN_ACTIVE.
+
+  CALL FUNCTION 'FI_BL_BANKCHAIN_ACTIVE'
+       EXCEPTIONS
+            BANKCHAIN_NOT_ACTIVE = 1
+            FATAL_ERROR          = 2
+            OTHERS               = 3.
+  IF SY-SUBRC <> 0.
+    MESSAGE E876(PZ).
+  ENDIF.
+
+ENDFORM.                               " BANKCHAIN_ACTIVE
+*&---------------------------------------------------------------------*
+*&      Form  MAINTAIN_CHAIN
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM MAINTAIN_CHAIN.
+
+  DATA: L_BANKN_FR(35) TYPE C,
+        L_BANKN_TO(35) TYPE C,
+        L_CHANGED   LIKE BOOLE-BOOLE,
+        L_ANSWER(1) TYPE C.
+
+
+  L_BANKN_FR = G_BANKN_FR.
+  L_BANKN_TO = G_BANKN_TO.
+
+  IF NOT PAYM_OUT IS INITIAL.
+* outgoing payment
+    CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_MAINT'
+         EXPORTING
+              I_BANKS_REC = G_BANKS_TO
+              I_BANKK_REC = G_BANKL_TO
+              I_BANKN_REC = L_BANKN_TO
+              I_BANKS_SND = G_BANKS_FR
+              I_BANKK_SND = G_BANKL_FR
+              I_WAERS     = WAERS
+              I_UZAWE     = UZAWE
+              I_AKTYP     = G_AKTYP
+         IMPORTING
+              E_XCHNG     = L_CHANGED.
+  ELSE.
+* incoming payment
+    CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_MAINT'
+         EXPORTING
+              I_BANKS_REC = G_BANKS_FR
+              I_BANKK_REC = G_BANKL_FR
+              I_BANKN_REC = L_BANKN_FR
+              I_BANKS_SND = G_BANKS_TO
+              I_BANKK_SND = G_BANKL_TO
+              I_WAERS     = WAERS
+              I_UZAWE     = UZAWE
+              I_AKTYP     = G_AKTYP
+         IMPORTING
+              E_XCHNG     = L_CHANGED.
+  ENDIF.
+
+  IF NOT L_CHANGED IS INITIAL.
+
+    CALL FUNCTION 'POPUP_TO_CONFIRM_LOSS_OF_DATA'
+         EXPORTING
+              TEXTLINE1 = TEXT-003
+              TITEL     = TEXT-001
+              DEFAULTOPTION = 'J'
+         IMPORTING
+              ANSWER    = L_ANSWER
+         EXCEPTIONS
+              OTHERS    = 1.
+
+
+    IF L_ANSWER EQ 'J'.
+
+      CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_SAVE'
+           EXCEPTIONS
+                OTHERS = 1.
+
+      CLEAR L_ANSWER.
+
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                               " MAINTAIN_CHAIN
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_PARAMETERS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM CHECK_PARAMETERS.
+
+* formal checks
+  IF    BUKRS_FR IS INITIAL
+    AND ( NOT HBKID_FR IS INITIAL OR NOT HKTID_FR IS INITIAL ).
+    MESSAGE E877(PZ) WITH HBKID_FR HKTID_FR.
+  ENDIF.
+
+  IF    BUKRS_TO IS INITIAL
+    AND ( NOT HBKID_TO IS INITIAL OR NOT HKTID_TO IS INITIAL ).
+    MESSAGE E877(PZ) WITH HBKID_TO HKTID_TO.
+  ENDIF.
+
+  IF ( HBKID_FR IS INITIAL AND NOT HKTID_FR IS INITIAL ) OR
+     ( NOT HBKID_FR IS INITIAL AND HKTID_FR IS INITIAL ).
+    MESSAGE E878(PZ) WITH HBKID_FR HKTID_FR.
+  ENDIF.
+
+  IF ( HBKID_TO IS INITIAL AND NOT HKTID_TO IS INITIAL ) OR
+     ( NOT HBKID_TO IS INITIAL AND HKTID_TO IS INITIAL ).
+    MESSAGE E878(PZ) WITH HBKID_TO HKTID_TO.
+  ENDIF.
+
+* further checks
+  IF NOT PAYM_OUT IS INITIAL.
+* outgoing payment
+    IF   BUKRS_TO IS INITIAL
+      OR HBKID_TO IS INITIAL
+      OR HKTID_TO IS INITIAL.
+      MESSAGE E879(PZ).
+    ENDIF.
+  ELSE.
+* incoming payments
+    IF   BUKRS_FR IS INITIAL
+      OR HBKID_FR IS INITIAL
+      OR HKTID_FR IS INITIAL.
+      MESSAGE E879(PZ).
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                               " CHECK_PARAMETERS
+
+*GUI Texts
+*----------------------------------------------------------
+* 001 --> Bankwege für Bankkontenüberträge
+
+*Text elements
+*----------------------------------------------------------
+* 001 Exit
+* 003 Save your changes first?
+* 011 Dispatching house bank
+* 012 Receiving house bank
+* 013 Other limitations
+* 014 Payment direct.
+* 015 Incoming payment
+* 016 Outgoing payment
+* 100 Edit bank chains for bank account carry forwards
+* 101 Display bank chains for bank acct carry forwards
+
+
+*Selection texts
+*----------------------------------------------------------
+* BUKRS_FR         Company code
+* BUKRS_TO         Company code
+* HBKID_FR         House bank
+* HBKID_TO         House bank
+* HKTID_FR         Account
+* HKTID_TO         Account
+* UZAWE         Payment method supplement
+* WAERS         Payment currency
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: F4
+*218   No display authorization for company code &
+*219   No change authorization in company code &
+*
+* Message class: FIBC
+*101   This program can not be run with this transaction
+*
+* Message class: PZ
+*876   Bank chains are not active
+*877   Enter company code for bank details &1/&2
+*878   Complete entries for bank &1 and account &2
+*879   Enter all data for recipient's bank
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

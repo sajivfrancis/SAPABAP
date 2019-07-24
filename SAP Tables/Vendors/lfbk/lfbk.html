@@ -1,0 +1,278 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- LFBK</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: LFBK</h2>
+  <h3>Description: Vendor Master (Bank Details)</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>.INCLU--AP</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Additional Fields Bank Data Biller Direct</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>.INCLU--AP</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Bank Details Dependent on Time and Account Holder</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>.INCLUDE</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Extras for Customer/Vendor Bank Details</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>BANKL</td>
+  <td>4</td>
+  <td>X</td>
+  <td>BANKK</td>
+  <td>BANKK</td>
+  <td>CHAR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Bank Keys</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>BANKN</td>
+  <td>5</td>
+  <td>X</td>
+  <td>BANKN</td>
+  <td>BANKN</td>
+  <td>CHAR</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>Bank account number</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>BANKS</td>
+  <td>3</td>
+  <td>X</td>
+  <td>BANKS</td>
+  <td>LAND1</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Bank country key</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>BKONT</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>BKONT</td>
+  <td>BKONT</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Bank Control Key</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>BKREF</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>BKREF</td>
+  <td>CHAR20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Reference specifications for bank details</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>BVTYP</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>BVTYP</td>
+  <td>BVTYP</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Partner Bank Type</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>EBPP_ACCNAME</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>EBPP_ACCNAME</td>
+  <td>EBPP_ACCNAME</td>
+  <td>CHAR</td>
+  <td>40</td>
+  <td>X</td>
+  <td>User-Defined Name of Bank Details</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>EBPP_BVSTATUS</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>EBPP_BVSTATUS</td>
+  <td>EBPP_BVSTATUS</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Status of Bank Details in Biller Direct</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>KOBIS</td>
+  <td>17</td>
+  <td>&nbsp;</td>
+  <td>KOBIS</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Bank details valid to</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>KOINH</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>KOINH_FI</td>
+  <td>KOINH</td>
+  <td>CHAR</td>
+  <td>60</td>
+  <td>X</td>
+  <td>Account Holder Name</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>KOVON</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>KOVON</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Bank Details Valid From</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>LIFNR</td>
+  <td>2</td>
+  <td>X</td>
+  <td>LIFNR</td>
+  <td>LIFNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Account Number of Vendor or Creditor</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>MANDT</td>
+  <td>1</td>
+  <td>X</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td>17</td>
+  <td>XEZER</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>XEZER</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Is there collection authorization ?</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,1797 @@
+PROGRAM aswb_new MESSAGE-ID aa.
+
+TYPE-POOLS: rsds, apost. "<0758279
+
+TYPES: t_jahre(4)          TYPE c.
+
+DATA: sub_nr               LIKE sy-dynnr.
+DATA: gd_repid             LIKE sy-repid.
+DATA: gr_badi_int_obj    TYPE REF TO faa_integrated_objects. "> 1646197
+
+DATA: afbtxt               TYPE afbtxt.
+DATA: edit_jahre           TYPE gjahr,
+      edit_jahre_to        TYPE gjahr.
+DATA: bneu                 TYPE afaber,
+      bweg                 TYPE afaber.
+DATA: anlatxt50            TYPE txa50_anlt.
+DATA: t001butxt            TYPE butxt.
+DATA: gd_sum_mode          TYPE c.
+DATA: gd_auth_lock(1)      TYPE c.                             "> 508807
+DATA: con_x(1)             VALUE 'X'.                       ">1398629
+
+DATA: BEGIN OF ls_protocol_write,                              "> 551371
+        bukrs       TYPE anlcv-bukrs,                          "> 551371
+        anln1       TYPE anlcv-anln1,                          "> 551371
+        anln2       TYPE anlcv-anln2,                          "> 551371
+        gjahr       TYPE anlcv-gjahr.                          "> 551371
+DATA: END OF ls_protocol_write.                                "> 551371
+DATA: gt_protocol_written    LIKE TABLE OF ls_protocol_write.  "> 551371
+DATA: gd_function_write_log_exists(1)  TYPE c.                 "> 551371
+DATA: gd_already_checked(1)  TYPE c.                           "> 551371
+
+DATA: gd_simu(1)           TYPE c VALUE IS INITIAL.
+DATA: gd_simu_deakt        TYPE anla-deakt.                    ">1513604
+DATA: gd_calc_new_afa(1)   TYPE c VALUE IS INITIAL.
+DATA: gd_calc_new_lines(1) TYPE c VALUE IS INITIAL.
+DATA: gd_calc_show_afa(1)  TYPE c VALUE IS INITIAL.
+DATA: on(1)                TYPE c VALUE 'X'.
+DATA: gd_hlp_lnran         TYPE anep-lnran.
+* nwe useful life due to parameter changes
+DATA: gd_new_ul(1)         TYPE c VALUE IS INITIAL.            "> 976045
+
+TYPES: BEGIN OF area_list,
+            id             TYPE afaber,
+            text           TYPE scrpcha72,
+           END OF area_list,
+           area_list_tab   TYPE TABLE OF area_list.
+TYPES:  afaberlist         TYPE TABLE OF afaber.
+
+TYPES: tty_anfm            TYPE TABLE OF anfm.                 "> 829501
+
+*TYPES: BEGIN OF t_area,
+*           afaber TYPE afaber,
+*           virtual(1) TYPE c,
+*           afbtxt  TYPE afbtxt,
+*           END OF t_area.
+*TYPES: tt_area TYPE TABLE OF t_area.
+
+CONSTANTS: max_vergl_ber   TYPE i VALUE 5.
+CONSTANTS: con_node_key    TYPE TV_NODEKEY VALUE 'KEY_NODE'.   "> 687685
+CONSTANTS: con_node_ldgrp_gl  TYPE TV_NODEKEY VALUE 'LDGRP_'.  ">1621395
+CONSTANTS: con_perafa_tage LIKE ANLB-PERFY  VALUE '365'.       "> 918376
+
+CONTROLS: idc_tabstrip     TYPE TABSTRIP.
+
+CONSTANTS: sub_nr_select1(4) TYPE c VALUE '0201'.
+CONSTANTS: sub_nr_select2(4) TYPE c VALUE '0202'.
+
+TYPES: t_subnr(4)          TYPE c.
+TYPES: t_string(255)       TYPE c.
+
+CONSTANTS: sub_name_pwerte TYPE t_string VALUE 'IDC_PWERTE'.
+CONSTANTS: sub_nr_pwerte   TYPE t_subnr VALUE '0301'.
+CONSTANTS: sub_name_bwerte TYPE t_string VALUE 'IDC_BWERTE'.
+CONSTANTS: sub_nr_bwerte   TYPE t_subnr VALUE '0302'.
+CONSTANTS: sub_name_vergleich TYPE t_string VALUE 'IDC_VERGLEICH'.
+CONSTANTS: sub_nr_vergleich TYPE t_subnr VALUE '0303'.
+CONSTANTS: sub_name_afa_parameter TYPE t_string VALUE
+                                                  'IDC_PARAMETER'.
+CONSTANTS: sub_nr_afa_parameter TYPE t_subnr VALUE '0304'.
+CONSTANTS: sub_nr_afa_parameter_leer TYPE t_subnr VALUE '0305'.
+
+* start of note 1398629
+CONSTANTS:
+    sub_name_afa_para_tddp TYPE t_string VALUE 'IDC_PARA_TDDP',
+    sub_nr_afa_parameter_tddp TYPE t_subnr VALUE '0306',
+    gc_cf_faa_tmdpndt_data TYPE seoclsname VALUE 'CF_FAA_TMDPNDT_DATA'.
+* end of note 1398629
+
+CONSTANTS: con_max_header_lines TYPE i VALUE '100'.
+
+CLASS cl_old_aw01_integration DEFINITION DEFERRED.
+CLASS cl_aw01_daten           DEFINITION DEFERRED.
+CLASS cl_fiaa                 DEFINITION DEFERRED.
+
+CLASS cl_umvar_alv            DEFINITION DEFERRED.
+DATA: umvar_dynpro            TYPE REF TO cl_umvar_alv.
+CLASS cl_central              DEFINITION DEFERRED.
+DATA: central_object          TYPE REF TO cl_central.
+
+* start of note 1398629
+* Time-Dependent Depreciation Terms
+
+TYPES: BEGIN OF gty_s_tmintrvl_tddp,
+         bdatu LIKE anlbza-bdatu,
+         adatu LIKE anlbza-adatu,
+         afasl LIKE anlbza-afasl,
+         ndjar LIKE anlbza-ndjar,
+         ndper LIKE anlbza-ndper,
+         aprop LIKE anlbza-aprop,
+         schrw LIKE anlbza-schrw,
+         schrw_proz LIKE anlbza-schrw_proz,
+       END OF gty_s_tmintrvl_tddp.
+
+* start of note 1462043
+TYPES: BEGIN OF gty_remaining_life,
+         afabe    TYPE anlbza-afabe,
+         bdatu    TYPE anlbza-bdatu,
+         adatu    TYPE anlbza-adatu,
+         rem_year TYPE anlbza-ndjar,
+         rem_per  TYPE anlbza-ndper,
+       END OF gty_remaining_life.
+* end of note 1462043
+* start of note 1621395
+TYPES: BEGIN OF s_ldgrp_gl_tab,
+          ldgrp_sort(1)  TYPE  c,
+          ldgrp_gl       TYPE fagl_target_ldgrp,
+          leading_ledger TYPE boole_d,
+          text           TYPE t881t-name,
+       END OF s_ldgrp_gl_tab,
+       t_ldgrp_gl TYPE s_ldgrp_gl_tab OCCURS 0.
+TYPES: BEGIN OF s_afabe_ldgrp_gl_tab,
+          afabe          TYPE t093-afaber,
+          ldgrp_gl       TYPE fagl_target_ldgrp,
+       END OF s_afabe_ldgrp_gl_tab,
+       t_afabe_ldgrp_gl  TYPE s_afabe_ldgrp_gl_tab OCCURS 0.
+* end of note 1621395
+
+CONTROLS: tc_anlbza TYPE TABLEVIEW USING SCREEN 0306.
+
+DATA:
+* goto dympro 304 or 306
+  gd_sub_nr_304_306  TYPE t_subnr,
+* Flag old / new depreciation calculate
+  gd_use_old_calc     TYPE boolean,
+* new company code                                      ">1621395
+  gd_new_bukrs        TYPE anla-bukrs,                  ">1621395
+  gd_leading_ldgrp_gl TYPE fagl_target_ldgrp,           ">1621395
+  gt_ldgrp_gl         TYPE t_ldgrp_gl,                  ">1621395
+  ls_ldgrp_gl         TYPE s_ldgrp_gl_tab,              ">1621395
+  gd_leading_area     TYPE t093-afaber,                 ">1621395
+  gt_afabe_ldgrp_gl   TYPE t_afabe_ldgrp_gl,            ">1621395
+  gs_afabe_ldgrp_gl   TYPE s_afabe_ldgrp_gl_tab,        ">1621395
+  gt_leadobj_arearef  TYPE faa_ts_area,                 ">1621395
+  gs_leadobj_arearef  TYPE faa_s_area,                  ">1621395
+
+* flag to check not only changed data
+  gts_tmintrvl_tddp   TYPE SORTED TABLE OF gty_s_tmintrvl_tddp
+                                          WITH UNIQUE KEY bdatu,
+  gs_tmintrvl_tddp     TYPE gty_s_tmintrvl_tddp, "work area
+* Depreciation area that has been copied to the table control table.
+  gd_afabe_copied_2_tc TYPE afabe_d,
+*                                Borders of Time Interval in Dynpro 0195
+  gd_tddp_tmintrvl_title TYPE d145header,
+* Internal table containing the selected time intervals of the TDDP
+  gts_slctd_tmintrvl LIKE gts_tmintrvl_tddp,
+* Boolean field that marks a time-interval as selected
+* (for dynpro 0306)
+  gb_intrvl_slctd  TYPE xfeld,
+* boundaries of range for time dependent data
+  con_adatu    TYPE D VALUE '19000101',
+  con_bdatu    TYPE D VALUE '99991231',
+* To-date for time-dependent depr.
+  gd_to_sel_date   TYPE anlbza-bdatu,
+* working tables for the current assets
+  xanlbza TYPE SORTED TABLE OF ranlbza WITH HEADER LINE
+                            WITH UNIQUE KEY
+                            mandt bukrs anln1 anln2 afabe bdatu.
+
+* start of note 1462043
+* remaining life for the ntervall anlbza
+DATA:
+  gs_remaining_life   TYPE gty_remaining_life,
+  gt_remaining_life   TYPE SORTED TABLE OF gty_remaining_life
+                                  WITH UNIQUE KEY afabe bdatu.
+* end of note 1462043
+
+
+DATA: line_pai306   TYPE p.
+DATA: gd_field_len  TYPE  sy-tabix VALUE 0.
+DATA: ld_tabix LIKE sy-tabix.
+
+DATA: BEGIN OF gs_cursor,
+        field(20)  TYPE  c,
+        line       LIKE  sy-tabix,
+        val(20)    TYPE  c,
+        dynp       LIKE  sy-dynnr,
+END OF gs_cursor.
+
+*        Dynpros die Genutzt werden
+DATA: BEGIN OF gd_dyn,
+        d306(4)   TYPE c  VALUE '0306',
+      END OF gd_dyn.
+
+* change indicator for ANLBZA
+*   on - changed  off - no changes
+DATA: flg_anlbza(1)     TYPE c.
+
+* end of note 1398629
+
+INCLUDE <icon>.
+INCLUDE LAMBUCD4.               "<0758279
+INCLUDE LAFARLBE.
+INCLUDE LAFARBWA.               "<0797822
+
+INCLUDE cl_umvar_alv.
+INCLUDE cl_tree.
+INCLUDE cl_fiaa.
+INCLUDE cl_old_aw01_integration.
+INCLUDE cl_aw01_daten.
+INCLUDE cl_aw01_tree.
+INCLUDE cl_html_message.
+INCLUDE cl_aw01_plan_buch_alv.
+INCLUDE cl_aw01_buchwerte_alv.
+INCLUDE cl_aw01_buchwerte.
+INCLUDE cl_aw01_plan_alv.
+INCLUDE cl_aw01_bew_alv.
+INCLUDE cl_aw01_vergleich_alv.
+INCLUDE cl_aw01_vergleich.
+INCLUDE cl_aw01_plan.
+INCLUDE cl_events.
+INCLUDE cl_aw01_central.
+
+* DATA repid TYPE sy-repid.
+* DATA dynnr TYPE sy-dynnr.
+
+START-OF-SELECTION.
+  CALL SCREEN 100.
+
+*&---------------------------------------------------------------------*
+*&      Module  INIT_DYNPRO  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+
+MODULE rahmenprg_pbo OUTPUT.
+  DATA: lt_excl_icons TYPE TABLE OF sy-ucomm.
+  DATA: ld_titlebar(10).
+
+  CLEAR ld_titlebar.
+  CLEAR lt_excl_icons.
+  REFRESH lt_excl_icons.
+
+* start of nte 1398629
+*  old / new depreciation-calculate activ?
+   data: ld_class(60)  type c value 'CF_FAA_CFG_DEPRKEY',
+         ld_method(60) type c value 'USE_OLD_CALCULATION'.
+*  Alte AfA-Rechnung ist Default.
+   gd_use_old_calc  = abap_true.
+   TRY.
+     CALL method (ld_Class)=>(LD_method)
+       RECEIVING
+         rb_old_calculation = gd_use_old_calc .
+     CATCH CX_SY_DYN_CALL_ERROR.
+   ENDTRY.
+* end of note 1398629
+
+* im Simluationsmodus bestimmte Icons ein- bzw. ausblenden
+* und dementsprechend die Titlebar setzen
+  IF gd_simu IS INITIAL.
+    APPEND 'ID_SIMU_OF' TO lt_excl_icons.
+    IF sy-tcode = 'AW01_AFAR'.
+      ld_titlebar = 'AW01N_AFAR'.
+    ELSE.
+      ld_titlebar = 'AW01N'.
+    ENDIF.
+  ELSE.
+    APPEND 'ID_SIMU_ON' TO lt_excl_icons.
+    IF sy-tcode = 'AW01_AFAR'.
+      ld_titlebar = 'AW01N_AFSI'.
+    ELSE.
+      ld_titlebar = 'AW01N_SIMU'.
+    ENDIF.
+  ENDIF.
+
+* Start of note 1394450
+* Is this user tax inspector?
+* lock transaction "Maintain reports"
+  CALL FUNCTION 'FUNCTION_EXISTS'
+       EXPORTING
+            funcname           = 'CA_USER_EXISTS'
+       EXCEPTIONS
+            function_not_exist = 1
+            OTHERS             = 2.
+  IF sy-subrc = 0.
+    CALL FUNCTION 'CA_USER_EXISTS'
+         EXPORTING  i_user = sy-uname
+         EXCEPTIONS OTHERS = 4.
+    IF sy-subrc = 0.
+      APPEND 'ID_REPORTN' TO lt_excl_icons.
+    ENDIF.
+  ENDIF.
+* End of note 1394450
+
+  SET PF-STATUS 'GENERAL' EXCLUDING lt_excl_icons.
+  SET TITLEBAR ld_titlebar.
+
+  repid = sy-repid.
+  dynnr = sy-dynnr.
+  IF ( central_object IS INITIAL ).
+    CREATE OBJECT central_object
+                  EXPORTING
+                     i_repid     = repid
+                     i_dynnr     = dynnr.
+
+*** begin of insertion note 1646197
+    IF gr_badi_int_obj IS NOT BOUND.
+      TRY.
+          GET BADI gr_badi_int_obj.
+        CATCH cx_badi_not_implemented.
+      ENDTRY.
+    ENDIF.
+*** end of insertion note 1646197
+
+    CALL METHOD central_object->event_neue_anlage.
+    CALL METHOD central_object->tree_object->set_first_node_selected.
+  ENDIF.
+  CLEAR ok_code.
+  CLEAR sy-ucomm.
+  CALL METHOD central_object->event_handler
+    EXPORTING
+      i_dynnr    = dynnr
+      i_okcode   = ok_code
+      i_comment  = 'PBO'
+      i_finished = ' '.
+*   CALL METHOD cl_gui_cfw=>flush
+*               EXCEPTIONS
+*                  cntl_system_error = 1
+*                  cntl_error = 2.
+ENDMODULE.                             " INIT_DYNPRO  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE rahmenprg_pai INPUT.
+
+  CALL METHOD central_object->event_handler
+    EXPORTING
+      i_dynnr    = sy-dynnr
+      i_okcode   = ok_code
+      i_comment  = 'PAI'
+      i_finished = ' '.
+ENDMODULE.                             " USER_COMMAND_0100  INPUT
+*----------------------------------------------------------------------*
+MODULE check_input_anlage INPUT.
+* lösche Flag welches Simulationsmodus bestimmt. Further more clear
+* flag coming from changed simulation parameters
+  CLEAR: gd_simu, gd_new_ul.                                  "> 976045
+* lösche Flag welches bestimmt ob AFA neugerechnet wird
+  CLEAR gd_calc_new_afa.
+* lösche flag das genutzt wird um zu bestimmen ob ANEK, ANEP und
+* ANEA zu löschen ist
+  CALL METHOD central_object->event_neue_anlage.
+  CALL METHOD central_object->daten_object->put_to_history.
+ENDMODULE.                    "check_input_anlage INPUT
+*----------------------------------------------------------------------*
+MODULE exit_command INPUT.
+  CALL METHOD central_object->event_handler_end.
+ENDMODULE.                    "exit_command INPUT
+*----------------------------------------------------------------------*
+MODULE check_input_year INPUT.
+*-------------------- Begin of insertion note 1136848 ------------------
+  DATA: i_okcode TYPE sy-ucomm VALUE IS INITIAL.
+  DATA: tab_load TYPE i VALUE IS INITIAL.
+  CALL METHOD central_object->pruefe_und_setze_jahr
+         EXPORTING
+            e_okcode = i_okcode
+         IMPORTING
+            itab_load = tab_load.
+  IF ( tab_load EQ 1 ).
+    CALL METHOD central_object->event_neues_jahr.
+  ENDIF.
+*-------------------- End of insertion note 1136848 --------------------
+
+ENDMODULE.                             " USER_COMMAND_0202  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0400  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0400 OUTPUT.
+  SET PF-STATUS '0400'.
+  SET TITLEBAR '400'.
+
+ENDMODULE.                             " STATUS_0400  OUTPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0400  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0400 INPUT.
+  LEAVE TO SCREEN 0.
+ENDMODULE.                             " USER_COMMAND_0400  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_304  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_304 INPUT.
+
+  CASE sy-ucomm.
+    WHEN 'PICK'.
+    SUBMIT raassignment_show AND RETURN
+                  WITH s_afasl = aw01_dep_par-afasl
+                  WITH s_bukrs = central_object->DATEN_OBJECT->bukrs  "<0820482
+                  WITH s_afabe = central_object->DATEN_OBJECT->afaber "<0820482
+                  WITH s_afapl = t093c-afapl.
+  ENDCASE. "ok_code
+ENDMODULE.                             " EXIT_COMMAND_304  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0500  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0500 OUTPUT.
+  SET PF-STATUS '0400'.
+  SET TITLEBAR '500'.
+  DATA: container_umvar TYPE REF TO cl_gui_custom_container.
+
+  IF ( umvar_dynpro IS INITIAL ).
+    CREATE OBJECT  umvar_dynpro
+                    EXPORTING
+                      i_parent = container_umvar.
+  ENDIF.
+  CALL METHOD umvar_dynpro->display_alv.
+
+
+ENDMODULE.                             " STATUS_0500  OUTPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0500  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0500 INPUT.
+  IF ( sy-ucomm = 'OAW3' ).
+    CALL TRANSACTION 'OAW3' .
+    CALL METHOD cl_umvar_alv=>set_first_call.
+  ENDIF.
+  LEAVE TO SCREEN 0.
+
+ENDMODULE.                             " USER_COMMAND_0500  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  ACTIVATE_FIELDS  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE activate_fields OUTPUT.
+* nur bei Vergleich
+  CHECK central_object->sub_dynnr = sub_nr_vergleich.
+  LOOP AT SCREEN.
+    CASE screen-name.
+      WHEN 'BIS'.
+        screen-invisible = '0'.
+        screen-active = '1'.
+        MODIFY SCREEN.
+      WHEN 'DOWN2'.
+        screen-invisible = '0'.
+        MODIFY SCREEN.
+      WHEN 'UP2'.
+        screen-invisible = '0'.
+        MODIFY SCREEN.
+      WHEN 'EDIT_JAHRE_TO'.
+        screen-input = '1'.
+        screen-invisible = '0'.
+        MODIFY SCREEN.
+    ENDCASE.
+  ENDLOOP.
+ENDMODULE.                             " DEACTIVATE_FIELDS  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  user_command_0303  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0303 OUTPUT.
+*  TYPES: BEGIN OF area_list,
+*              id TYPE afaber,
+*              text  TYPE scrpcha72,
+*             END OF area_list,
+*             area_list_tab TYPE TABLE OF area_list.
+  TYPES: BEGIN OF buttons,
+              number TYPE i,
+              id TYPE afaber,
+              END OF buttons,
+         buttonlist TYPE TABLE OF buttons.
+  DATA: sel_list TYPE TABLE OF afaber,
+        wa_sel TYPE afaber.
+  DATA: list TYPE area_list_tab,
+        wa_list TYPE area_list.
+  DATA: number TYPE i,
+        s_number(2) TYPE c.
+  DATA: button_name(6) TYPE c.
+  DATA: title(6) TYPE c.
+  DATA: entries TYPE i.
+  TYPES: c4(7) TYPE c.
+  DATA: t1 TYPE c4,t2 TYPE c4,t3 TYPE c4,t4 TYPE c4,t5 TYPE c4,
+        t6 TYPE c4,t7 TYPE c4,t8 TYPE c4,t9 TYPE c4,t10 TYPE c4.
+  DATA: t11 TYPE c4,t12 TYPE c4,t13 TYPE c4,t14 TYPE c4,t15 TYPE c4,
+        t16 TYPE c4,t17 TYPE c4,t18 TYPE c4,t19 TYPE c4,t20 TYPE c4.
+  FIELD-SYMBOLS <f> TYPE ANY.
+
+* get list of depr. areas.
+  CALL METHOD central_object->tree_object->get_areas
+    IMPORTING
+      et_list = list.
+* get list of selected areas
+  sel_list = central_object->vergleich_dynpro->select_list.
+* activate buttons
+  number = 1.
+  DESCRIBE TABLE list LINES entries.
+  IF entries > 0.                                              "> 539225
+  LOOP AT list INTO wa_list.
+    s_number = number.
+    CONCATENATE 'T' s_number INTO button_name.
+    LOOP AT SCREEN.
+      IF screen-name = button_name.
+        screen-invisible = '0'.
+        screen-active = '1'.
+        MODIFY SCREEN.
+      ENDIF.
+*     deactive additional input field if < 20 areas
+      IF entries < 20.
+        IF screen-name = 'BNEU_TEXT' OR
+          screen-name =  'BNEU'      OR
+          screen-name =  'BWEG_TEXT' OR
+          screen-name =  'BWEG'.
+          screen-invisible = '1'.
+          screen-active = '0'.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    ASSIGN (button_name) TO <f>.
+* is area id selected ?
+    READ TABLE sel_list WITH KEY wa_list-id INTO wa_sel.
+    IF sy-subrc = 0.
+*      CONCATENATE   '@7X@' wa_list-id INTO title SEPARATED BY space.
+      CONCATENATE   '<' wa_list-id '>' INTO title. "SEPARATED BY space.
+      <f> = title.
+    ELSE.
+      <f> = wa_list-id.
+    ENDIF.
+    number = number + 1.
+  ENDLOOP.
+  ELSE.                                                        "> 539225
+* auch wenn die Liste mit Daten leer ist müssen bestimmte Felder
+* ausgeblendet werden
+    LOOP AT SCREEN.                                            "> 539225
+       if screen-name = 'BNEU_TEXT' or                         "> 539225
+          screen-name =  'BNEU'      or                        "> 539225
+          screen-name =  'BWEG_TEXT' or                        "> 539225
+          screen-name =  'BWEG'.                               "> 539225
+         screen-invisible = '1'.                               "> 539225
+         screen-active = '0'.                                  "> 539225
+         MODIFY SCREEN.                                        "> 539225
+       endif.                                                  "> 539225
+    ENDLOOP.                                                   "> 539225
+  ENDIF.                                                       "> 539225
+ENDMODULE.                             " user_command_0303  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  check_input_area  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE check_input_area INPUT.
+  CALL METHOD central_object->modify_select_list
+    EXPORTING
+      i_bneu = bneu
+      i_bweg = bweg.
+  CLEAR bneu.
+  CLEAR bweg.
+ENDMODULE.                 " check_input_area  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  afaparam_pbo  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE afaparam_pbo OUTPUT.
+  DATA: s_anlb TYPE anlb.
+
+* save dympro-no 0304
+  gd_sub_nr_304_306 = sub_nr.                               ">1398629
+
+  IF central_object->daten_object->anln2 = '****'.          ">1398629
+    CLEAR gd_tddp_tmintrvl_title.                           ">1398629
+  ENDIF.                                                    ">1398629
+
+********* Begin of insertion note 874584 *******************************
+
+* Fill the table T093B for the currency editing of the
+* amount fields (Scrap value)
+  IF central_object->daten_object->bukrs  <> t093b-bukrs  OR
+     central_object->daten_object->afaber <> t093b-afabe.
+    READ TABLE central_object->daten_object->fiaa_object->ct_t093b
+         INTO t093b
+         WITH KEY bukrs = central_object->daten_object->bukrs
+                  afabe = central_object->daten_object->afaber.
+    IF sy-subrc <> 0.
+      SELECT SINGLE * FROM t093b INTO t093b
+         WHERE bukrs = central_object->daten_object->bukrs
+         AND   afabe = central_object->daten_object->afaber.
+    ENDIF.
+  ENDIF.
+
+********** End of insertion note 874584 ********************************
+
+* activate fields on parameter dynpro if simulation is on
+  IF gd_simu = on.
+    READ TABLE central_object->daten_object->fiaa_object->ct_anlb_real
+        INTO s_anlb
+        WITH KEY afabe = central_object->daten_object->afaber.
+    LOOP AT SCREEN.
+      CASE screen-name.
+        WHEN: 'AW01_DEP_PAR-AFASL' OR 'AW01_DEP_PAR-NDJAR' OR
+              'AW01_DEP_PAR-NDPER' OR 'AW01_DEP_PAR-AFABG' OR
+              'AW01_DEP_PAR-SAFBG' OR 'AW01_DEP_PAR-ZINBG' OR
+              'AW01_DEP_PAR-WBIND' OR 'AW01_DEP_PAR-UMJAR' OR
+              'AW01_DEP_PAR-ALIND' OR 'AW01_DEP_PAR-INVSL' OR
+              'AW01_DEP_PAR-SCHRW' OR 'AW01_DEP_PAR-APROP' OR
+              'AW01_DEP_PAR-SCHRW_PROZ'.                      "> 1253047
+          IF s_anlb-anlgr IS INITIAL.
+            screen-input = '1'.
+          ELSE.
+*           and not for assets assigned to a group asset
+            screen-input = '0'.
+          ENDIF.
+          MODIFY SCREEN.
+      ENDCASE.
+    ENDLOOP.
+    aw01_dep_par =
+    central_object->daten_object->fiaa_object->cs_aw01_dep_par.
+  ENDIF.
+
+*  wenn Unternummer Stern und verschiedene Abschreibungsschlüssel, dann
+*  macht es keinen Sinn den Button 'AfA-Schlüssel zeigen' zu aktivieren
+  IF central_object->daten_object->fiaa_object->cs_aw01_dep_par-afasl
+                      = '****'.
+    LOOP AT SCREEN.
+      CASE screen-name.
+        WHEN '%#AUTOTEXT001'.
+          screen-invisible = '1'.
+          MODIFY SCREEN.
+        WHEN 'TIME'.                                        ">1398629
+          screen-invisible = '1'.                           ">1398629
+          MODIFY SCREEN.                                    ">1398629
+      ENDCASE.
+    ENDLOOP.
+  ENDIF.
+
+* start of note 1398629
+* No New depr.calculate
+* No display Button "More intervals"
+  IF gd_use_old_calc = abap_true.                           ">1641670
+    LOOP AT SCREEN.
+      CASE screen-name.
+         WHEN 'TIME'.
+          screen-invisible = '1'.
+          MODIFY SCREEN.
+      ENDCASE.
+    ENDLOOP.
+  ENDIF.
+* end of note 1398629
+
+* start of note 1462043
+* not display remaining life, if useful life is expired.
+  IF central_object->daten_object->anln2 <> '****'.
+    IF AW01_DEP_PAR-RSTNDJ = 0  AND
+       AW01_DEP_PAR-RSTNDP = 0.
+     LOOP AT SCREEN.
+        CASE screen-name.
+           WHEN 'RA03W-RSTNDJ'
+             OR 'RA03W-RSTNDP'
+             OR 'AW01_DEP_PAR-RSTNDJ'
+             OR 'AW01_DEP_PAR-RSTNDP'.
+             screen-invisible = '1'.
+             MODIFY SCREEN.
+        ENDCASE.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+* end of note 1462043
+
+ENDMODULE.                 " afaparam_pbo  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  MODIFY_PARAM_DYNPRO  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE modify_param_dynpro INPUT.
+  DATA: ls_t090c        TYPE t090c.
+  DATA: ls_t090t        TYPE t090t.
+  DATA: ls_anla         TYPE anla.
+  DATA: ls_anlb         TYPE anlb.
+  DATA: ls_anlbza       TYPE anlbza.                        ">1398629
+  DATA: ls_anlc         TYPE anlc.
+  DATA: ls_ants         TYPE ants.
+  DATA: ls_t093b        TYPE t093b.
+  DATA: ld_date_changed TYPE anlb-xnega.
+
+  FIELD-SYMBOLS: <fiaa_object> TYPE REF TO cl_old_aw01_integration.
+  FIELD-SYMBOLS: <daten_object> TYPE REF TO cl_aw01_daten.
+
+*   mit Feldsymbolen arbeiten um das ganze übersichtlicher zu machen
+    IF <fiaa_object>  IS ASSIGNED. UNASSIGN <fiaa_object>.  ENDIF.
+    IF <daten_object> IS ASSIGNED. UNASSIGN <daten_object>. ENDIF.
+
+    ASSIGN central_object->daten_object->fiaa_object TO <fiaa_object>.
+    ASSIGN central_object->daten_object              TO <daten_object>.
+
+  CHECK gd_simu = on.                                          ">1398629
+
+    CLEAR ls_t090c.
+    CLEAR ls_t090t.
+    CLEAR ls_anlb.
+    CLEAR ls_anlc.
+
+    gd_calc_new_afa = on.
+    gd_calc_show_afa = on.
+
+    MOVE-CORRESPONDING <fiaa_object>->cs_t093c TO ls_t090c.
+    MOVE-CORRESPONDING aw01_dep_par TO ls_t090c.
+
+    CALL FUNCTION 'T090C_READ'
+      EXPORTING
+        f_t090c   = ls_t090c
+      IMPORTING
+        e_t090t   = ls_t090t
+      EXCEPTIONS
+        not_found = 1
+        not_activ = 2
+        OTHERS    = 3.
+    IF sy-subrc = 0.
+      aw01_dep_par-afatxt = ls_t090t-afatxt.                 ">1076667
+      CLEAR ls_t090t. CLEAR ls_t090c.
+    ELSE.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+* do the following for all assets
+    LOOP AT <fiaa_object>->ct_anla INTO ls_anla.
+* save asset data in ANTS
+      MOVE-CORRESPONDING ls_anla TO ls_ants.
+
+* also if parameters have changed, then update ANLB for depreciation
+* recalculation
+      READ TABLE <fiaa_object>->ct_anlb INTO ls_anlb WITH KEY
+                           mandt = sy-mandt
+                           bukrs = <daten_object>->bukrs
+                           anln1 = <daten_object>->anln1
+                           anln2 = ls_anla-anln2
+                           afabe = <daten_object>->afaber.
+      IF sy-subrc = 0.
+        MOVE-CORRESPONDING aw01_dep_par TO ls_anlb.
+        MODIFY <fiaa_object>->ct_anlb[] FROM ls_anlb INDEX sy-tabix.
+* start of note 1398629
+*       new depreciation calculate
+        IF gd_use_old_calc IS INITIAL.
+          READ TABLE <fiaa_object>->ct_anlbza INTO ls_anlbza WITH KEY
+                             mandt = sy-mandt
+                             bukrs = <daten_object>->bukrs
+                             anln1 = <daten_object>->anln1
+                             anln2 = ls_anla-anln2
+                             afabe = <daten_object>->afaber
+                             bdatu = s_anlb-bdatu.
+          IF sy-subrc = 0.
+            MOVE-CORRESPONDING aw01_dep_par TO ls_anlbza.
+            MODIFY <fiaa_object>->ct_anlbza[] FROM ls_anlbza INDEX sy-tabix.
+          ENDIF.
+        ENDIF.
+* end of note 1398629
+      ENDIF.
+
+      CLEAR ls_anlb.
+      CLEAR ls_anlbza.                                      ">1398629
+
+* also if parameters have changed, then update ANLB_REAL areas for
+* depreciation recalculation
+      READ TABLE <fiaa_object>->ct_anlb_real INTO ls_anlb WITH KEY
+                           mandt = sy-mandt
+                           bukrs = <daten_object>->bukrs
+                           anln1 = <daten_object>->anln1
+                           anln2 = ls_anla-anln2
+                           afabe = <daten_object>->afaber.
+      IF sy-subrc = 0.
+        MOVE-CORRESPONDING aw01_dep_par TO ls_anlb.
+       MODIFY <fiaa_object>->ct_anlb_real[] FROM ls_anlb INDEX sy-tabix.
+
+* start of note 1398629
+*       new depreciation calculate
+        IF gd_use_old_calc IS INITIAL.
+          READ TABLE <fiaa_object>->ct_anlbza_real INTO ls_anlbza WITH KEY
+                             mandt = sy-mandt
+                             bukrs = <daten_object>->bukrs
+                             anln1 = <daten_object>->anln1
+                             anln2 = ls_anla-anln2
+                             afabe = <daten_object>->afaber
+                             bdatu = s_anlb-bdatu.
+          IF sy-subrc = 0.
+            MOVE-CORRESPONDING aw01_dep_par TO ls_anlbza.
+            MODIFY <fiaa_object>->ct_anlbza_real[] FROM ls_anlbza INDEX sy-tabix.
+          ENDIF.
+        ENDIF.
+* end of note 1398629
+
+* check if expired useful life has to be calculated new. This is the
+* case when values on the dynpro are different from values in the safed
+* depreciation parameter structure
+       IF aw01_dep_par-afabg <> <fiaa_object>->cs_aw01_dep_par-afabg OR
+          aw01_dep_par-safbg <> <fiaa_object>->cs_aw01_dep_par-safbg OR
+          aw01_dep_par-zinbg <> <fiaa_object>->cs_aw01_dep_par-zinbg.
+
+          gd_new_ul = abap_true.                            "> 976045
+          ld_date_changed = on.
+* recalc useful life.
+          CALL METHOD <fiaa_object>->recalc_useful_life
+            EXPORTING
+              i_ants   = ls_ants
+              i_afaber = <daten_object>->afaber
+              i_gjahr  = <daten_object>->afa_jahre.
+        ENDIF.
+      ENDIF.
+
+* also if parameters have changed, then update ANLC for depreciation
+* recalculation
+      READ TABLE <fiaa_object>->ct_anlc INTO ls_anlc WITH KEY
+                           mandt = sy-mandt
+                           bukrs = <daten_object>->bukrs
+                           anln1 = <daten_object>->anln1
+                           anln2 = ls_anla-anln2
+                           gjahr = <daten_object>->afa_jahre
+                           afabe = <daten_object>->afaber.
+      IF sy-subrc = 0.
+* wenn sich AfA-Beginn geändert hat dann AW_01_DEP_PAR anpassen
+        IF ld_date_changed = on.
+          aw01_dep_par-ndabj = ls_anlc-ndabj.
+          aw01_dep_par-ndabp = ls_anlc-ndabp.
+          CLEAR ld_date_changed.
+        ENDIF.
+
+        MOVE-CORRESPONDING aw01_dep_par TO ls_anlc.
+        MODIFY <fiaa_object>->ct_anlc[] FROM ls_anlc INDEX sy-tabix.
+      ENDIF.
+
+* if depreciation key changed. Then depreciation calculation has to be
+* performed for every open year up to the actual displayed year,
+* because there could be limitations to the depr. key for fiscal years.
+* If this is the case, the error message comes up here on the parameter
+* screen and not when it is too late on the depr. recalculation on other
+* screens. And if the depr. calculation for every year has to be done,
+* then this means that the ANLC has to be updated also.
+      IF aw01_dep_par-afasl <> <fiaa_object>->cs_aw01_dep_par-afasl.
+        CALL METHOD <fiaa_object>->load_anlc
+          EXPORTING
+            i_afaber = <daten_object>->afaber
+            i_gjahr  = <daten_object>->afa_jahre.
+      ENDIF.
+
+      CLEAR ls_ants.
+    ENDLOOP.
+
+* now build up AFA_PARAM_DYNPRO again to recalculate useful
+* life and so on
+    CALL METHOD <fiaa_object>->afa_param_dynpro
+      EXPORTING
+        i_bukrs  = <daten_object>->bukrs
+        i_anln1  = <daten_object>->anln1
+        i_anln2  = <daten_object>->anln2
+        i_afaber = <daten_object>->afaber
+        i_gjahr  = <daten_object>->afa_jahre.
+
+
+ENDMODULE.                 " MODIFY_PARAM_DYNPRO  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  search_help_field_afasl_304  INPUT
+*&---------------------------------------------------------------------*
+* Da die Suchhilfe SH_AFASL_SPEC am Feld AFASL der AW01_DEP_PAR nicht
+* direkt benutzt werden kann (kein Feld BUKRS in der AW01_DEP_PAR), wird
+* diese Variante benutzt. Hierbei wird explizit die Tabelle und
+* Suchhilfe mitgegeben.
+* Am Ende muß der sy-ucomm gelöscht werden, da bei Doppelclick auf einen
+* AfA-Schlüssel dieser auf PICK steht, was im Asset Explorer auch
+* bedeutet den AfA-SChlüssel anzuzeigen.
+*----------------------------------------------------------------------*
+MODULE search_help_field_afasl_304 INPUT.
+  DATA: ls_return     TYPE           ddshretval,
+        lt_return     TYPE TABLE OF  ddshretval.
+  DATA: ls_shlp       TYPE           shlp_descr,
+        wa_selopt     LIKE LINE OF   ls_shlp-selopt.
+
+  CALL FUNCTION 'F4IF_FIELD_VALUE_REQUEST'
+    EXPORTING
+      tabname           = 'T090NA'
+      fieldname         = 'AFASL'
+      searchhelp        = 'SH_AFASL_SPEC'
+      callback_program  = sy-repid
+      callback_form     = 'SET_VALUES_FOR_F4_AFASL_304'
+    TABLES
+      return_tab        = lt_return
+    EXCEPTIONS
+      field_not_found   = 1
+      no_help_for_field = 2
+      inconsistent_help = 3
+      no_values_found   = 4
+      OTHERS            = 5.
+
+  READ TABLE lt_return INDEX 1 INTO ls_return.
+  CHECK sy-subrc = 0.
+  aw01_dep_par-afasl = ls_return-fieldval.
+  CLEAR sy-ucomm.
+
+ENDMODULE.                 " search_help_field_afasl_304  INPUT
+
+*&--------------------------------------------------------------------*
+*&      Form  SET_VALUES_FOR_F4_AFASL_304
+*&--------------------------------------------------------------------*
+*       Exit-Routine, mit der die Selektionsoptionen der F4-Hilfe
+*       vorbelegt werden. Der F4-Hilfe Prozessor wird hierbei manuell
+*       angestoßen. F4-Hilfe: SH_BELART_FIAA
+*---------------------------------------------------------------------*
+*      -->RECORD_TAB   Ergebnismenge der Suchhilfe
+*      -->SHLP         Suchhilfe-Steuerung (u.a. Selektionsoptionen)
+*      -->CALLCONTROL  Suchhilfe-Ablaufparameter (z.B. STEP = 'SELECT')
+*---------------------------------------------------------------------*
+FORM set_values_for_f4_afasl_304
+                       TABLES   record_tab    STRUCTURE seahlpres
+                       CHANGING shlp          TYPE      shlp_descr
+                                callcontrol   LIKE      ddshf4ctrl.
+  DATA: wa_selopt     LIKE LINE OF shlp-selopt.
+
+  IF  NOT central_object->daten_object->bukrs IS INITIAL.
+    CLEAR wa_selopt.
+    wa_selopt-sign   = 'I'.
+    wa_selopt-option = 'EQ'.
+    wa_selopt-shlpfield = 'BUKRS'.
+    wa_selopt-low       = central_object->daten_object->bukrs .
+    APPEND wa_selopt TO shlp-selopt.
+  ENDIF.
+
+ENDFORM.                    "SET_VALUES_FOR_F4
+
+*&---------------------------------------------------------------------*
+*&      Module  TDDP_ANLBZA_INIT  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+MODULE TDDP_ANLBZA_INIT OUTPUT.
+
+* mit Feldsymbolen arbeiten um das ganze übersichtlicher zu machen
+  IF <fiaa_object>  IS ASSIGNED. UNASSIGN <fiaa_object>.  ENDIF.
+  IF <daten_object> IS ASSIGNED. UNASSIGN <daten_object>. ENDIF.
+
+  ASSIGN central_object->daten_object->fiaa_object TO <fiaa_object>.
+  ASSIGN central_object->daten_object              TO <daten_object>.
+
+
+  IF gd_afabe_copied_2_tc <> <daten_object>->afaber AND
+     NOT <daten_object>->anln2 = '****'.
+    CLEAR gts_tmintrvl_tddp.
+    LOOP AT <fiaa_object>->ct_anlbza INTO anlbza
+                  WHERE afabe EQ <daten_object>->afaber.
+      MOVE-CORRESPONDING anlbza TO gs_tmintrvl_tddp.
+      APPEND gs_tmintrvl_tddp TO gts_tmintrvl_tddp.
+    ENDLOOP.
+
+    gd_afabe_copied_2_tc = <daten_object>->afaber.
+    REFRESH CONTROL 'TC_ANLBZA' FROM SCREEN sub_nr_afa_parameter_tddp.
+  ENDIF.
+
+  DESCRIBE TABLE gts_tmintrvl_tddp LINES ld_tabix.
+
+  PERFORM tddp_hide_tc_buttons.
+
+
+ENDMODULE.                 " TDDP_ANLBZA_INIT  OUTPUT
+
+
+*&---------------------------------------------------------------------*
+*&      Module  TDDP_DETAIL_OK_CODE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+
+MODULE TDDP_DETAIL_OK_CODE INPUT.
+
+  CASE ok_code.
+*-- Call the overview screen of time intervals of
+*   timedependent depreciation parameters.
+    WHEN 'TDDP_OVRVW'.
+      IF NOT central_object->daten_object->anln2 = '****'.
+        sub_nr = sub_nr_afa_parameter_tddp.
+*       save dympro-no 0306
+        gd_sub_nr_304_306 = sub_nr.
+      ELSE.
+        MESSAGE s258(ay).
+      ENDIF.
+    WHEN OTHERS.
+      RETURN. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ENDCASE. "ok_code
+  CLEAR ok_code.
+
+ENDMODULE.                 " TDDP_DETAIL_OK_CODE  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  TDDP_ANLBZA_MOVE  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+
+MODULE TDDP_ANLBZA_MOVE OUTPUT.
+
+ MOVE-CORRESPONDING gs_tmintrvl_tddp TO anlbza.
+
+* activate fields on parameter dynpro if simulation is on
+  IF gd_simu = on AND
+     NOT anlbza IS INITIAL.
+    LOOP AT SCREEN.
+      CASE screen-name.
+        WHEN: 'ANLBZA-AFASL' OR 'ANLBZA-NDJAR' OR
+              'ANLBZA-NDPER' OR 'ANLBZA-APROP' OR
+              'ANLBZA-SCHRW' OR 'ANLBZA-SCHRW_PROZ'.
+          screen-input  = '1'.
+          MODIFY SCREEN.
+      ENDCASE.
+    ENDLOOP.
+  ENDIF.
+
+ENDMODULE.                 " TDDP_ANLBZA_MOVE  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  TDDP_ANLBZA_MODIFY  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+
+MODULE TDDP_ANLBZA_MODIFY INPUT.
+
+  DATA: ld_anlbza_prev_line TYPE i,
+        ls_tmintrvl_tddp    LIKE LINE OF gts_tmintrvl_tddp,
+        ls_prev_anlbza      TYPE anlbza,
+        ld_change_dspr_key  TYPE xfeld.
+
+  anlbza-adatu = gs_tmintrvl_tddp-adatu.
+  anlbza-bdatu = gs_tmintrvl_tddp-bdatu.
+  CLEAR ld_change_dspr_key.
+  gd_calc_new_afa = on.
+  gd_calc_show_afa = on.
+
+  ld_anlbza_prev_line = tc_anlbza-current_line - 1.
+  READ TABLE gts_tmintrvl_tddp INDEX ld_anlbza_prev_line
+                               INTO ls_tmintrvl_tddp.
+  IF sy-subrc EQ 0.
+    MOVE anlbza TO ls_prev_anlbza.
+    MOVE-CORRESPONDING ls_tmintrvl_tddp TO ls_prev_anlbza.
+  ENDIF.
+
+  MOVE-CORRESPONDING anlbza TO gs_tmintrvl_tddp.
+  MODIFY gts_tmintrvl_tddp FROM gs_tmintrvl_tddp
+                           INDEX tc_anlbza-current_line.
+
+  CHECK gd_simu = on.
+
+* do the following for all assets
+  LOOP AT <fiaa_object>->ct_anla INTO ls_anla.
+    ls_anla-has_tddp = abap_true.
+    MODIFY <fiaa_object>->ct_anla[] FROM ls_anla INDEX sy-tabix.
+* save asset data in ANTS
+    MOVE-CORRESPONDING ls_anla TO ls_ants.
+
+    READ TABLE <fiaa_object>->ct_anlbza INTO ls_anlbza WITH KEY
+                                mandt = sy-mandt
+                                bukrs = anlbza-bukrs
+                                anln1 = anlbza-anln1
+                                anln2 = anlbza-anln2
+                                afabe = anlbza-afabe
+                                bdatu = anlbza-bdatu.
+    IF sy-subrc EQ 0.
+      IF ls_anlbza-afasl <> anlbza-afasl.
+        ld_change_dspr_key = abap_true.
+      ENDIF.
+      MOVE-CORRESPONDING anlbza TO ls_anlbza.
+      MODIFY <fiaa_object>->ct_anlbza[] FROM ls_anlbza INDEX sy-tabix.
+    ENDIF.
+
+    READ TABLE <fiaa_object>->ct_anlbza_real INTO ls_anlbza WITH KEY
+                                mandt = sy-mandt
+                                bukrs = anlbza-bukrs
+                                anln1 = anlbza-anln1
+                                anln2 = anlbza-anln2
+                                afabe = anlbza-afabe
+                                bdatu = anlbza-bdatu.
+    IF sy-subrc EQ 0.
+      IF ls_anlbza-afasl <> anlbza-afasl.
+        ld_change_dspr_key = abap_true.
+      ENDIF.
+      MOVE-CORRESPONDING anlbza TO ls_anlbza.
+      MODIFY <fiaa_object>->ct_anlbza_real[] FROM ls_anlbza INDEX sy-tabix.
+    ENDIF.
+
+*   update ANLB from ANLBZA (last interval)
+    IF anlbza-bdatu = con_bdatu.
+      READ TABLE <fiaa_object>->ct_anlb INTO ls_anlb WITH KEY
+                                mandt = sy-mandt
+                                bukrs = anlbza-bukrs
+                                anln1 = anlbza-anln1
+                                anln2 = anlbza-anln2
+                                afabe = anlbza-afabe.
+      IF sy-subrc EQ 0.
+        MOVE-CORRESPONDING anlbza TO ls_anlb.
+        MODIFY <fiaa_object>->ct_anlb[] FROM ls_anlb INDEX sy-tabix.
+      ENDIF.
+
+      READ TABLE <fiaa_object>->ct_anlb_real INTO ls_anlb WITH KEY
+                                mandt = sy-mandt
+                                bukrs = anlbza-bukrs
+                                anln1 = anlbza-anln1
+                                anln2 = anlbza-anln2
+                                afabe = anlbza-afabe.
+      IF sy-subrc EQ 0.
+        MOVE-CORRESPONDING anlbza TO ls_anlb.
+        MODIFY <fiaa_object>->ct_anlb_real[] FROM ls_anlb INDEX sy-tabix.
+      ENDIF.
+    ENDIF.
+*   if depreciation key changed. Then depreciation calculation has to be
+*   performed for every open year up to the actual displayed year,
+*   because there could be limitations to the depr. key for fiscal years.
+*   If this is the case, the error message comes up here on the parameter
+*   screen and not when it is too late on the depr. recalculation on other
+*   screens. And if the depr. calculation for every year has to be done,
+*   then this means that the ANLC has to be updated also.
+    IF ld_change_dspr_key = abap_true.
+      CALL METHOD <fiaa_object>->load_anlc
+        EXPORTING
+          i_afaber = <daten_object>->afaber
+          i_gjahr  = <daten_object>->afa_jahre.
+    ENDIF.
+
+    CLEAR ls_ants.
+  ENDLOOP.
+
+ENDMODULE.                 " TDDP_ANLBZA_MODIFY  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  TDDP_INIT_SLCTD_INTRVL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+
+MODULE TDDP_INIT_SLCTD_INTRVL INPUT.
+
+  CHECK gts_slctd_tmintrvl IS NOT INITIAL.
+  CLEAR gts_slctd_tmintrvl.
+  ASSERT gts_slctd_tmintrvl IS INITIAL.
+
+ENDMODULE.                 " TDDP_INIT_SLCTD_INTRVL  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  TDDP_OVERVIEW_OK_CODE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+
+MODULE TDDP_OVERVIEW_OK_CODE INPUT.
+
+  CASE sy-ucomm.
+*-- Select time interval in overerview screen of
+*   timedependent depreciation parameters.
+    WHEN 'TDDP_SELZ' OR
+         'SELZ'.
+*     Dympro afa_parameter
+      sub_nr = sub_nr_afa_parameter.
+      CLEAR gs_tmintrvl_tddp.
+      PERFORM intervall_pick.
+      IF NOT gs_tmintrvl_tddp IS INITIAL.
+*       Read name for depreciation key
+        IF gs_tmintrvl_tddp-afasl NE aw01_dep_par-afasl.
+          MOVE-CORRESPONDING <fiaa_object>->cs_t093c TO ls_t090c.
+          MOVE-CORRESPONDING gs_tmintrvl_tddp        TO ls_t090c.
+          CALL FUNCTION 'T090C_READ'
+            EXPORTING
+              f_t090c   = ls_t090c
+            IMPORTING
+              e_t090t   = ls_t090t
+            EXCEPTIONS
+              not_found = 1
+              not_activ = 2
+              OTHERS    = 3.
+          IF sy-subrc = 0.
+            aw01_dep_par-afatxt = ls_t090t-afatxt.
+            CLEAR ls_t090t.
+            CLEAR ls_t090c.
+          ELSE.
+            MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                   WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+          ENDIF.
+        ENDIF.
+*       update display-fields afa-parameter from intervall
+        MOVE-CORRESPONDING:
+          gs_tmintrvl_tddp TO anlbza,
+          gs_tmintrvl_tddp TO aw01_dep_par.
+
+        gd_to_sel_date = gs_tmintrvl_tddp-bdatu.
+
+*       also if parameters have changed, then update ANLB_REAL areas for
+*       depreciation recalculation
+        READ TABLE <fiaa_object>->ct_anlb_real INTO ls_anlb WITH KEY
+                             mandt = sy-mandt
+                             bukrs = anlbza-bukrs
+                             anln1 = anlbza-anln1
+                             anln2 = anlbza-anln2
+                             afabe = anlbza-afabe.
+        IF sy-subrc = 0.
+          MOVE-CORRESPONDING anlbza TO ls_anlb.
+          MODIFY <fiaa_object>->ct_anlb_real[] FROM ls_anlb INDEX sy-tabix.
+        ENDIF.
+        MOVE-CORRESPONDING anlbza TO <fiaa_object>->cs_aw01_dep_par.
+        <fiaa_object>->cs_aw01_dep_par-afatxt = aw01_dep_par-afatxt.
+
+* start of note 1462043
+*       display remaining life in dympro 304
+        READ TABLE gt_remaining_life INTO gs_remaining_life
+                                 WITH KEY afabe = anlbza-afabe
+                                          bdatu = anlbza-bdatu.
+        IF sy-subrc = 0.
+          <fiaa_object>->cs_aw01_dep_par-rstndj = gs_remaining_life-rem_year.
+          <fiaa_object>->cs_aw01_dep_par-rstndp = gs_remaining_life-rem_per.
+        ELSE.
+          <fiaa_object>->cs_aw01_dep_par-rstndj = 0.
+          <fiaa_object>->cs_aw01_dep_par-rstndp = 0.
+        ENDIF.
+          aw01_dep_par-rstndj = <fiaa_object>->cs_aw01_dep_par-rstndj.
+          aw01_dep_par-rstndp = <fiaa_object>->cs_aw01_dep_par-rstndp.
+* end of note 1462043
+
+*       Title interval
+        IF gd_use_old_calc IS INITIAL.
+          CLEAR gd_tddp_tmintrvl_title.
+          CLEAR gd_field_len.
+          MOVE  text-702   TO gd_tddp_tmintrvl_title(23).
+          gd_field_len = STRLEN( gd_tddp_tmintrvl_title ) + 1.
+          WRITE gs_tmintrvl_tddp-adatu TO gd_tddp_tmintrvl_title+gd_field_len DD/MM/YYYY.
+          gd_field_len = STRLEN( gd_tddp_tmintrvl_title ) + 1.
+          MOVE  text-703   TO gd_tddp_tmintrvl_title+gd_field_len.
+          gd_field_len = STRLEN( gd_tddp_tmintrvl_title ) + 1.
+          WRITE gs_tmintrvl_tddp-bdatu TO gd_tddp_tmintrvl_title+gd_field_len DD/MM/YYYY.
+        ENDIF.
+      ENDIF.
+
+*-- Create a new time interval
+*     For old transactions, this funtion is not supported     "< 1078619
+    WHEN 'TDDP_CINV'.
+      CLEAR anlbza-adatu.
+      CALL SCREEN '0307' STARTING AT 37 6.
+*-- Delete the selected time intervals
+    WHEN 'TDDP_DINV'.
+      CLEAR gs_tmintrvl_tddp.
+      PERFORM intervall_pick.
+      IF NOT gs_tmintrvl_tddp IS INITIAL.
+        INSERT gs_tmintrvl_tddp INTO TABLE gts_slctd_tmintrvl.
+        MOVE-CORRESPONDING: gs_tmintrvl_tddp TO anlbza.
+        PERFORM tddp_delete_slctd_tmintrvls USING anlbza
+                               CHANGING gts_tmintrvl_tddp.
+      ENDIF.
+    WHEN OTHERS.
+      RETURN.  ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ENDCASE.
+
+  UNASSIGN <fiaa_object>. UNASSIGN <daten_object>.
+
+ENDMODULE.                 " TDDP_OVERVIEW_OK_CODE  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  TDDP_OKCODE_D0307  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+
+MODULE TDDP_OKCODE_D0307 INPUT.
+
+  PERFORM tddp_create_interval.
+
+  SET SCREEN 0.
+  LEAVE SCREEN.
+
+ENDMODULE.                 " TDDP_OKCODE_D0307  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  TDDP_AFA_PARAM_DYNPRO  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+
+MODULE TDDP_AFA_PARAM_DYNPRO INPUT.
+
+  CHECK gd_simu = on.
+
+* now build up AFA_PARAM_DYNPRO again to recalculate useful
+* life and so on
+  CALL METHOD <fiaa_object>->afa_param_dynpro
+    EXPORTING
+      i_bukrs  = <daten_object>->bukrs
+      i_anln1  = <daten_object>->anln1
+      i_anln2  = <daten_object>->anln2
+      i_afaber = <daten_object>->afaber
+      i_gjahr  = <daten_object>->afa_jahre.
+
+
+ENDMODULE.                 " TDDP_AFA_PARAM_DYNPRO  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0307  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+* new module with note 1398629
+MODULE STATUS_0307 output.
+
+  CALL FUNCTION 'AM_SET_STATUS'
+       EXPORTING    I_STATUS = 'HNKR'.
+       SET TITLEBAR '307'.
+
+ENDMODULE.                 " STATUS_0307  OUTPUT
+
+*&---------------------------------------------------------------------*
+*&      Form  TDDP_HIDE_TC_BUTTONS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+* new Form-routine with note 1398629
+
+FORM TDDP_HIDE_TC_BUTTONS .
+
+  LOOP AT SCREEN.
+    IF screen-group1 EQ 'PSH' AND
+       gd_simu IS INITIAL.
+      IF screen-group2 EQ 'DIN' OR
+         screen-group2 EQ 'CIN'.
+        SCREEN-REQUIRED  = '0'.
+        SCREEN-INVISIBLE = '1'.
+        SCREEN-INPUT     = '0'.
+        SCREEN-OUTPUT    = '0'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDIF.
+    IF gd_simu = on and
+       ld_tabix < 2 AND
+       screen-group1 EQ 'PSH' AND
+       screen-group2 EQ 'DIN'.
+      SCREEN-REQUIRED  = '0'.
+      SCREEN-INVISIBLE = '1'.
+      SCREEN-INPUT     = '0'.
+      SCREEN-OUTPUT    = '0'.
+      MODIFY SCREEN.
+    ENDIF.
+
+  ENDLOOP.
+
+
+ENDFORM.                    " TDDP_HIDE_TC_BUTTONS
+
+*&---------------------------------------------------------------------*
+*&      Form  tddp_create_interval
+*&---------------------------------------------------------------------*
+* new Form-routine with note 1398629
+
+FORM tddp_create_interval .
+*=======================================================================
+* Creates new time interval for depreciation parameters and its dependent
+* areas
+*=======================================================================
+
+  CHECK NOT anlbza-adatu IS INITIAL.
+
+  DATA:
+    lts_tmintrvl_tddp  LIKE gts_tmintrvl_tddp,
+    ls_tmintrvl_tddp   LIKE gs_tmintrvl_tddp,
+    ls_par_anlbza      TYPE anlbza,
+    ld_buper           TYPE t009b-poper,
+    ld_gjahr           TYPE t009b-bdatj,
+    ld_firstday_period TYPE anlbza-adatu.
+  FIELD-SYMBOLS:
+    <ls_x093> LIKE T093,
+    <ls_par_area> LIKE LINE OF <fiaa_object>->ct_anlbza.
+
+  CALL FUNCTION 'DATE_TO_PERIOD_CONVERT'
+    EXPORTING
+      I_DATE               = anlbza-adatu
+      I_PERIV              = t093c-periv
+    IMPORTING
+      E_BUPER              = ld_buper
+      E_GJAHR              = ld_gjahr
+    EXCEPTIONS
+      ERROR_MESSAGE        = 1
+      OTHERS               = 4.
+  IF SY-SUBRC <> 0.
+  MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+          WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+  CALL FUNCTION 'FIRST_DAY_IN_PERIOD_GET'
+    EXPORTING
+      I_GJAHR              = ld_gjahr
+      I_PERIV              = t093c-periv
+      I_POPER              = ld_buper
+    IMPORTING
+      E_DATE               = ld_firstday_period
+    EXCEPTIONS
+      ERROR_MESSAGE        = 1
+      OTHERS               = 4.
+  IF SY-SUBRC <> 0.
+  MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+          WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+* New intervals only allowed at period start date
+  IF anlbza-adatu <> ld_firstday_period.
+    MESSAGE ID 'AIST' TYPE 'E' NUMBER 007.
+  ENDIF.
+
+  PERFORM tddp_interval_copy USING    anlbza
+                             CHANGING gts_tmintrvl_tddp.
+*  Adopt lines of table control.
+  DESCRIBE TABLE gts_tmintrvl_tddp LINES tc_anlbza-lines.
+
+ENDFORM.                    " tddp_create_interval
+
+*&---------------------------------------------------------------------*
+*&      Form  tddp_interval_copy
+*&---------------------------------------------------------------------*
+* new Form-routine with note 1398629
+
+FORM tddp_interval_copy USING    is_anlbza TYPE anlbza
+                        CHANGING cts_tmintrvl_tddp LIKE gts_tmintrvl_tddp.
+
+  DATA:
+    ld_bdatu LIKE is_anlbza-bdatu,
+    ls_new_tmintrvl_tddp LIKE LINE OF cts_tmintrvl_tddp.
+
+* Select the time interval within which the new from date is
+* situated.
+  LOOP AT cts_tmintrvl_tddp INTO ls_new_tmintrvl_tddp
+                           WHERE adatu <= is_anlbza-adatu AND
+                                 bdatu >  is_anlbza-adatu.  "#EC NEEDED
+  ENDLOOP.
+
+* Set the borders of the new time interval.
+  ld_bdatu = ls_new_tmintrvl_tddp-bdatu.
+  MOVE-CORRESPONDING is_anlbza TO ls_new_tmintrvl_tddp.
+  ls_new_tmintrvl_tddp-bdatu = ld_bdatu.
+
+* Create the new interval using a service class from the extention
+  TRY.
+      CALL METHOD (gc_cf_faa_tmdpndt_data)=>('SET_TMINTRVL')
+        EXPORTING
+          is_tmintrvl  = ls_new_tmintrvl_tddp
+          id_table_key = 'BDATU'
+        CHANGING
+          cts_tmintrvl = cts_tmintrvl_tddp.
+*     Set change indicator for ANLBZA
+      flg_anlbza = on.
+      PERFORM tddp_update_xanlbza USING is_anlbza
+                                        cts_tmintrvl_tddp.
+    CATCH cx_sy_dyn_call_illegal_class.
+      RETURN. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ENDTRY.
+
+ENDFORM.                    " tddp_interval_copy
+
+*&--------------------------------------------------------------------*
+*&      Form  tddp_update_xanlbza
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+* new Form-routine with note 1398629
+
+FORM tddp_update_xanlbza USING is_anlbza TYPE anlbza
+                               its_tmintrvl_tddp LIKE gts_tmintrvl_tddp.
+*=======================================================================
+* Fills the internal table representing data base table ANLBZA from the
+* table control TC_ANLBZA
+*=======================================================================
+
+  FIELD-SYMBOLS:
+    <ls_tmintrvl_tddp> LIKE LINE OF its_tmintrvl_tddp.
+
+  xanlbza[] = <fiaa_object>->ct_anlbza_real[].
+  DELETE xanlbza WHERE afabe EQ is_anlbza-afabe.
+  MOVE-CORRESPONDING is_anlbza TO xanlbza.
+  LOOP AT its_tmintrvl_tddp ASSIGNING <ls_tmintrvl_tddp>.
+    MOVE-CORRESPONDING <ls_tmintrvl_tddp> TO xanlbza.
+    INSERT xanlbza INTO TABLE xanlbza.
+  ENDLOOP.
+  <fiaa_object>->ct_anlbza_real[] = xanlbza[].
+
+  xanlbza[] = <fiaa_object>->ct_anlbza[].
+  DELETE xanlbza WHERE afabe EQ is_anlbza-afabe.
+  MOVE-CORRESPONDING is_anlbza TO xanlbza.
+  LOOP AT its_tmintrvl_tddp ASSIGNING <ls_tmintrvl_tddp>.
+    MOVE-CORRESPONDING <ls_tmintrvl_tddp> TO xanlbza.
+    INSERT xanlbza INTO TABLE xanlbza.
+  ENDLOOP.
+  <fiaa_object>->ct_anlbza[] = xanlbza[].
+
+ENDFORM.                    "tddp_update_xanlbza
+*&---------------------------------------------------------------------*
+*&      Form  TDDP_DELETE_SLCTD_TMINTRVLS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_ANLBZA  text
+*      <--P_GTS_TMINTRVL_TDDP  text
+*----------------------------------------------------------------------*
+* new Form-routine with note 1398629
+form TDDP_DELETE_SLCTD_TMINTRVLS  using    is_anlbza TYPE anlbza
+                      CHANGING cts_tmintrvl_tddp LIKE gts_tmintrvl_tddp.
+
+  CHECK gd_simu = on.
+*
+  DATA:
+    ls_tmintrvl_tddp LIKE LINE OF cts_tmintrvl_tddp,
+    ls_tmintrvl_key  TYPE REF TO data.
+  FIELD-SYMBOLS:
+    <ls_tmintrvl_key> TYPE ANY,
+    <ld_from_date>    TYPE bf_adatu,
+    <ld_to_date>      TYPE bf_bdatu.
+
+* Create the time interval key dynamicaly, because it is not sure that
+* the type FAA_S_TMINTRVL_KEY exists.
+  TRY.
+      CREATE DATA ls_tmintrvl_key TYPE ('FAA_S_TMINTRVL_KEY').
+    CATCH   cx_sy_create_data_error.
+*   If FAA_S_TMINTRVL_KEY does not exists the deletion of time-intervals is
+*   not possible. This is the case if the ERP extention is not active.
+      RETURN. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<
+  ENDTRY.
+  ASSIGN ls_tmintrvl_key->* TO <ls_tmintrvl_key>.
+  ASSIGN COMPONENT 'FROM_DATE' OF STRUCTURE <ls_tmintrvl_key> TO <ld_from_date>.
+  ASSIGN COMPONENT 'TO_DATE' OF STRUCTURE <ls_tmintrvl_key> TO <ld_to_date>.
+
+  LOOP AT gts_slctd_tmintrvl INTO ls_tmintrvl_tddp.
+    MOVE ls_tmintrvl_tddp-bdatu TO <ld_to_date>.
+*   Get the from date because the intervals will be updated
+    LOOP AT cts_tmintrvl_tddp INTO ls_tmintrvl_tddp.
+      IF ls_tmintrvl_tddp-bdatu >= <ld_to_date>.
+        EXIT. "From Loop
+      ENDIF.
+    ENDLOOP.
+    MOVE ls_tmintrvl_tddp-adatu TO <ld_from_date>.
+*   Delete the time interval
+    TRY.
+        CALL METHOD (gc_cf_faa_tmdpndt_data)=>('DELETE_TMINTRVL')
+          EXPORTING
+            is_tmintrvl_key_2_delete = <ls_tmintrvl_key>
+            id_table_key             = 'BDATU'
+          CHANGING
+            cts_tmintrvl             = cts_tmintrvl_tddp.
+*     Set change indicator for ANLBZA
+        flg_anlbza = on.
+      CATCH cx_sy_dyn_call_illegal_class.
+        RETURN. ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    ENDTRY.
+  ENDLOOP.
+* Adopt lines of table control.
+  PERFORM tddp_update_xanlbza USING is_anlbza
+                                    cts_tmintrvl_tddp.
+
+* Adopt lines of table control.
+  DESCRIBE TABLE gts_tmintrvl_tddp LINES tc_anlbza-lines.
+
+* Update ANLB, if BDATU = 99991231
+  LOOP AT cts_tmintrvl_tddp INTO ls_tmintrvl_tddp
+                           WHERE bdatu = con_bdatu.
+    READ TABLE <fiaa_object>->ct_anlb_real INTO ls_anlb WITH KEY
+                          mandt = sy-mandt
+                          bukrs = anlbza-bukrs
+                          anln1 = anlbza-anln1
+                          anln2 = anlbza-anln2
+                          afabe = anlbza-afabe.
+     IF sy-subrc = 0.
+       MOVE-CORRESPONDING ls_tmintrvl_tddp TO ls_anlb.
+       MODIFY <fiaa_object>->ct_anlb_real[] FROM ls_anlb
+                                            INDEX sy-tabix.
+     ENDIF.
+     READ TABLE <fiaa_object>->ct_anlb INTO ls_anlb WITH KEY
+                          mandt = sy-mandt
+                          bukrs = anlbza-bukrs
+                          anln1 = anlbza-anln1
+                          anln2 = anlbza-anln2
+                          afabe = anlbza-afabe.
+     IF sy-subrc = 0.
+       MOVE-CORRESPONDING ls_tmintrvl_tddp TO ls_anlb.
+       MODIFY <fiaa_object>->ct_anlb[] FROM ls_anlb
+                                       INDEX sy-tabix.
+     ENDIF.
+
+   ENDLOOP.
+
+
+ENDFORM.                    " tddp_delete_slctd_tmintrvls
+*&---------------------------------------------------------------------*
+*&      Form  INTERVALL_PICK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+* new Form-routine with note 1398629
+form INTERVALL_PICK.
+  DATA: ld_tabix   TYPE sy-tabix,
+        ld_lines   TYPE sy-tabix,
+        ld_linesp1 TYPE sy-tabix.
+
+   GET CURSOR LINE ld_tabix.
+   IF ld_tabix = 0.
+      MESSAGE S330(AD).
+   ELSE.
+      ld_tabix = ld_tabix + tc_anlbza-top_line - 1.
+      DESCRIBE TABLE gts_tmintrvl_tddp LINES ld_lines.
+      ld_linesp1 = ld_lines + 1.
+      IF   ld_tabix > ld_lines.
+         MESSAGE S330(AD).
+         CLEAR ld_tabix.
+      ENDIF.
+   ENDIF.
+
+   CHECK ld_tabix <> 0.
+
+   READ TABLE gts_tmintrvl_tddp INDEX ld_tabix
+                         INTO gs_tmintrvl_tddp.
+
+endform.                    " INTERVALL_PICK
+
+*GUI Texts
+*----------------------------------------------------------
+* 307 --> Neues Intervall anlegen
+* 400 --> Legende der Ikonen
+* 500 --> Auswahl der Umrechnungsmethode
+* AW01N --> Asset Explorer
+* AW01N_AFAR --> Asset Explorer (alte AfA-Rechnung)
+* AW01N_AFSI --> Asset Explorer Simulation (alte AfA-Rechnung)
+* AW01N_SIMU --> Asset Explorer Simulation
+* 307 --> Create New Interval
+* 400 --> Icon Legend
+* 500 --> Selection of Translation Methods
+* AW01N --> Asset Explorer
+* AW01N_AFAR --> Asset Explorer (Old Depreciation Calculation)
+* AW01N_AFSI --> Asset Explorer Simulation (Old Depreciation Calculation)
+* AW01N_SIMU --> Asset Explorer Simulation
+* 307 --> Créer nouvel intervalle
+* 400 --> Légende des icônes
+* 500 --> Sélection de la méthode de conversion
+* AW01N --> Asset Explorer
+* AW01N_AFAR --> Asset Explorer (ancien calcul amortissements)
+* AW01N_AFSI --> Simulation Asset Explorer (ancien calcul amortissements)
+* AW01N_SIMU --> Simulation Asset Explorer
+* 307 --> Criar intervalo novo
+* 400 --> Legenda dos ícones
+* 500 --> Seleção do método de conversão
+* AW01N --> Asset Explorer
+* AW01N_AFAR --> Asset Explorer (antigo cálculo de depreciação)
+* AW01N_AFSI --> Simulação Asset Explorer (antigo cálculo de depreciação)
+* AW01N_SIMU --> Simulação Asset Explorer
+* 307 --> Crear intervalo nuevo
+* 400 --> Leyenda de iconos
+* 500 --> Selección del método de conversión
+* AW01N --> Explorer AF
+* AW01N_AFAR --> Asset Explorer (cálculo de amortización antiguo)
+* AW01N_AFSI --> Simulación Asset Explorer (cálculo de amortización antiguo)
+* AW01N_SIMU --> Simulación Asset Explorer
+* 307 --> Yeni aral#k yarat
+* 400 --> #kon anahtar#
+* 500 --> Çeviri yöntemi seçimi
+* AW01N --> Duran varl#k gezgini
+* AW01N_AFAR --> Duran varl#k gezgini (eski amortisman hesaplamas#)
+* AW01N_AFSI --> Duran varl#k gezgini simülasyonu (eski amortisman hspl.)
+* AW01N_SIMU --> Duran varl#k gezgini simülasyonu
+
+*Text elements
+*----------------------------------------------------------
+* 001 Asset
+* 002 Asset master record
+* 003 Depreciation Areas
+* 004 Objects related to asset
+* 005 No objects related to asset found
+* 006 Search for related objects ...
+* 007 Technical details
+* 008 No search for related objects in summation mode
+* 010 Company code
+* 011 Asset class
+* 012 Without ledger group
+* 100 Fiscal year
+* 101 APC transactions
+* 102 Value adjustment
+* 103 Down payments
+* 104 Scrap value
+* 201 Planned values
+* 202 Posted dep. values
+* 203 Simulated Plan Vals.
+* 204 Simulated Posted Dep.
+* 300 Value
+* 301 Fiscal year start
+* 302 Change
+* 303 Year-end
+* 304 Posted values
+* 401 Transactions
+* 402 Depreciation posted/planned
+* 403 Years
+* 404 Comparison of several depreciation areas
+* 405 Fiscal year
+* 406 Simulation Transact.
+* 407 Simulation of Posted/Planned Depreciation
+* 501 No postings for selected fiscal year
+* 502 There is no depreciation
+* 601 Display dep.calculation
+* 602 Recalculate dep.
+* 603 Calculate net book value for ...
+* 604 Trans. Simulation
+* 605 Break Down Asset Group
+* 701 Display dep.calculation
+* 702 Interval From
+* 703 To
+* 801 Planned
+* 802 Posted
+* 803 Legacy data transfer
+* 804 Status
+* 805 Display FI document
+* 806 Relationship Browser
+* 807  All
+* 808 Display Deprec. Log
+* 809 Document Header Asset Accounting
+* 810 Simulated Asset Doc. Header
+* 811 Display Originals
+* 900 Select currency translation method
+* 901 Display amounts in original currency
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: A3
+*004   It is not possible to display a document from Financial Accounting!
+*
+* Message class: AA
+*001   Asset & & not in company code &
+*024   Asset has no values in fiscal year & for area: &
+*040   You have no authorization for asset views
+*048   Authorization missing for & & & &
+*976   Function Is Not Possible - Asset Already Deactivated
+*
+* Message class: AD
+*330   Move the cursor to a valid position
+*
+* Message class: AIST
+*007   New intervals can only be created at start of a period
+*
+* Message class: AY
+*258   Display of "Further Intervals" not possible w/ asset subnumber '****'
+*361   Communication error occurred during search for related objects
+*362   System error during search for related objects
+*363   Asset values cannot be displayed due to missing texts
+*440   Choose a transaction
+*443   A maximum of &1 areas can be selected
+*445   Position the cursor on a valid row with posted depreciation
+*446   Original cannot be displayed for simulated asset transactions
+*447   Simulation is not possible for group assets
+*448   Simulation is not possible for asset subnumber '****'
+*449   Accounting document cannot be displayed for simulated transactions
+*
+* Message class: CA_CHECK_DATE
+*000   Invalid parameter transfer
+*001   You are not authorized to execute program &
+*002   No authorization for displaying data from this period
+*006   Error during creation of log
+
+----------------------------------------------------------------------
+Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740

@@ -1,0 +1,3293 @@
+*N740800 Clean up for Selection Screens
+REPORT RFCASH00 MESSAGE-ID FB.
+
+TYPE-POOLS: SLIS.
+
+TABLES: SKA1,
+        SKAT,
+        SKB1,
+        SKC1A,
+        SKC1C,
+        KNA1,
+        LFA1,
+        BKPF,
+        BSEG,
+        BSIS,
+        T001,
+        X001.
+
+tables: V_vbsegs.
+
+TABLES: B0SG.
+
+TABLES: TCJ_DOCUMENTS.
+TABLES: TCJ_C_JOURNALS.
+TABLES: TCJ_CJ_NAMES.
+
+TABLES: TCURT.
+
+TABLES: BHDGD.
+
+TABLES: BKORM.
+
+TABLES: RFCASH.
+
+TABLES: ITCPO.
+
+TABLES: rfposx.
+
+TABLES: SPELL.
+TABLES: *SPELL.
+
+DATA: K_SALDO   LIKE SKC1A-UM01K,
+      CUR_SALDO LIKE SKC1C-WM01K.
+DATA: SUMME     LIKE SKC1A-UM01K,
+      CUR_SUMME LIKE SKC1C-WM01K.
+DATA: GKONT     LIKE BSEGA-GKONT,
+      ghkon     LIKE BSEG-hkont,
+      GKART     LIKE BSEGA-GKART.
+
+DATA: PERIOD LIKE T009B-POPER,
+      MONAT LIKE BKPF-MONAT,
+      GJAHR LIKE BKPF-GJAHR,
+      BDATE LIKE SY-DATUM.
+
+DATA: COUNT(6) TYPE N.
+DATA: REFE     TYPE P.
+Data: linec(6) type n.
+Data: linec2(6) type n.
+
+DATA: SAVE_BUKRS  LIKE BSEG-BUKRS.
+DATA: SAVE_HKONT  LIKE BSEG-HKONT.
+DATA: SAVE_HKON2  LIKE BSEG-HKONT.
+DATA: SAVE_WAERS  LIKE BSEG-HKONT.
+DATA: SAVE_LSUMD     LIKE rf140-saldo, "laufende Summe
+      SAVE_LSUMW     LIKE rf140-saldo. "laufende Summe
+DATA: SAVE_LINSZ     TYPE I.
+DATA: SAVE_LINNO     TYPE I.
+
+DATA: LINE1(255)     TYPE C.
+DATA: LINE2(255)     TYPE C.
+DATA: LINE3(255)     TYPE C.
+DATA: HFELD          TYPE C.
+
+DATA: TOP-FLAG       TYPE C.
+DATA: ueb-FLAG       TYPE C.
+
+DATA: WAE-FLAG       TYPE C.           "HW 1, 2 oder 3
+
+DATA: HPAGNOY        LIKE SY-PAGNO.
+DATA: HPAGNOM        LIKE SY-PAGNO.
+
+RANGES: BMONAT FOR RFPDO-DOPRBMON.
+
+Data:   Xbsis like bsis occurs 0 with header line.
+
+DATA:   BEGIN OF WAER  OCCURS 0,
+          WAERS     LIKE BKPF-WAERS,
+          HWAER     LIKE BKPF-HWAER,
+          HWAE2     LIKE BKPF-HWAE2,
+          HWAE3     LIKE BKPF-HWAE3,
+          STBLG     LIKE BKPF-STBLG,
+          STJAH     LIKE BKPF-STJAH,
+          BKTXT     LIKE BKPF-BKTXT,
+          BLART     LIKE BKPF-BLART,
+          BUDAT     LIKE BKPF-BUDAT,
+          BLDAT     LIKE BKPF-BLDAT,
+          CPUDT     LIKE BKPF-CPUDT,
+          BSTAT     LIKE BKPF-BSTAT,
+          XBLNR     LIKE BKPF-XBLNR,
+          AWKEY     LIKE BKPF-AWKEY,
+          VATDATE   LIKE BKPF-VATDATE,                        "1114552
+        END   OF WAER.
+
+DATA:   BEGIN OF YBSEG OCCURS 0.
+        INCLUDE STRUCTURE BSEG.
+        INCLUDE STRUCTURE WAER.
+DATA:   END   OF YBSEG.
+
+DATA:   BEGIN OF SUMM  OCCURS 0,
+          BUKRS     LIKE SKB1-BUKRS,
+          SAKNR     LIKE SKB1-SAKNR,
+          FWAER     LIKE SKC1C-FWAER,
+          CUR_SUMME LIKE CUR_SUMME,
+          HWAER     LIKE SKC1C-HWAER,
+          SUMME     LIKE SUMME,
+          XSALH     LIKE SKB1-XSALH,
+          EBELEG    TYPE I,            "Einzahlungen
+          ABELEG    TYPE I,            "Auszahlungen
+          STSBLG    TYPE I,            "Storno Sollbeleg
+          STHBLG    TYPE I,            "Storno Habenbeleg
+          CUR_SUMSS LIKE CUR_SUMME,    "Storno
+          SUMSS     LIKE SUMME,
+          CUR_SUMSH LIKE CUR_SUMME,    "Storno
+          SUMSH     LIKE SUMME,
+          CUR_SUMAS LIKE CUR_SUMME,    "Periode
+          SUMAS     LIKE SUMME,
+          CUR_SUMAH LIKE CUR_SUMME,    "Periode
+          SUMAH     LIKE SUMME,
+        END   OF SUMM.
+
+DATA:   BEGIN OF ASUMM  OCCURS 0,
+          BUKRS     LIKE SKB1-BUKRS,
+          SAKNR     LIKE SKB1-SAKNR,
+          FWAER     LIKE SKC1C-FWAER,
+          CUR_SUMME LIKE CUR_SUMME,
+          HWAER     LIKE SKC1C-HWAER,
+          SUMME     LIKE SUMME,
+          XSALH     LIKE SKB1-XSALH,
+          EBELEG    TYPE I,            "Einzahlungen
+          ABELEG    TYPE I,            "Auszahlungen
+          STSBLG    TYPE I,            "Storno Sollbeleg
+          STHBLG    TYPE I,            "Storno Habenbeleg
+          CUR_SUMSS LIKE CUR_SUMME,    "Storno
+          SUMSS     LIKE SUMME,
+          CUR_SUMSH LIKE CUR_SUMME,    "Storno
+          SUMSH     LIKE SUMME,
+          CUR_SUMAS LIKE CUR_SUMME,    "Periode
+          SUMAS     LIKE SUMME,
+          CUR_SUMAH LIKE CUR_SUMME,    "Periode
+          SUMAH     LIKE SUMME,
+        END   OF ASUMM.
+
+DATA:   BEGIN OF ESUMM  OCCURS 0,
+          BUKRS     LIKE SKB1-BUKRS,
+          SAKNR     LIKE SKB1-SAKNR,
+          FWAER     LIKE SKC1C-FWAER,
+          CUR_SUMME LIKE CUR_SUMME,
+          HWAER     LIKE SKC1C-HWAER,
+          SUMME     LIKE SUMME,
+          XSALH     LIKE SKB1-XSALH,
+          EBELEG    TYPE I,            "Einzahlungen
+          ABELEG    TYPE I,            "Auszahlungen
+          STSBLG    TYPE I,            "Storno Sollbeleg
+          STHBLG    TYPE I,            "Storno Habenbeleg
+          CUR_SUMSS LIKE CUR_SUMME,    "Storno
+          SUMSS     LIKE SUMME,
+          CUR_SUMSH LIKE CUR_SUMME,    "Storno
+          SUMSH     LIKE SUMME,
+          CUR_SUMAS LIKE CUR_SUMME,    "Periode
+          SUMAS     LIKE SUMME,
+          CUR_SUMAH LIKE CUR_SUMME,    "Periode
+          SUMAH     LIKE SUMME,
+        END   OF ESUMM.
+
+DATA:   BEGIN OF BELEGE OCCURS 0,
+          BUKRS     LIKE BSEG-BUKRS,
+          HKONT     LIKE BSEG-HKONT,
+          WAERS     LIKE BKPF-WAERS,
+          BELNR     LIKE BSEG-BELNR,
+          GJAHR     LIKE BSEG-GJAHR,
+          BUZEI     LIKE BSEG-BUZEI,
+          SHKZG     LIKE BSEG-SHKZG,
+          BLART     LIKE BKPF-BLART,
+          FWAER     LIKE BKPF-WAERS,
+          HWAER     LIKE BKPF-HWAER,
+          STBLG     LIKE BKPF-STBLG,
+          STJAH     LIKE BKPF-STJAH,
+          BKTXT     LIKE BKPF-BKTXT,
+          SGTXT     LIKE BSEG-SGTXT,
+          GKART     LIKE BSEGA-GKART,
+          GKONT     LIKE BSEGA-GKONT,
+          GhKON     LIKE BSEG-hkont,
+          BUDAT     LIKE BKPF-BUDAT,
+          BLDAT     LIKE BKPF-BLDAT,
+          CPUDT     LIKE BKPF-CPUDT,
+          BSTAT     LIKE BKPF-BSTAT,
+          ZUONR     LIKE BSEG-ZUONR,
+          MWSKZ     LIKE BSEG-MWSKZ,
+          KTBTR     LIKE rf140-saldo,  "Kontowährung
+          KMWST     LIKE rf140-saldo,   "Kontowährung
+*         KNBTR     LIKE rf140-saldo,   "Kontowährung
+          DMBTR     LIKE rf140-saldo,   "hwaer
+          MWSTS     LIKE rf140-saldo,   "hwaer
+*         DNBTR     LIKE rf140-saldo,   "hwaer
+          WRBTR     LIKE rf140-saldo,   "fwaer
+          WMWST     LIKE rf140-saldo,   "fwaer
+*         WNBTR     LIKE rf140-saldo,   "fwaer
+          KTSHB     LIKE rf140-saldo,
+          KSSHB     LIKE rf140-saldo,
+*         KNSHB     LIKE rf140-saldo,
+          DMSHB     LIKE rf140-saldo,
+          DSSHB     LIKE rf140-saldo,
+*         DNSHB     LIKE rf140-saldo,
+          WRSHB     LIKE rf140-saldo,
+          WSSHB     LIKE rf140-saldo,
+*         WNSHB     LIKE rf140-saldo,
+          KSBTR     LIKE rf140-saldo,
+          KSMWS     LIKE rf140-saldo,
+*         KSNBT     LIKE rf140-saldo,
+          DSBTR     LIKE rf140-saldo,
+          DSMWS     LIKE rf140-saldo,
+*         DSNBT     LIKE rf140-saldo,
+          WSBTR     LIKE rf140-saldo,
+          WSMWS     LIKE rf140-saldo,
+*         WSNBT     LIKE rf140-saldo,
+          KHBTR     LIKE rf140-saldo,
+          KHMWS     LIKE rf140-saldo,
+*         KHNBT     LIKE rf140-saldo,
+          DHBTR     LIKE rf140-saldo,
+          DHMWS     LIKE rf140-saldo,
+*         DHNBT     LIKE rf140-saldo,
+          WHBTR     LIKE rf140-saldo,
+          WHMWS     LIKE rf140-saldo,
+*         WHNBT     LIKE rf140-saldo,
+          XNEGP     LIKE BSEG-XNEGP,
+          GKTXT     LIKE SKAT-TXT50,   "Bezeichung Gegenk.
+          COUNT(6)  TYPE N,            "laufende Nummer
+          LSUMD     LIKE rf140-saldo,  "laufende Summe hw  hwaer
+          LSUMW     LIKE rf140-saldo,  "laufende Summe kw  waers
+          USUMD     LIKE rf140-saldo,  "Übertrag Summe hw
+          USUMW     LIKE rf140-saldo,  "Übertrag Summe kw
+          XBLNR     LIKE BKPF-XBLNR,
+          DOCNR     LIKE TCJ_DOCUMENTS-POSTING_NUMBER,
+          CAJON     LIKE TCJ_DOCUMENTS-CAJO_NUMBER,
+          DOCNC     LIKE TCJ_DOCUMENTS-D_POSTING_NUMB,
+          BP_name   LIKE TCJ_DOCUMENTS-BP_name,
+          KOSTL     LIKE BSEG-KOSTL,                            "817707
+          PRCTR     LIKE BSEG-PRCTR,                            "817707
+          WERKS     LIKE BSEG-WERKS,                            "817707
+          PROJK     LIKE BSEG-PROJK,                            "817707
+          AUFNR     LIKE BSEG-AUFNR,                            "817707
+          GSBER     LIKE BSEG-GSBER,                            "817707
+          VATDATE   LIKE BKPF-VATDATE,                         "1114552
+          SEGMENT   LIKE BSEG-SEGMENT,                         "1398042
+          PSEGMENT  LIKE BSEG-PSEGMENT,                        "1398042
+        END OF BELEGE.
+
+DATA: HTHEAD LIKE THEAD.
+
+DATA: BEGIN OF EDTEXT OCCURS 20.
+        INCLUDE STRUCTURE TLINE.
+DATA: END   OF EDTEXT.
+
+DATA: BEGIN OF EDTEXT2 OCCURS 20.
+        INCLUDE STRUCTURE TLINE.
+DATA: END   OF EDTEXT2.
+
+DATA: BEGIN OF EDTEXT3 OCCURS 20.
+        INCLUDE STRUCTURE TLINE.
+DATA: END   OF EDTEXT3.
+
+DATA: BEGIN OF EDTOTF OCCURS 20.
+        INCLUDE STRUCTURE ITCOO.
+DATA: END   OF EDTOTF.
+
+DATA: BEGIN OF XBKORM OCCURS 1.
+        INCLUDE STRUCTURE BKORM.
+DATA: END   OF XBKORM.
+
+* Global structure of list
+* fieldcatalog
+DATA:   GT_FIELDCAT TYPE SLIS_T_FIELDCAT_ALV WITH HEADER LINE.
+* sort
+DATA:   GT_SORT     TYPE SLIS_T_SORTINFO_ALV.
+* events
+DATA:   GT_EVENTS   TYPE SLIS_T_EVENT.
+
+*----- Structure for specific color settings ---------------------------
+DATA:   COL_TAB_T TYPE SLIS_T_SPECIALCOL_ALV,
+        COL_TAB   TYPE SLIS_SPECIALCOL_ALV.
+DATA:   G_TABNAME TYPE SLIS_TABNAME VALUE 'BELEGE'.
+DATA:   G_REPID   LIKE SY-REPID.
+
+DATA:   P_LIGNAM            TYPE SLIS_FIELDNAME VALUE  'LIGHTS'.
+
+* Callback routines
+DATA    G_STATUS TYPE SLIS_FORMNAME VALUE 'SET_STATUS'.
+DATA    G_USER_COMMAND TYPE SLIS_FORMNAME VALUE 'USER_COMMAND'.
+DATA    G_SAVE(1) TYPE C.
+DATA    G_VARIANT LIKE DISVARIANT.
+* List layout description
+DATA    GS_LAYOUT TYPE SLIS_LAYOUT_ALV.
+* print
+DATA:   GS_PRINT    TYPE SLIS_PRINT_ALV.
+
+DATA:   HPDEST      LIKE SY-PDEST.
+
+*Verhinderung von falschen END-of-Page
+DATA:   Pagecheck type c.     " Hinweis 0411240
+
+* fields for creating opening and closing balance over all currencies
+DATA: O_TOTAL     LIKE SKC1A-UM01K, "opening balance            "826798
+      C_TOTAL     LIKE SKC1A-UM01K, "closing balance            "826798
+      T_TOTAL     LIKE SKC1A-UM01K. "temporary work field for computing
+
+DATA: LD_FOUND(1) TYPE C.                                       "917749
+
+Data: it_skc1c like skc1c occurs 0 with header line.           "1770137
+DATA: ld_start_gjahr like GJAHR.                               "1799789
+
+SELECT-OPTIONS: DATE  FOR BKPF-BUDAT NO-EXTENSION DEFAULT SY-DATUM.
+SELECT-OPTIONS: WAERS FOR BKPF-WAERS.
+PARAMETERS:     N_BELEGE    LIKE RFPDO-BPETNBEL
+                                   DEFAULT 'X',   "Normale Belege.
+                VBEL        LIKE RFPDO2-SOPOVBEL."vorerfasste Belege
+
+PARAMETERS:  GKONTO   LIKE RFPDO-ALLGGKKZ.
+PARAMETERS:  XMWST    AS CHECKBOX.
+PARAMETERS:  EVENT    LIKE T048-EVENT.
+PARAMETERS:  XKBEL    AS CHECKBOX.
+PARAMETERS:  XOBEL    AS CHECKBOX. "356756
+SELECTION-SCREEN BEGIN OF LINE.
+*SELECTION-SCREEN COMMENT 1(30) TEXT-121.                       "N740800
+SELECTION-SCREEN COMMENT 1(30) TEXT-121 for field LGSHB.        "N740800
+SELECTION-SCREEN POSITION POS_LOW.
+PARAMETERS      LGSHB LIKE RFCASH-LGSHB.
+SELECTION-SCREEN POSITION POS_HIGH.
+SELECTION-SCREEN COMMENT (10) TEXT-151 for field LGWAE.        "N740800
+PARAMETERS      LGWAE LIKE RFCASH-WAERS.
+SELECTION-SCREEN END OF LINE.
+
+PARAMETERS: NUMBER(6) TYPE N.
+
+PARAMETERS: PAGEY LIKE RFCASH-PAGEY.
+PARAMETERS: LASTY LIKE RFCASH-LDAYY.
+PARAMETERS: PAGEM LIKE RFCASH-PAGEM.
+PARAMETERS: LASTM LIKE RFCASH-LDAYM.
+
+PARAMETERS: PDEST LIKE SY-PDEST NO-DISPLAY.
+PARAMETERS: ASALDO LIKE RSSCE-TDNAME VISIBLE LENGTH 32. " OBLIGATORY.
+PARAMETERS: ESALDO LIKE RSSCE-TDNAME VISIBLE LENGTH 32. " OBLIGATORY.
+PARAMETERS: USALDO LIKE RSSCE-TDNAME VISIBLE LENGTH 32. " OBLIGATORY.
+PARAMETERS: SIGNAT LIKE RSSCE-TDNAME VISIBLE LENGTH 32. " OBLIGATORY.
+
+PARAMETERS: P_LVAR   LIKE G_VARIANT-VARIANT DEFAULT SPACE.
+PARAMETERS:
+       TITLE       LIKE RFPDO1-ALLGLINE.
+*      LISTSEP     LIKE RFPDO-ALLGLSEP,
+*      MIKFICHE    LIKE RFPDO-ALLGMIKF.
+
+* Initialization fieldcatalog
+INITIALIZATION.
+  G_REPID = SY-REPID.
+  PERFORM FIELDCAT_INIT USING GT_FIELDCAT[].
+  PERFORM SORT_INIT USING GT_SORT[].
+  PERFORM EVENTS_INIT USING GT_EVENTS[].
+  PERFORM PRINT_INIT.
+  LOOP AT GT_FIELDCAT.
+    IF GT_FIELDCAT-KEY IS INITIAL.
+      GT_FIELDCAT-NO_OUT = 'X'.
+      MODIFY GT_FIELDCAT.
+    ENDIF.
+  ENDLOOP.
+
+AT SELECTION-SCREEN OUTPUT.
+  RFCASH-WAERS = LGWAE.
+  loop at screen.
+    IF SCREEN-NAME CS 'SD_GSB_S'.
+      SCREEN-ACTIVE = '0'.
+      MODIFY SCREEN.
+    endif.
+    IF SCREEN-NAME CS 'SD_RLDNR'.                               "1330259
+      SCREEN-ACTIVE = '0'.                                      "1330259
+      MODIFY SCREEN.                                            "1330259
+    endif.                                                      "1330259
+  endloop.
+
+AT SELECTION-SCREEN ON LGWAE.
+  RFCASH-WAERS = LGWAE.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR P_LVAR.
+  G_VARIANT-REPORT  = SY-REPID.
+  G_VARIANT-VARIANT = P_LVAR.
+  PERFORM F4_FOR_S_LVAR   USING G_VARIANT.
+  P_LVAR = G_VARIANT-VARIANT.
+
+AT SELECTION-SCREEN.
+  IF NOT ASALDO IS INITIAL.
+    PERFORM PRUEFEN_TEXT USING ASALDO.
+  ELSE.
+    IF SY-BATCH IS INITIAL.
+      SET CURSOR FIELD 'ASALDO'.
+    ENDIF.
+    MESSAGE E616.
+  ENDIF.
+  IF NOT ESALDO IS INITIAL.
+    PERFORM PRUEFEN_TEXT USING ESALDO.
+  ELSE.
+    IF SY-BATCH IS INITIAL.
+      SET CURSOR FIELD 'ESALDO'.
+    ENDIF.
+    MESSAGE E617.
+  ENDIF.
+  IF NOT USALDO IS INITIAL.
+    PERFORM PRUEFEN_TEXT USING USALDO.
+  ELSE.
+    IF SY-BATCH IS INITIAL.
+      SET CURSOR FIELD 'USALDO'.
+    ENDIF.
+    MESSAGE E618.
+  ENDIF.
+  IF NOT SIGNAT IS INITIAL.
+    PERFORM PRUEFEN_TEXT USING SIGNAT.
+  ELSE.
+    IF SY-BATCH IS INITIAL.
+      SET CURSOR FIELD 'SIGNAT'.
+    ENDIF.
+    MESSAGE E619.
+  ENDIF.
+
+START-OF-SELECTION.
+
+  IF DATE-HIGH IS INITIAL.
+    DATE-HIGH = DATE-LOW.
+  ENDIF.
+
+  IF N_BELEGE <> SPACE.
+    N_BELEGE = 'X'.
+*   B0SG-XSTAN = 'X'.
+* ELSE.
+*   B0SG-XSTAN = ' '.
+  ENDIF.
+
+  IF VBEL <> SPACE.
+    VBEL = 'X'.
+*   B0SG-XSTAV = 'X'.
+  ENDIF.
+
+* IF NOT pdest IS INITIAL.
+*   hpdest = pdest.
+* ELSE.
+*   hpdest = sy-pdest.
+* ENDIF.
+
+  B0SG-XCURR = 'X'.
+
+GET SKB1.
+  REFRESH SUMM.
+  REFRESH YBSEG.
+  CLEAR: O_TOTAL, C_TOTAL, T_TOTAL, it_skc1c.                  "1770137
+  REFRESH it_skc1c.                                            "1770137
+
+  CALL FUNCTION 'FI_CURRENCY_INFORMATION'
+       EXPORTING
+            I_BUKRS = SKB1-BUKRS
+       IMPORTING
+            E_X001  = X001.
+
+  IF SD_CURTP = '  '
+  OR SD_CURTP = '10'.
+    WAE-FLAG = '1'.
+  ELSE.
+    IF X001-CURT2 = SD_CURTP.
+      WAE-FLAG = '2'.
+    ELSEIF X001-CURT3 = SD_CURTP.
+      WAE-FLAG = '3'.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'FI_PERIOD_DETERMINE'
+       EXPORTING
+            I_BUDAT        = DATE-LOW
+            I_BUKRS        = SKB1-BUKRS
+            I_PERIV        = T001-PERIV
+       IMPORTING
+            E_GJAHR        = GJAHR
+            E_MONAT        = MONAT
+            E_POPER        = PERIOD
+       EXCEPTIONS
+            FISCAL_YEAR    = 1
+            PERIOD         = 2
+            PERIOD_VERSION = 3
+            POSTING_PERIOD = 4
+            SPECIAL_PERIOD = 5
+            VERSION        = 6
+            POSTING_DATE   = 7
+            OTHERS         = 8.
+
+  CALL FUNCTION 'PERIODENANFANG_ERMITTELN'
+       EXPORTING
+            EPERIV                  = T001-PERIV
+            EPERJJ                  = GJAHR
+            EPOPER                  = PERIOD
+       IMPORTING
+            IVONTG                  = BDATE
+       EXCEPTIONS
+            PERIODE_NICHT_VORHANDEN = 1
+            T009_NICHT_GEFUNDEN     = 2
+            OTHERS                  = 3.
+
+  REFRESH BMONAT.
+  BMONAT-LOW = PERIOD.
+  BMONAT-SIGN = 'I'.
+  BMONAT-OPTION = 'LT'.
+  APPEND BMONAT.
+
+  REFRESH SUMM.
+
+* add table only with key fields                                "791819
+  SUMM-BUKRS         = SKB1-BUKRS.                              "791819
+  SUMM-SAKNR         = SKB1-SAKNR.                              "791819
+  COLLECT SUMM.                                                 "791819
+
+GET SKC1C.
+
+  CHECK SKC1C-GJAHR >= GJAHR.                                  "1770137
+
+  it_skc1c = skc1c.                                            "1770137
+  append it_skc1c.                                             "1770137
+
+* begin of note 1770137
+** create opening balance over all currencies                    "826798
+*  ADD SKC1C-UM01O THEN SKC1C-UM02O UNTIL SKC1C-UM16O            "826798
+*      GIVING T_TOTAL ACCORDING TO BMONAT.                       "826798
+*  O_TOTAL = O_TOTAL + T_TOTAL + SKC1C-UMSAV.                    "826798
+*
+*  if skb1-xsalh is initial.
+*    CHECK SKC1C-FWAER IN WAERS.
+*  endif.
+*
+*  ADD SKC1C-WM01O THEN SKC1C-WM02O UNTIL SKC1C-WM16O GIVING CUR_SUMME
+*      ACCORDING TO BMONAT.
+*  CUR_SUMME    = CUR_SUMME + SKC1C-SLVFW.
+*  ADD SKC1C-UM01O THEN SKC1C-UM02O UNTIL SKC1C-UM16O GIVING SUMME
+*      ACCORDING TO BMONAT.
+*  SUMME    = SUMME + SKC1C-UMSAV.
+*
+** CHECK SKC1C-FWAER IN WAERS.
+*  SUMM-BUKRS         = SKB1-BUKRS.
+*  SUMM-SAKNR         = SKB1-SAKNR.
+*  SUMM-FWAER         = SKC1C-FWAER.
+*  SUMM-CUR_SUMME     = CUR_SUMME.
+*  SUMM-HWAER         = SKC1C-HWAER.
+*  SUMM-SUMME         = SUMME.
+*  SUMM-XSALH         = SKB1-XSALH.
+*  COLLECT SUMM.
+* end of  note 1770137
+
+*ET BKPF.
+* CHECK BKPF-BUDAT GE BDATE.
+* CHECK BKPF-WAERS IN WAERS.
+*
+*ET BSEG.
+
+GET SKB1 LATE.
+
+* begin of  note 1770137                                       "1770137
+  sort it_Skc1c by gjahr.                                      "1770137
+  READ table it_SKC1C INDEX 1.                                 "1770137
+  ld_start_gjahr = it_SKC1C-gjahr.                             "1799789
+
+LOOP at it_SKC1C where gjahr = ld_start_gjahr.                 "1799789
+* create opening balance over all currencies
+  ADD it_SKC1C-UM01O THEN it_SKC1C-UM02O UNTIL it_SKC1C-UM16O
+      GIVING T_TOTAL ACCORDING TO BMONAT.
+  O_TOTAL = O_TOTAL + T_TOTAL + it_SKC1C-UMSAV.
+
+  if skb1-xsalh is initial.
+    CHECK it_SKC1C-FWAER IN WAERS.
+  endif.
+
+  ADD it_SKC1C-WM01O THEN it_SKC1C-WM02O UNTIL it_SKC1C-WM16O GIVING CUR_SUMME
+      ACCORDING TO BMONAT.
+  CUR_SUMME    = CUR_SUMME + it_SKC1C-SLVFW.
+  ADD it_SKC1C-UM01O THEN it_SKC1C-UM02O UNTIL it_SKC1C-UM16O GIVING SUMME
+      ACCORDING TO BMONAT.
+  SUMME    = SUMME + it_SKC1C-UMSAV.
+
+* CHECK SKC1C-FWAER IN WAERS.
+  SUMM-BUKRS         = SKB1-BUKRS.
+  SUMM-SAKNR         = SKB1-SAKNR.
+  SUMM-FWAER         = it_SKC1C-FWAER.
+  SUMM-CUR_SUMME     = CUR_SUMME.
+  SUMM-HWAER         = it_SKC1C-HWAER.
+  SUMM-SUMME         = SUMME.
+  SUMM-XSALH         = SKB1-XSALH.
+  COLLECT SUMM.                                                "1770137
+* end of  note 1770137                                         "1770137
+ENDLOOP.                                                       "1799789
+
+* get total opening and closing balance for all currencies      "826798
+  perform get_o_c_total.                                        "826798
+* at the end add opening balance to sum of positions in closing balance
+  C_TOTAL = C_TOTAL + O_TOTAL.                                  "826798
+
+  PERFORM POSTEN.
+
+*ET SKB1 LATE.
+*REAK-POINT.
+  LOOP AT SUMM.
+
+    if summ-hwaer is initial and summ-fwaer is initial.         "917749
+       continue.                                                "917749
+    endif.                                                      "917749
+
+    ASUMM = SUMM.
+    APPEND ASUMM.
+
+    ESUMM = SUMM.
+    APPEND ESUMM.
+  ENDLOOP.
+  CLEAR   SUMM.
+  REFRESH SUMM.
+
+  PERFORM CREATE_TAB_BELEGE.
+
+END-OF-SELECTION.
+
+  DESCRIBE TABLE BELEGE LINES SY-TABIX.
+  IF SY-TABIX = 0.
+    MESSAGE ID '02' TYPE 'S' NUMBER '005'.
+    EXIT.
+  ENDIF.
+  G_SAVE = 'A'.
+  PERFORM VARIANT_INIT.
+  PERFORM LAYOUT_INIT.
+  CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+       EXPORTING
+            I_CALLBACK_PROGRAM       = G_REPID
+            I_CALLBACK_PF_STATUS_SET = G_STATUS
+            I_CALLBACK_USER_COMMAND  = G_USER_COMMAND
+            IT_SORT                  = GT_SORT[]
+            I_SAVE                   = G_SAVE
+            IS_VARIANT               = G_VARIANT
+            IS_LAYOUT                = GS_LAYOUT
+            IS_PRINT                 = GS_PRINT
+            IT_FIELDCAT              = GT_FIELDCAT[]
+            IT_EVENTS                = GT_EVENTS[]
+       TABLES
+            T_OUTTAB                 = BELEGE.
+
+
+*---------------------------------------------------------------------*
+*       FORM FIELDCAT_INIT                                            *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  RT_FIELDCAT                                                   *
+*---------------------------------------------------------------------*
+FORM FIELDCAT_INIT
+      USING RT_FIELDCAT TYPE SLIS_T_FIELDCAT_ALV.
+  DATA: LS_FIELDCAT TYPE SLIS_FIELDCAT_ALV.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BUKRS'.
+  LS_FIELDCAT-KEY           = ' '.     "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BUKRS'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'HKONT'.
+  LS_FIELDCAT-KEY           = ' '.     "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'HKONT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WAERS'.
+  LS_FIELDCAT-KEY           = ' '.     "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'WAERS'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BELNR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BELNR'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'GJAHR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'GJAHR'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BUZEI'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BUZEI'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'SHKZG'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SHKZG'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BLART'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BLART'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-117.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'FWAER'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'WAERS'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'HWAER'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'HWAER'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'STBLG'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'STBLG'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'STJAH'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'STJAH'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BKTXT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BKTXT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'SGTXT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SGTXT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'GKART'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'GKART'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEGA'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'GKONT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'GKONT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEGA'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'GHKON'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'HKONT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-148.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-148.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-149.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-148.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BUDAT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BUDAT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BLDAT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BLDAT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'CPUDT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'CPUDT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BSTAT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BSTAT'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'ZUONR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'ZUONR'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'MWSKZ'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'MWSKZ'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'KTBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-107.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-107.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-107.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-107.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'KMWST'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-122.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-122.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-122.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-122.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DMBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-132.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-133.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-134.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-134.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'MWSTS'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-140.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-141.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-142.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-143.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WRBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-136.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-137.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-138.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-139.
+  LS_FIELDCAT-CFIELDNAME    = 'FWAER'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WMWST'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-144.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-145.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-146.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-147.
+  LS_FIELDCAT-CFIELDNAME    = 'FWAER'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'KTSHB'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-108.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-108.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-108.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-108.
+  LS_FIELDCAT-DO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'KSSHB'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-123.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-123.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-123.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-123.
+  LS_FIELDCAT-DO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DMSHB'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-110.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-110.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-110.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-110.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DSSHB'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-131.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-131.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-131.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-131.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WRSHB'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'FWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-109.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-109.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-109.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-109.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WSSHB'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'FWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-130.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-130.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-130.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-130.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'KSBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-111.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-111.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-111.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-111.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'KSMWS'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-124.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-124.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-124.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-124.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DSBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-111.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-113.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-113.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-113.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DSMWS'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-126.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-126.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-126.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-126.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WSBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'FWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-111.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-112.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-112.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-112.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WSMWS'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'FWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-125.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-125.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-125.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-125.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'KHBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-114.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-114.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-114.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-114.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'KHMWS'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-127.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-127.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-127.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-127.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DHBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-114.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-116.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-116.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-116.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DHMWS'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-129.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-129.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-129.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-129.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WHBTR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'FWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-114.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-115.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-115.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-115.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'WHMWS'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'FWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-128.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-128.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-128.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-128.
+  LS_FIELDCAT-NO_ZERO       = 'X'.
+  LS_FIELDCAT-DO_SUM        = ' '.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'GKTXT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'TXT50'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-101.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-102.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-102.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-102.
+  LS_FIELDCAT-REF_TABNAME   = 'SKAT'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'XNEGP'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'XNEGP'.
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'COUNT'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+* LS_FIELDCAT-REF_FIELDNAME = '     '.
+* LS_FIELDCAT-REF_TABNAME   = '    '.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-100.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-100.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-100.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-100.
+  LS_FIELDCAT-DATATYPE      = 'NUMC'.
+  LS_FIELDCAT-DDIC_OUTPUTLEN = '6'.
+  LS_FIELDCAT-INTLEN         = '6'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'LSUMD'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-104.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-104.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-104.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-104.
+  LS_FIELDCAT-NO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'LSUMW'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-103.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-103.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-103.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-103.
+  LS_FIELDCAT-NO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'USUMD'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'HWAER'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-105.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-106.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-106.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-106.
+  LS_FIELDCAT-NO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'USUMW'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'SALDO'.
+  LS_FIELDCAT-REF_TABNAME   = 'RF140'.
+  LS_FIELDCAT-CFIELDNAME    = 'WAERS'.
+  LS_FIELDCAT-SELTEXT_S     = TEXT-105.
+  LS_FIELDCAT-SELTEXT_M     = TEXT-105.
+  LS_FIELDCAT-SELTEXT_L     = TEXT-105.
+  LS_FIELDCAT-REPTEXT_DDIC  = TEXT-105.
+  LS_FIELDCAT-NO_SUM        = 'X'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'XBLNR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'XBLNR'.
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DOCNR'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'POSTING_NUMBER'.
+  LS_FIELDCAT-REF_TABNAME   = 'TCJ_DOCUMENTS'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'CAJON'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'CAJO_NUMBER'.
+  LS_FIELDCAT-REF_TABNAME   = 'TCJ_DOCUMENTS'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'DOCNC'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'D_POSTING_NUMB'.
+  LS_FIELDCAT-REF_TABNAME   = 'TCJ_DOCUMENTS'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.
+  LS_FIELDCAT-TABNAME       = G_TABNAME.
+  LS_FIELDCAT-FIELDNAME     = 'BP_NAME'.
+* LS_FIELDCAT-KEY           = ' '.        "sets key field
+  LS_FIELDCAT-REF_FIELDNAME = 'BP_NAME'.
+  LS_FIELDCAT-REF_TABNAME   = 'TCJ_DOCUMENTS'.
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.
+
+  CLEAR LS_FIELDCAT.                                            "817707
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                        "817707
+  LS_FIELDCAT-FIELDNAME     = 'KOSTL'.                          "817707
+* LS_FIELDCAT-KEY           = ' '.     "sets key field          "817707
+  LS_FIELDCAT-REF_FIELDNAME = 'KOSTL'.                          "817707
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.                           "817707
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                           "817707
+
+  CLEAR LS_FIELDCAT.                                            "817707
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                        "817707
+  LS_FIELDCAT-FIELDNAME     = 'PRCTR'.                          "817707
+* LS_FIELDCAT-KEY           = ' '.     "sets key field          "817707
+  LS_FIELDCAT-REF_FIELDNAME = 'PRCTR'.                          "817707
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.                           "817707
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                           "817707
+
+  CLEAR LS_FIELDCAT.                                            "817707
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                        "817707
+  LS_FIELDCAT-FIELDNAME     = 'WERKS'.                          "817707
+* LS_FIELDCAT-KEY           = ' '.     "sets key field          "817707
+  LS_FIELDCAT-REF_FIELDNAME = 'WERKS'.                          "817707
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.                           "817707
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                           "817707
+
+  CLEAR LS_FIELDCAT.                                            "817707
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                        "817707
+  LS_FIELDCAT-FIELDNAME     = 'PROJK'.                          "817707
+* LS_FIELDCAT-KEY           = ' '.     "sets key field          "817707
+  LS_FIELDCAT-REF_FIELDNAME = 'PROJK'.                          "817707
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.                           "817707
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                           "817707
+
+  CLEAR LS_FIELDCAT.                                            "817707
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                        "817707
+  LS_FIELDCAT-FIELDNAME     = 'AUFNR'.                          "817707
+* LS_FIELDCAT-KEY           = ' '.     "sets key field          "817707
+  LS_FIELDCAT-REF_FIELDNAME = 'AUFNR'.                          "817707
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.                           "817707
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                           "817707
+
+  CLEAR LS_FIELDCAT.                                            "817707
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                        "817707
+  LS_FIELDCAT-FIELDNAME     = 'GSBER'.                          "817707
+* LS_FIELDCAT-KEY           = ' '.     "sets key field          "817707
+  LS_FIELDCAT-REF_FIELDNAME = 'GSBER'.                          "817707
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.                           "817707
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                           "817707
+
+  CLEAR LS_FIELDCAT.                                           "1114552
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                       "1114552
+  LS_FIELDCAT-FIELDNAME     = 'VATDATE'.                       "1114552
+* LS_FIELDCAT-KEY           = ' '.        "sets key field      "1114552
+  LS_FIELDCAT-REF_FIELDNAME = 'VATDATE'.                       "1114552
+  LS_FIELDCAT-REF_TABNAME   = 'BKPF'.                          "1114552
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                          "1114552
+
+  CLEAR LS_FIELDCAT.                                           "1398042
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                       "1398042
+  LS_FIELDCAT-FIELDNAME     = 'SEGMENT'.                       "1398042
+* LS_FIELDCAT-KEY           = ' '.     "sets key field         "1398042
+  LS_FIELDCAT-REF_FIELDNAME = 'SEGMENT'.                       "1398042
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.                          "1398042
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                          "1398042
+
+  CLEAR LS_FIELDCAT.                                           "1398042
+  LS_FIELDCAT-TABNAME       = G_TABNAME.                       "1398042
+  LS_FIELDCAT-FIELDNAME     = 'PSEGMENT'.                      "1398042
+* LS_FIELDCAT-KEY           = ' '.        "sets key field      "1398042
+  LS_FIELDCAT-REF_FIELDNAME = 'PSEGMENT'.                      "1398042
+  LS_FIELDCAT-REF_TABNAME   = 'BSEG'.                          "1398042
+  APPEND LS_FIELDCAT TO  RT_FIELDCAT.                          "1398042
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM VARIANT_INIT                                             *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM VARIANT_INIT.
+  CLEAR G_VARIANT.
+  G_VARIANT-REPORT  = G_REPID.
+  G_VARIANT-VARIANT = P_LVAR.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM LAYOUT_INIT                                              *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM LAYOUT_INIT.
+  CLEAR GS_LAYOUT.
+  GS_LAYOUT-NO_TOTALLINE = 'X'.
+  GS_LAYOUT-NO_VLINE = 'X'.
+  GS_LAYOUT-ZEBRA = 'X'.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM PRINT_INIT                                               *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM PRINT_INIT.
+  CLEAR GS_PRINT.
+  GS_PRINT-RESERVE_LINES = '2'.
+  GS_PRINT-NO_PRINT_LISTINFOS = 'X'.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM SORT_INIT                                                *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  RT_SORT                                                       *
+*---------------------------------------------------------------------*
+FORM SORT_INIT
+      USING RT_SORT TYPE SLIS_T_SORTINFO_ALV.
+  DATA: LS_SORT TYPE SLIS_T_SORTINFO_ALV WITH HEADER LINE.
+
+  CLEAR LS_SORT.
+  LS_SORT-SPOS         = '1'.
+  LS_SORT-FIELDNAME    = 'BUKRS'.
+  LS_SORT-TABNAME      = 'BELEGE'.
+  LS_SORT-UP           = 'X'.
+  LS_SORT-GROUP        = '* '.
+  LS_SORT-OBLIGATORY   = 'X'.
+  APPEND LS_SORT TO  RT_SORT.
+
+  CLEAR LS_SORT.
+  LS_SORT-SPOS         = '2'.
+  LS_SORT-FIELDNAME    = 'HKONT'.
+  LS_SORT-TABNAME      = 'BELEGE'.
+  LS_SORT-UP           = 'X'.
+  LS_SORT-GROUP        = '* '.
+  LS_SORT-OBLIGATORY   = 'X'.
+  APPEND LS_SORT TO  RT_SORT.
+
+  CLEAR LS_SORT.
+  LS_SORT-SPOS         = '3'.
+  LS_SORT-FIELDNAME    = 'WAERS'.
+  LS_SORT-TABNAME      = 'BELEGE'.
+  LS_SORT-UP           = 'X'.
+  LS_SORT-GROUP        = '* '.
+  LS_SORT-OBLIGATORY   = 'X'.
+  LS_SORT-SUBTOT       = 'X'.
+  APPEND LS_SORT TO  RT_SORT.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM EVENTS_INIT                                              *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  RT_EVENTS                                                     *
+*---------------------------------------------------------------------*
+FORM EVENTS_INIT
+      USING RT_EVENTS TYPE SLIS_T_EVENT.
+  DATA: LS_EVENTS TYPE SLIS_T_EVENT WITH HEADER LINE.
+
+  CLEAR LS_EVENTS.
+  LS_EVENTS-NAME       = 'TOP_OF_PAGE'.
+  LS_EVENTS-FORM       = 'TOP_OF_PAGE'.
+  APPEND LS_EVENTS TO  RT_EVENTS.
+
+  CLEAR LS_EVENTS.
+  LS_EVENTS-NAME       = 'END_OF_PAGE'.
+  LS_EVENTS-FORM       = 'END_OF_PAGE'.
+  APPEND LS_EVENTS TO  RT_EVENTS.
+
+  CLEAR LS_EVENTS.
+  LS_EVENTS-NAME       = 'TOP_OF_LIST'.
+  LS_EVENTS-FORM       = 'TOP_OF_LIST'.
+  APPEND LS_EVENTS TO  RT_EVENTS.
+
+  CLEAR LS_EVENTS.
+  LS_EVENTS-NAME       = 'BEFORE_LINE_OUTPUT'.
+  LS_EVENTS-FORM       = 'BEFORE_LINE_OUTPUT'.
+  APPEND LS_EVENTS TO  RT_EVENTS.
+
+  CLEAR LS_EVENTS.
+  LS_EVENTS-NAME       = 'AFTER_LINE_OUTPUT'.
+  LS_EVENTS-FORM       = 'AFTER_LINE_OUTPUT'.
+  APPEND LS_EVENTS TO  RT_EVENTS.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM SET_STATUS                                               *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  EXTAB                                                         *
+*---------------------------------------------------------------------*
+FORM SET_STATUS USING  EXTAB TYPE SLIS_T_EXTAB.
+  DATA: RT_EXTAB TYPE SLIS_T_EXTAB WITH HEADER LINE.
+  RT_EXTAB-FCODE = '&ILT'.
+  APPEND RT_EXTAB TO EXTAB.
+  RT_EXTAB-FCODE = '&ILD'.
+  APPEND RT_EXTAB TO EXTAB.
+
+  SET PF-STATUS 'CASH' EXCLUDING EXTAB.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM TOP_OF_PAGE                                              *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM TOP_OF_PAGE.
+
+  SELECT        * FROM  TCJ_C_JOURNALS
+         WHERE  COMP_CODE   = BELEGE-BUKRS
+         AND    GL_ACCOUNT  = BELEGE-HKONT
+         AND    CURRENCY    = BELEGE-WAERS.
+    EXIT.
+  ENDSELECT.
+  IF SY-SUBRC = 0.
+    SELECT SINGLE * FROM  TCJ_CJ_NAMES
+           WHERE  LANGU        = SY-LANGU
+           AND    COMP_CODE    = BELEGE-BUKRS
+           AND    CAJO_NUMBER  = TCJ_C_JOURNALS-CAJO_NUMBER.
+
+    MOVE '0'      TO BHDGD-INIFL.
+    MOVE SY-LINSZ TO BHDGD-LINES.
+    MOVE SY-UNAME TO BHDGD-UNAME.
+    MOVE SY-REPID TO BHDGD-REPID.
+    MOVE SY-TITLE TO BHDGD-LINE1.
+    MOVE TCJ_CJ_NAMES-CAJO_NAME TO BHDGD-LINE2.
+  ENDIF.
+  MOVE BELEGE-BUKRS TO BHDGD-BUKRS.
+  MOVE BHDGD-BUKRS  TO BHDGD-WERTE.
+  PERFORM BATCH-HEADING(RSBTCHH0).
+  HPAGNOY = PAGEY + SY-PAGNO.
+  HPAGNOM = PAGEM + SY-PAGNO.
+
+* top-flag = 'X'.
+
+  SELECT SINGLE * FROM T001
+    WHERE BUKRS = BELEGE-BUKRS.
+
+clear skat.
+CALL FUNCTION 'READ_HAUPTBUCH_TEXT'
+  EXPORTING
+    KONTENPLAN           = T001-Ktopl
+    SACHKONTO            = Belege-hkont
+    SPRACHE              = SY-Langu
+ IMPORTING
+   TEXT_WA              = skat
+ EXCEPTIONS
+   TEXT_NOT_FOUND       = 1
+   OTHERS               = 2.
+
+
+  SELECT SINGLE * FROM  TCURT
+         WHERE  SPRAS       = SY-LANGU
+         AND    WAERS       = BELEGE-WAERS   .
+  CLEAR: LINE1, LINE2, LINE3.
+  WRITE: BELEGE-HKONT TO LINE1.
+* WRITE: save_hkon2   TO LINE1.
+  WRITE: SKAT-TXT20   TO LINE1+11.
+  WRITE: BELEGE-WAERS TO LINE2.
+  WRITE: TCURT-KTEXT  TO LINE2+6.
+  WRITE: DATE-LOW     TO LINE3.
+  WRITE: '-'          TO LINE3+11.
+  WRITE: DATE-HIGH    TO LINE3+13.
+  DO.
+    SHIFT LINE2 RIGHT.
+    HFELD = LINE2+SY-LINSZ(1).
+    IF HFELD NE SPACE.
+      SHIFT LINE2.
+      EXIT.
+    ENDIF.
+  ENDDO.
+  OVERLAY LINE1 WITH LINE2.
+  PERFORM JUST_ROUTINE(RSBTCHH0) USING LINE3 SY-LINSZ.
+  OVERLAY LINE1 WITH LINE3.
+  WRITE: / LINE1.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM END_OF_PAGE                                              *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM END_OF_PAGE.
+
+ IF Not Pagecheck = 'X'.  "nur wenn kein Endsaldo gedruckt ist
+
+  FORMAT COLOR COL_TOTAL.
+
+  CLEAR RFCASH.
+  if not belege-belnr is initial.
+    RFCASH-SALDO   = BELEGE-USUMW.
+    RFCASH-SALDOHW = BELEGE-USUMD.
+  else.
+    RFCASH-SALDO   = BELEGE-ktshb.
+    RFCASH-SALDOHW = BELEGE-dmshb.
+  endif.
+  RFCASH-WAERS   = BELEGE-WAERS.
+  RFCASH-HWAER   = BELEGE-HWAER.
+
+* depending on the number of lines of the closing balance,      "1036131
+* the value of the carry-over isn't filled - if only the        "1036131
+* closing balance is printed on the last page.                  "1036131
+
+  LOOP AT ESUMM                                                 "1175741
+     WHERE BUKRS = BELEGE-BUKRS                                 "1175741
+     AND   SAKNR = BELEGE-HKONT                                 "1175741
+     AND   FWAER = BELEGE-WAERS.                                "1175741
+  ENDLOOP.                                                      "1175741
+
+  IF  RFCASH-SALDO     = 0 AND RFCASH-SALDOHW = 0               "1036131
+  AND ESUMM-CUR_SUMME <> 0 AND ESUMM-SUMME   <> 0               "1036131
+  AND BELEGE-BELNR IS INITIAL.           "no following document "1036131
+      RFCASH-SALDO     = ESUMM-CUR_SUMME.                       "1036131
+      RFCASH-SALDOHW   = ESUMM-SUMME.                           "1036131
+      RFCASH-WAERS     = ESUMM-FWAER.                           "1036131
+      RFCASH-HWAER     = ESUMM-HWAER.                           "1036131
+  ENDIF.                                                        "1036131
+
+  PERFORM WRITE_TEXT USING USALDO.
+
+  FORMAT COLOR COL_TOTAL INTENSIFIED OFF.
+*   save_linsz = sy-linsz - '20'.
+*   WRITE: / sy-vline, text-118, asumm-fwaer.
+*   WRITE AT save_linsz asumm-cur_summe CURRENCY asumm-fwaer.
+  describe table edtext lines linec.
+  linec = linec + 1.
+  reserve linec lines.
+  LOOP AT EDTEXT.
+    WRITE: / SY-VLINE.
+*   WRITE: 2 edtext-tdline.
+    WRITE: 2 EDTEXT.
+    WRITE AT SY-LINSZ SY-VLINE.
+  ENDLOOP.
+* save_linsz = sy-linsz - '20'.
+* WRITE: / sy-vline, text-120, belege-waers.
+* WRITE AT save_linsz belege-usumw CURRENCY belege-waers.
+* WRITE AT sy-linsz sy-vline.
+  ULINE.
+  ueb-flag = 'X'.
+*    TOP-FLAG = 'X'.
+*REAK-POINT.
+ Endif.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM TOP_OF_LIST                                              *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM TOP_OF_LIST.
+
+*- Standardseitenkopf fuellen ---------------------------------------*
+  MOVE '0'      TO BHDGD-INIFL.
+  MOVE SY-LINSZ TO BHDGD-LINES.
+  MOVE SY-UNAME TO BHDGD-UNAME.
+  MOVE SY-REPID TO BHDGD-REPID.
+  MOVE SY-TITLE TO BHDGD-LINE1.
+  MOVE TITLE    TO BHDGD-LINE2.
+  MOVE '    '   TO BHDGD-BUKRS.
+* MOVE MIKFICHE TO BHDGD-MIFFL.
+* MOVE LISTSEP  TO BHDGD-SEPAR.
+  MOVE 'BUKRS'  TO BHDGD-DOMAI.
+  MOVE PAGEY    TO BHDGD-START_PAGNO.
+
+  CLEAR SAVE_BUKRS.
+  CLEAR SAVE_HKONT.
+  CLEAR SAVE_WAERS.
+
+  LOOP AT BELEGE.
+    AT NEW HKONT.
+      COUNT = NUMBER.
+    ENDAT.
+
+    AT NEW WAERS.
+*     count = 0.
+
+      LOOP AT ASUMM
+        WHERE BUKRS = BELEGE-BUKRS
+        AND   SAKNR = BELEGE-HKONT
+        AND   FWAER = BELEGE-WAERS.
+        SAVE_LSUMD =  ASUMM-SUMME.
+        SAVE_LSUMW =  ASUMM-CUR_SUMME.
+        EXIT.
+      ENDLOOP.
+      IF SY-SUBRC NE 0.
+        SAVE_LSUMD =  0.
+        SAVE_LSUMW =  0.
+        CLEAR ASUMM-SUMME.
+        CLEAR ASUMM-CUR_SUMME.
+        ASUMM-BUKRS = BELEGE-BUKRS.
+        ASUMM-SAKNR = BELEGE-HKONT.
+        ASUMM-FWAER = BELEGE-WAERS.
+        COLLECT ASUMM.
+      ENDIF.
+
+      SELECT SINGLE * FROM  SKB1
+             WHERE  BUKRS       = BELEGE-BUKRS
+             AND    SAKNR       = BELEGE-HKONT.
+    ENDAT.
+
+    COUNT = COUNT + 1.
+    BELEGE-COUNT = COUNT.
+
+    BELEGE-USUMD = SAVE_LSUMD.
+    BELEGE-USUMW = SAVE_LSUMW.
+*   IF BELEGE-XNEGP IS INITIAL.
+    SAVE_LSUMW = SAVE_LSUMW + BELEGE-KTSHB.
+    SAVE_LSUMD = SAVE_LSUMD + BELEGE-DMSHB.
+*   ELSE.
+*       IF SKB1-XSALH IS INITIAL.
+*        SAVE_LSUMW = SAVE_LSUMW - BELEGE-WRSHB.
+*       ELSE.
+*         SAVE_LSUMW = SAVE_LSUMW - BELEGE-DMSHB.
+*       ENDIF.
+*       SAVE_LSUMD = SAVE_LSUMD - BELEGE-DMSHB.
+*   ENDIF.
+    BELEGE-LSUMD = SAVE_LSUMD.
+    BELEGE-LSUMW = SAVE_LSUMW.
+
+    MODIFY BELEGE.
+  ENDLOOP.
+  READ TABLE BELEGE INDEX 1.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM BEFORE_LINE_OUTPUT                                       *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  RS_LINEINFO                                                   *
+*---------------------------------------------------------------------*
+FORM BEFORE_LINE_OUTPUT USING RS_LINEINFO TYPE SLIS_LINEINFO.
+  READ TABLE Belege INDEX rs_Lineinfo-tabindex.
+  IF SY-SUBRC <> 0                                              "917749
+     and rs_Lineinfo-subtot = ' '.      "no sum line item       "1624744
+     EXIT.                                                      "917749
+  ENDIF.                                                        "917749
+  IF BELEGE-BUKRS NE SAVE_BUKRS
+  OR BELEGE-HKONT NE SAVE_HKONT
+  OR BELEGE-WAERS NE SAVE_WAERS.
+    SAVE_BUKRS = BELEGE-BUKRS.
+    SAVE_HKONT = BELEGE-HKONT.
+    SAVE_WAERS = BELEGE-WAERS.
+*   CLEAR top-flag.
+    LOOP AT ASUMM
+      WHERE BUKRS = BELEGE-BUKRS
+      AND   SAKNR = BELEGE-HKONT
+      AND   FWAER = BELEGE-WAERS.
+      EXIT.
+    ENDLOOP.
+
+    CLEAR RFCASH.
+    RFCASH-SALDO   = ASUMM-CUR_SUMME.
+*   RFCASH-SALDOHW = ASUMM-SUMME.                          "597794
+    RFCASH-SALDOHW = ASUMM-SUMME.                          "761791
+    RFCASH-WAERS   = ASUMM-FWAER.
+*   RFCASH-HWAER   = ASUMM-HWAER.                          "597794
+    RFCASH-HWAER   = ASUMM-HWAER.                          "761791
+
+*Begin of note "761791
+*   LOOP AT ASUMM                                          "597794
+*     WHERE BUKRS = BELEGE-BUKRS                           "597794
+*     AND   SAKNR = BELEGE-HKONT                           "597794
+*     AND   HWAER = BELEGE-WAERS.                          "597794
+*     RFCASH-SALDOHW = RFCASH-SALDOHW + ASUMM-SUMME.       "597794
+*     RFCASH-HWAER   = ASUMM-HWAER.                        "597794
+*   ENDLOOP.                                               "597794
+*End of note "761791
+
+*   set opening balance in output field                    "826798
+    RFCASH-SALDOHWT = O_TOTAL.                             "826798
+
+    clear Pagecheck.
+
+    PERFORM WRITE_TEXT USING ASALDO.
+
+    FORMAT COLOR COL_TOTAL INTENSIFIED OFF.
+*   save_linsz = sy-linsz - '20'.
+*   WRITE: / sy-vline, text-118, asumm-fwaer.
+*   WRITE AT save_linsz asumm-cur_summe CURRENCY asumm-fwaer.
+    LOOP AT EDTEXT.
+      WRITE: / SY-VLINE.
+*     WRITE: 2 edtext-tdline.
+      WRITE: 2 EDTEXT.
+      WRITE AT SY-LINSZ SY-VLINE.
+    ENDLOOP.
+    ULINE.
+*   CLEAR top-flag.
+* ELSE.
+*   IF SY-LINCT NE 0.
+*     SAVE_LINNO = SY-LINCT - 4.
+*     IF SY-LINNO = SAVE_LINNO.
+*     IF TOP-FLAG = 'X'.
+*     FORMAT COLOR COL_TOTAL.
+*     SAVE_LINSZ = SY-LINSZ - '20'.
+*     WRITE: / SY-VLINE, 'Übertrag', BELEGE-WAERS.
+*     WRITE AT SAVE_LINSZ BELEGE-USUMW CURRENCY BELEGE-WAERS.
+*     WRITE AT SY-LINSZ SY-VLINE.
+*     ULINE.
+*     CLEAR TOP-FLAG.
+*     ENDIF.
+*   ENDIF.
+  ENDIF.
+* save_hkon2 = belege-hkont.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM AFTER_LINE_OUTPUT                                        *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  RS_LINEINFO                                                   *
+*---------------------------------------------------------------------*
+FORM AFTER_LINE_OUTPUT USING RS_LINEINFO TYPE SLIS_LINEINFO.
+* break-point.
+  clear ueb-flag.
+  IF RS_LINEINFO-SUBTOT = 'X'.
+    IF  NOT BELEGE-BUKRS IS INITIAL
+    AND NOT BELEGE-HKONT IS INITIAL
+    AND NOT BELEGE-WAERS IS INITIAL
+    AND     BELEGE-BELNR IS INITIAL
+    AND     BELEGE-GJAHR IS INITIAL
+    AND     BELEGE-BUZEI IS INITIAL
+    AND     BELEGE-SHKZG IS INITIAL
+    AND     BELEGE-BLART IS INITIAL
+*   AND     BELEGE-FWAER IS INITIAL
+*   AND     BELEGE-HWAER IS INITIAL
+    AND     BELEGE-STBLG IS INITIAL
+    AND     BELEGE-STJAH IS INITIAL
+    AND     BELEGE-BKTXT IS INITIAL
+    AND     BELEGE-SGTXT IS INITIAL
+    AND     BELEGE-GKART IS INITIAL
+    AND     BELEGE-GKONT IS INITIAL
+    AND     BELEGE-BLDAT IS INITIAL
+    AND     BELEGE-BUDAT IS INITIAL
+    AND     BELEGE-CPUDT IS INITIAL
+    AND     BELEGE-BSTAT IS INITIAL
+    AND     BELEGE-ZUONR IS INITIAL
+    AND     BELEGE-XNEGP IS INITIAL
+    AND     BELEGE-GKTXT IS INITIAL.
+
+      LOOP AT ESUMM
+        WHERE BUKRS = BELEGE-BUKRS
+        AND   SAKNR = BELEGE-HKONT
+        AND   FWAER = BELEGE-WAERS.
+*       AND   CUR_SUMME <> 0.                           "917749 "965442
+        IF ESUMM-CUR_SUMME <> 0.                                "965442
+           EXIT.                                                "965442
+        ENDIF.                                                  "965442
+      ENDLOOP.
+
+      FORMAT COLOR COL_TOTAL INTENSIFIED OFF.
+*     ULINE.
+
+      CLEAR RFCASH.
+      RFCASH-SALDO     = ESUMM-CUR_SUMME.
+*     RFCASH-SALDOHW   = ESUMM-SUMME.                      "597794
+      RFCASH-SALDOHW   = ESUMM-SUMME.                      "761791
+      RFCASH-WAERS     = ESUMM-FWAER.
+*     RFCASH-HWAER     = ESUMM-HWAER.                      "597794
+      RFCASH-HWAER     = ESUMM-HWAER.                      "761791
+
+*Begin of note "761791
+*     LOOP AT ESUMM                                        "597794
+*       WHERE BUKRS = BELEGE-BUKRS                         "597794
+*       AND   SAKNR = BELEGE-HKONT                         "597794
+*       AND   HWAER = BELEGE-WAERS.                        "597794
+*       RFCASH-SALDOHW = RFCASH-SALDOHW + ESUMM-SUMME.     "597794
+*       RFCASH-HWAER   = ESUMM-HWAER.                      "597794
+*     ENDLOOP.                                             "597794
+*End of note "761791
+
+*     set closing balance in output field                  "826798
+      RFCASH-SALDOHWT = C_TOTAL.                           "826798
+
+      RFCASH-ANZSB     = ESUMM-EBELEG.
+      RFCASH-ANZHB     = ESUMM-ABELEG.
+      RFCASH-ANZSS     = ESUMM-STSBLG.
+      RFCASH-ANZSH     = ESUMM-STHBLG.
+      RFCASH-SUMSS     = ESUMM-CUR_SUMSS.
+      RFCASH-SUMSSHW   = ESUMM-SUMSS.
+      RFCASH-SUMSH     = ESUMM-CUR_SUMSH.
+      RFCASH-SUMSHHW   = ESUMM-SUMSH.
+      RFCASH-SUMAS     = ESUMM-CUR_SUMAS.
+      RFCASH-SUMASHW   = ESUMM-SUMAS.
+      RFCASH-SUMAH     = ESUMM-CUR_SUMAH.
+      RFCASH-SUMAHHW   = ESUMM-SUMAH.
+      RFCASH-LGSHB     = LGSHB.
+      RFCASH-PAGEY     = PAGEY + SY-PAGNO.
+      RFCASH-PAGEM     = PAGEM + SY-PAGNO.
+      RFCASH-LDAYY     = LASTY.
+      RFCASH-LDAYM     = LASTM.
+      CLEAR SPELL.
+      CLEAR *SPELL.
+
+      IF NOT LGWAE IS INITIAL.
+        IF LGWAE NE RFCASH-WAERS.
+          CLEAR RFCASH-LGSHB.
+*         message
+        ENDIF.
+      ENDIF.
+
+      CALL FUNCTION 'SPELL_AMOUNT'
+           EXPORTING
+                AMOUNT    = RFCASH-ANZSB
+*               CURRENCY  = ' '
+*               FILLER    = ' '
+*               LANGUAGE  = SY-LANGU
+           IMPORTING
+                IN_WORDS  = SPELL
+           EXCEPTIONS
+*               NOT_FOUND = 1
+*               TOO_LARGE = 2
+                OTHERS    = 3.
+
+      IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+
+      CALL FUNCTION 'SPELL_AMOUNT'
+           EXPORTING
+                AMOUNT    = RFCASH-ANZHB
+*               CURRENCY  = ' '
+*               FILLER    = ' '
+*               LANGUAGE  = SY-LANGU
+           IMPORTING
+                IN_WORDS  = *SPELL
+           EXCEPTIONS
+*               NOT_FOUND = 1
+*               TOO_LARGE = 2
+                OTHERS    = 3.
+
+      IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+
+*** inactivated because if ONLY the closing balance is printed  "1036131
+*** on the last page, the value of the carry-over on the side   "1036131
+*** bevore isn't filled.                                        "1036131
+***   Pagecheck = 'X'.                                          "1036131
+      Pagecheck = 'X'.                                          "1175741
+
+      PERFORM WRITE_TEXT USING ESALDO.
+
+      FORMAT COLOR COL_TOTAL INTENSIFIED OFF.
+*   save_linsz = sy-linsz - '20'.
+*   WRITE: / sy-vline, text-118, asumm-fwaer.
+*   WRITE AT save_linsz asumm-cur_summe CURRENCY asumm-fwaer.
+     refresh edtext2.
+     edtext2[] = EDTEXT[].
+     refresh edtext.
+
+     PERFORM WRITE_TEXT USING SIGNAT.
+
+     refresh edtext3.
+     edtext3[] = EDTEXT[].
+     refresh edtext.
+
+      describe table edtext2 lines linec.
+      describe table edtext3 lines linec2.
+*     linec = linec + 1.                                        "859940
+      linec = linec + 2.                                        "859940
+      if not signat is initial.
+        linec = linec + 1.
+      endif.
+      linec = linec + linec2.
+      reserve linec lines.
+*break-point.
+      uline.
+
+      LOOP AT EDTEXT2.
+        WRITE: / SY-VLINE.
+*       WRITE: 2 edtext-tdline.
+        WRITE: 2 EDTEXT2.
+        WRITE AT SY-LINSZ SY-VLINE.
+      ENDLOOP.
+      IF NOT SIGNAT IS INITIAL.
+        ULINE.
+      ENDIF.
+*   save_linsz = sy-linsz - '20'.
+*   WRITE: / sy-vline, text-119, esumm-fwaer.
+*   WRITE AT save_linsz esumm-cur_summe CURRENCY esumm-fwaer.
+*   WRITE AT sy-linsz sy-vline.
+*----------------------------------------------------------------------*
+*     PERFORM WRITE_TEXT USING SIGNAT.
+
+*   save_linsz = sy-linsz - '20'.
+*   WRITE: / sy-vline, text-118, asumm-fwaer.
+*   WRITE AT save_linsz asumm-cur_summe CURRENCY asumm-fwaer.
+*     describe table edtext lines linec.
+*     reserve linec lines.
+     LOOP AT EDTEXT3.
+        FORMAT COLOR COL_NORMAL INTENSIFIED OFF.
+        WRITE: / SY-VLINE.
+*      WRITE: 2 edtext-tdline.
+        WRITE: 2 EDTEXT3.
+        WRITE AT SY-LINSZ SY-VLINE.
+      ENDLOOP.
+
+  if not ueb-flag is initial.
+    uline.
+  endif.
+
+*----------------------------------------------------------------------*
+
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM USER_COMMAND                                             *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  R_UCOMM                                                       *
+*  -->  RS_SELFIELD                                                   *
+*---------------------------------------------------------------------*
+FORM USER_COMMAND USING R_UCOMM LIKE SY-UCOMM
+                 RS_SELFIELD TYPE SLIS_SELFIELD.
+
+  CASE R_UCOMM.
+    WHEN '&IC1'.
+      IF RS_SELFIELD-TABINDEX NE 0.
+        READ TABLE BELEGE INTO BELEGE INDEX RS_SELFIELD-TABINDEX.
+        CLEAR   BKORM.
+        CLEAR   XBKORM.
+        REFRESH XBKORM.
+
+        IF NOT EVENT IS INITIAL.
+          IF XKBEL IS INITIAL.
+            CALL FUNCTION 'CORRESPONDENCE_REQUEST'
+                 EXPORTING
+*              I_ACCOUNT         = ' '
+*              I_ACCOUNT_TYPE    = ' '
+                      I_COMPANY_CODE    = BELEGE-BUKRS
+                      I_DBUPDATE        = 'X'
+                      I_DOCUMENT        = BELEGE-BELNR
+                      I_MESSAGE         = 'X'
+*              I_OVERWRITE_ACC   = ' '
+*              I_OVERWRITE_DOC   = ' '
+                      I_PROCESS         = '*  '
+                      I_YEAR            = BELEGE-GJAHR
+                      I_EVENT           = EVENT
+                 IMPORTING
+                      E_BKORM           = BKORM
+*              E_TEXT            =
+                 EXCEPTIONS
+*              NO_EVENT_FOUND    = 1
+*              NO_EVENT_SELECTED = 2
+                      OTHERS            = 3
+                      .
+          ELSE.
+            BKORM-MANDT        = SY-MANDT.
+            BKORM-EVENT        = EVENT.
+            BKORM-BUKRS        = BELEGE-BUKRS.
+            BKORM-BELNR        = BELEGE-DOCNR.
+            BKORM-GJAHR        = '0000'.
+            BKORM-cajon        = BELEGE-CAJON.
+            BKORM-USNAM        = SY-UNAME.
+            BKORM-DATUM        = SY-DATUM.
+            BKORM-UZEIT        = SY-UZEIT.
+            INSERT BKORM.
+          ENDIF.
+
+          IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+          ELSE.
+            XBKORM = BKORM.
+            APPEND XBKORM.
+
+            CALL FUNCTION 'CORRESPONDENCE_SHOW_REQUEST'
+                 EXPORTING
+                      I_BKORM            = XBKORM
+                 EXCEPTIONS
+*              INVALID_ALLOCATION = 1
+*              INVALID_EVENT      = 2
+*              NO_ALLOCATION      = 3
+*              NO_EVENT           = 4
+                      OTHERS             = 5
+                      .
+            IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+        CLEAR R_UCOMM.
+      ENDIF.
+  ENDCASE.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM WRITE_TEXT                                               *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  NAME                                                          *
+*---------------------------------------------------------------------*
+FORM WRITE_TEXT USING NAME LIKE RSSCE-TDNAME.
+  REFRESH: EDTEXT.
+  CLEAR:   EDTEXT.
+
+  CALL FUNCTION 'READ_STDTEXT'
+       EXPORTING
+            ID               = 'ST'
+            LANGUAGE         = SY-LANGU
+            NAME             = NAME
+*           USE_AUX_LANGUAGE = ' '
+*           USE_THRUCLIENT   = ' '
+       IMPORTING
+            HEADER           = HTHEAD
+       TABLES
+            LINES            = EDTEXT.
+*      EXCEPTIONS
+*           ID               = 1
+*           LANGUAGE         = 2
+*           NAME             = 3
+*           NOT_FOUND        = 4
+*           REFERENCE_CHECK  = 5
+*           OTHERS           = 6.
+
+  IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+* CALL FUNCTION 'READ_TEXT'
+*      EXPORTING
+*           id        = 'ST'
+*           language  = sy-langu
+*           name      = name
+*           object    = 'TEXT'
+*      IMPORTING
+*           header    = hthead
+*      TABLES
+*           lines     = edtext
+*      EXCEPTIONS
+*           not_found = 4
+*           OTHERS    = 8.
+
+* CLEAR itcpo.
+* itcpo-tddest   = hpdest.
+* itcpo-tdgetotf = 'X'.
+* CLEAR   edtotf.
+* REFRESH edtotf.
+
+* CALL FUNCTION 'PRINT_TEXT'
+*      EXPORTING
+**           APPLICATION              = 'TX'
+**           ARCHIVE_INDEX            = ' '
+**           ARCHIVE_PARAMS           = ' '
+**           DEVICE                   = 'PRINTER'
+*           dialog                   = ' '
+*           header                   = hthead
+*           options                  = itcpo
+**      IMPORTING
+**           NEW_ARCHIVE_PARAMS       =
+**           RESULT                   =
+*      TABLES
+*           lines                    = edtext
+*           otfdata                  = edtotf.
+**      EXCEPTIONS
+**           CANCELED                 = 1
+**           DEVICE                   = 2
+**           FORM                     = 3
+**           OPTIONS                  = 4
+**           UNCLOSED                 = 5
+**           UNKNOWN                  = 6
+**           FORMAT                   = 7
+**           TEXTFORMAT               = 8
+**           COMMUNICATION            = 9
+**           BAD_PAGEFORMAT_FOR_PRINT = 10
+**           OTHERS                   = 11
+*
+* IF sy-subrc <> 0.
+**MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+**        WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+* ENDIF.
+
+* CLEAR   edtext.
+* REFRESH edtext.
+* CALL FUNCTION 'CONVERT_OTF'
+**      EXPORTING
+**           FORMAT                = 'ASCII'
+**           MAX_LINEWIDTH         = 132
+**      IMPORTING
+**           BIN_FILESIZE          =
+*      TABLES
+*           otf                   = edtotf
+*           lines                 = edtext.
+**      EXCEPTIONS
+**           ERR_MAX_LINEWIDTH     = 1
+**           ERR_FORMAT            = 2
+**           ERR_CONV_NOT_POSSIBLE = 3
+**           OTHERS                = 4
+*
+* IF sy-subrc <> 0.
+**MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+**        WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+* ENDIF.
+
+  CALL FUNCTION 'CONVERT_TEXT'
+       EXPORTING
+*           CODEPAGE         = '0000'
+*           DIRECTION        = 'EXPORT'
+            FORMAT_TYPE      = 'ASCII'
+            FORMATWIDTH      = '132'
+            HEADER           = HTHEAD
+*           SSHEET           = ' '
+*           WITH_TAB         = ' '
+*           WORD_LANGU       = SY-LANGU
+*           TABLETYPE        = 'ASC'
+*           TAB_SUBSTITUTE   = 'X09  '
+*           LF_SUBSTITUTE    = ' '
+*      IMPORTING
+*           NEWHEADER        =
+*           WITH_TAB_E       =
+*           FORMATWIDTH_E    =
+       TABLES
+            FOREIGN          = EDTEXT
+            ITF_LINES        = EDTEXT
+*           LINKS_TO_CONVERT =
+            .
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM PRUEFEN_TEXT                                             *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  TEXT                                                          *
+*---------------------------------------------------------------------*
+FORM PRUEFEN_TEXT USING TEXT LIKE RSSCE-TDNAME.
+  CALL FUNCTION 'READ_STDTEXT'
+       EXPORTING
+            ID               = 'ST'
+            LANGUAGE         = SY-LANGU
+            NAME             = TEXT
+*           USE_AUX_LANGUAGE = ' '
+*           USE_THRUCLIENT   = ' '
+*      IMPORTING
+*           header           = hthead
+       TABLES
+            LINES            = EDTEXT
+       EXCEPTIONS
+*           ID               = 1
+*           LANGUAGE         = 2
+*           NAME             = 3
+*           NOT_FOUND        = 4
+*           REFERENCE_CHECK  = 5
+            OTHERS           = 1.
+  IF SY-SUBRC NE 0.
+    MESSAGE E868 WITH TEXT 'ST' SY-LANGU.
+  ENDIF.
+  CLEAR   EDTEXT.
+  REFRESH EDTEXT.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  F4_FOR_s_lvar
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_s_lvar  text
+*----------------------------------------------------------------------*
+FORM F4_FOR_S_LVAR CHANGING  I_VARIANT LIKE DISVARIANT.
+  DATA: EXIT.
+  DATA: E_VARIANT LIKE DISVARIANT.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+       EXPORTING
+            IS_VARIANT    = I_VARIANT
+            I_SAVE        = 'A'
+       IMPORTING
+            E_EXIT        = EXIT
+            ES_VARIANT    = E_VARIANT
+       EXCEPTIONS
+            PROGRAM_ERROR = 3
+            OTHERS        = 3.
+  IF SY-SUBRC = 0 AND EXIT = SPACE.
+    I_VARIANT-VARIANT = E_VARIANT-VARIANT.
+  ENDIF.
+
+ENDFORM.                               " F4_FOR_s_lvar
+
+*&---------------------------------------------------------------------*
+*&      Form  posten
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM POSTEN.
+  if not N_belege is initial.
+  Clear    xbsis.
+  refresh  xbsis.
+  SELECT * FROM  BSis APPENDING TABLE XBSis
+* SELECT * FROM  BSIS
+         WHERE  BUKRS       =  SKB1-BUKRS
+         AND    HKONT       =  SKB1-SAKNR
+         AND    BUDAT       GE BDATE.
+*        AND    WAERS       IN WAERS.
+  clear   bsis.
+
+  Select * from bsas appending corresponding fields of table xbsis
+         WHERE  BUKRS       =  SKB1-BUKRS
+         AND    HKONT       =  SKB1-SAKNR
+         AND    BUDAT       GE BDATE.
+
+  loop at xbsis.
+    bsis = xbsis.
+    if skb1-xsalh is initial.
+      check bsis-waers in waers.
+    endif.
+
+    CHECK BSIS-BSTAT = SPACE.
+
+    CLEAR BKPF.
+    CLEAR BSEG.
+*   MOVE-CORRESPONDING BSIS TO BKPF.
+*   BKPF-HWAER = T001-WAERS.
+*   BKPF-HWAE2 = X001-HWAE2.
+*   BKPF-HWAE3 = X001-HWAE3.
+    IF  xbsis-BUDAT GE DATE-LOW
+    AND xbsis-BUDAT LE DATE-HIGH.
+    SELECT SINGLE * FROM  BKPF
+           WHERE  BUKRS  = BSIS-BUKRS
+           AND    BELNR  = BSIS-BELNR
+           AND    GJAHR  = BSIS-GJAHR.
+    else.
+      MOVE-CORRESPONDING BSIS TO BKPF.
+      BKPF-HWAER = T001-WAERS.
+      BKPF-HWAE2 = X001-HWAE2.
+      BKPF-HWAE3 = X001-HWAE3.
+    endif.
+
+    MOVE-CORRESPONDING BSIS TO BSEG.
+    IF  BKPF-BUDAT GE BDATE
+    AND BKPF-BUDAT LT DATE-LOW.
+      IF SKB1-XSALH IS INITIAL.
+        SUMM-FWAER = BKPF-WAERS.
+      ELSE.
+        SUMM-FWAER = BKPF-HWAER.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          SUMM-HWAER = BKPF-HWAER.
+        WHEN '2'.
+          SUMM-HWAER = BKPF-HWAE2.
+        WHEN '3'.
+          SUMM-HWAER = BKPF-HWAE3.
+      ENDCASE.
+*   IF NOT BSEG-XNEGP IS INITIAL.
+*     IF BSEG-SHKZG = 'H'.
+*       IF SKB1-XSALH IS INITIAL.
+*         SUMM-CUR_SUMME = BSEG-WRBTR.
+*       ELSE.
+*         SUMM-CUR_SUMME = BSEG-DMBTR.
+*       ENDIF.
+*       SUMM-SUMME     = BSEG-DMBTR.
+*     ELSE.
+*       IF SKB1-XSALH IS INITIAL.
+*         SUMM-CUR_SUMME = 0 - BSEG-WRBTR.
+*       ELSE.
+*         SUMM-CUR_SUMME = 0 - BSEG-DMBTR.
+*       ENDIF.
+*       SUMM-SUMME     = 0 - BSEG-DMBTR.
+*     ENDIF.
+*   ELSE.
+      IF BSEG-SHKZG = 'S'.
+        IF SKB1-XSALH IS INITIAL.
+          SUMM-CUR_SUMME = BSEG-WRBTR.
+        ELSE.
+          SUMM-CUR_SUMME = BSEG-DMBTR.
+        ENDIF.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            SUMM-SUMME = BSEG-DMBTR.
+          WHEN '2'.
+            SUMM-SUMME = BSEG-DMBE2.
+          WHEN '3'.
+            SUMM-SUMME = BSEG-DMBE3.
+        ENDCASE.
+      ELSE.
+        IF SKB1-XSALH IS INITIAL.
+          SUMM-CUR_SUMME = 0 - BSEG-WRBTR.
+        ELSE.
+          SUMM-CUR_SUMME = 0 - BSEG-DMBTR.
+        ENDIF.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            SUMM-SUMME = 0 - BSEG-DMBTR.
+          WHEN '2'.
+            SUMM-SUMME = 0 - BSEG-DMBE2.
+          WHEN '3'.
+            SUMM-SUMME = 0 - BSEG-DMBE3.
+        ENDCASE.
+      ENDIF.
+*   ENDIF.
+      COLLECT SUMM.
+    ENDIF.
+    IF  BKPF-BUDAT GE DATE-LOW
+    AND BKPF-BUDAT LE DATE-HIGH.
+      MOVE-CORRESPONDING BSEG TO YBSEG.
+      MOVE-CORRESPONDING BKPF TO YBSEG.
+      APPEND YBSEG.
+    ENDIF.
+*   ENDSELECT.
+  endloop.
+  endif.
+  if not vbel is initial.
+  SELECT * FROM  v_Vbsegs
+         WHERE  ausbk       =  SKB1-BUKRS
+         AND    saknr       =  SKB1-SAKNR
+         AND    BUDAT       GE BDATE.
+*        AND    WAERS       IN WAERS.
+
+    if skb1-xsalh is initial.
+      check bsis-waers in waers.
+    endif.
+
+    CHECK V_vbsegs-bstat = 'V'.
+
+    CLEAR BKPF.
+    CLEAR BSEG.
+*   MOVE-CORRESPONDING BSIS TO BKPF.
+*   BKPF-HWAER = T001-WAERS.
+*   BKPF-HWAE2 = X001-HWAE2.
+*   BKPF-HWAE3 = X001-HWAE3.
+    SELECT SINGLE * FROM  BKPF
+           WHERE  BUKRS  = v_vbsegs-BUKRS
+           AND    BELNR  = v_Vbsegs-BELNR
+           AND    GJAHR  = v_Vbsegs-GJAHR.
+
+    MOVE-CORRESPONDING V_Vbsegs TO BSEG.
+    bseg-hkont = V_Vbsegs-saknr.
+    IF  BKPF-BUDAT GE BDATE
+    AND BKPF-BUDAT LT DATE-LOW.
+      IF SKB1-XSALH IS INITIAL.
+        SUMM-FWAER = BKPF-WAERS.
+      ELSE.
+        SUMM-FWAER = BKPF-HWAER.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          SUMM-HWAER = BKPF-HWAER.
+        WHEN '2'.
+          SUMM-HWAER = BKPF-HWAE2.
+        WHEN '3'.
+          SUMM-HWAER = BKPF-HWAE3.
+      ENDCASE.
+*   IF NOT BSEG-XNEGP IS INITIAL.
+*     IF BSEG-SHKZG = 'H'.
+*       IF SKB1-XSALH IS INITIAL.
+*         SUMM-CUR_SUMME = BSEG-WRBTR.
+*       ELSE.
+*         SUMM-CUR_SUMME = BSEG-DMBTR.
+*       ENDIF.
+*       SUMM-SUMME     = BSEG-DMBTR.
+*     ELSE.
+*       IF SKB1-XSALH IS INITIAL.
+*         SUMM-CUR_SUMME = 0 - BSEG-WRBTR.
+*       ELSE.
+*         SUMM-CUR_SUMME = 0 - BSEG-DMBTR.
+*       ENDIF.
+*       SUMM-SUMME     = 0 - BSEG-DMBTR.
+*     ENDIF.
+*   ELSE.
+      IF BSEG-SHKZG = 'S'.
+        IF SKB1-XSALH IS INITIAL.
+          SUMM-CUR_SUMME = BSEG-WRBTR.
+        ELSE.
+          SUMM-CUR_SUMME = BSEG-DMBTR.
+        ENDIF.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            SUMM-SUMME = BSEG-DMBTR.
+          WHEN '2'.
+            SUMM-SUMME = BSEG-DMBE2.
+          WHEN '3'.
+            SUMM-SUMME = BSEG-DMBE3.
+        ENDCASE.
+      ELSE.
+        IF SKB1-XSALH IS INITIAL.
+          SUMM-CUR_SUMME = 0 - BSEG-WRBTR.
+        ELSE.
+          SUMM-CUR_SUMME = 0 - BSEG-DMBTR.
+        ENDIF.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            SUMM-SUMME = 0 - BSEG-DMBTR.
+          WHEN '2'.
+            SUMM-SUMME = 0 - BSEG-DMBE2.
+          WHEN '3'.
+            SUMM-SUMME = 0 - BSEG-DMBE3.
+        ENDCASE.
+      ENDIF.
+*   ENDIF.
+      COLLECT SUMM.
+    ENDIF.
+    IF  BKPF-BUDAT GE DATE-LOW
+    AND BKPF-BUDAT LE DATE-HIGH.
+      MOVE-CORRESPONDING BSEG TO YBSEG.
+      MOVE-CORRESPONDING BKPF TO YBSEG.
+      APPEND YBSEG.
+    ENDIF.
+
+  ENDSELECT.
+  endif.
+
+ENDFORM.                               " posten
+
+*&---------------------------------------------------------------------*
+*&      Form  create_tab_belege
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM CREATE_TAB_BELEGE.
+  LOOP AT YBSEG.
+    IF ESUMM-BUKRS IS INITIAL.                                 "1029282
+       ESUMM-BUKRS = YBSEG-BUKRS.                              "1029282
+    ENDIF.                                                     "1029282
+    IF ESUMM-SAKNR IS INITIAL.                                 "1029282
+       ESUMM-SAKNR = YBSEG-HKONT.                              "1029282
+    ENDIF.                                                     "1029282
+    IF SKB1-XSALH IS INITIAL.
+      ESUMM-FWAER = YBSEG-WAERS.
+    ELSE.
+      ESUMM-FWAER = YBSEG-HWAER.
+    ENDIF.
+    CASE WAE-FLAG.
+      WHEN '1'.
+        ESUMM-HWAER = YBSEG-HWAER.
+      WHEN '2'.
+        ESUMM-HWAER = YBSEG-HWAE2.
+      WHEN '3'.
+        ESUMM-HWAER = YBSEG-HWAE3.
+    ENDCASE.
+*   IF NOT YBSEG-XNEGP IS INITIAL.
+*     IF YBSEG-SHKZG = 'H'.
+*       IF SKB1-XSALH IS INITIAL.
+*         ESUMM-CUR_SUMME = YBSEG-WRBTR.
+*       ELSE.
+*         ESUMM-CUR_SUMME = YBSEG-DMBTR.
+*       ENDIF.
+*       ESUMM-SUMME     = YBSEG-DMBTR.
+*     ELSE.
+*       IF SKB1-XSALH IS INITIAL.
+*         ESUMM-CUR_SUMME = 0 - YBSEG-WRBTR.
+*       ELSE.
+*         ESUMM-CUR_SUMME = 0 - YBSEG-DMBTR.
+*       ENDIF.
+*       ESUMM-SUMME     = 0 - YBSEG-DMBTR.
+*     ENDIF.
+*   ELSE.
+    IF YBSEG-SHKZG = 'S'.
+      IF SKB1-XSALH IS INITIAL.
+        ESUMM-CUR_SUMME = YBSEG-WRBTR.
+      ELSE.
+        ESUMM-CUR_SUMME = YBSEG-DMBTR.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          ESUMM-SUMME = YBSEG-DMBTR.
+        WHEN '2'.
+          ESUMM-SUMME = YBSEG-DMBE2.
+        WHEN '3'.
+          ESUMM-SUMME = YBSEG-DMBE3.
+      ENDCASE.
+    ELSE.
+      IF SKB1-XSALH IS INITIAL.
+        ESUMM-CUR_SUMME = 0 - YBSEG-WRBTR.
+      ELSE.
+        ESUMM-CUR_SUMME = 0 - YBSEG-DMBTR.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          ESUMM-SUMME = 0 - YBSEG-DMBTR.
+        WHEN '2'.
+          ESUMM-SUMME = 0 - YBSEG-DMBE2.
+        WHEN '3'.
+          ESUMM-SUMME = 0 - YBSEG-DMBE3.
+      ENDCASE.
+    ENDIF.
+*   ENDIF.
+    IF YBSEG-SHKZG = 'S'.
+      ESUMM-EBELEG = 1.
+      ESUMM-ABELEG = 0.
+    ELSE.
+      ESUMM-EBELEG = 0.
+      ESUMM-ABELEG = 1.
+    ENDIF.
+    CLEAR ESUMM-CUR_SUMSS.
+    CLEAR ESUMM-SUMSS.
+    CLEAR ESUMM-CUR_SUMSH.
+    CLEAR ESUMM-SUMSH.
+    CLEAR ESUMM-CUR_SUMAS.
+    CLEAR ESUMM-SUMAS.
+    CLEAR ESUMM-CUR_SUMAH.
+    CLEAR ESUMM-SUMAH.
+    CLEAR ESUMM-STSBLG.
+    CLEAR ESUMM-STHBLG.
+    IF NOT YBSEG-STBLG IS INITIAL.
+      IF YBSEG-SHKZG = 'S'.
+        ESUMM-STSBLG = 1.
+        ESUMM-STHBLG = 0.
+        ESUMM-CUR_SUMSS = ESUMM-CUR_SUMME.
+        ESUMM-SUMSS     = ESUMM-SUMME.
+      ELSE.
+        ESUMM-STSBLG = 0.
+        ESUMM-STHBLG = 1.
+        ESUMM-CUR_SUMSH = 0 - ESUMM-CUR_SUMME.
+        ESUMM-SUMSH     = 0 - ESUMM-SUMME.
+      ENDIF.
+    ELSE.
+      IF YBSEG-SHKZG = 'S'.
+        ESUMM-CUR_SUMAS = ESUMM-CUR_SUMME.
+        ESUMM-SUMAS     = ESUMM-SUMME.
+      ELSE.
+        ESUMM-CUR_SUMAH = 0 - ESUMM-CUR_SUMME.
+        ESUMM-SUMAH     = 0 - ESUMM-SUMME.
+      ENDIF.
+    ENDIF.
+    COLLECT ESUMM.
+* ENDLOOP.
+
+* LOOP AT YBSEG.
+    CLEAR BELEGE.
+    MOVE-CORRESPONDING YBSEG TO BELEGE.
+    IF SKB1-XSALH IS INITIAL.
+      BELEGE-WAERS = YBSEG-WAERS.
+    ELSE.
+      BELEGE-WAERS = YBSEG-HWAER.
+    ENDIF.
+    BELEGE-FWAER = YBSEG-WAERS.
+    CASE WAE-FLAG.
+      WHEN '1'.
+        BELEGE-HWAER = YBSEG-HWAER.
+      WHEN '2'.
+        BELEGE-HWAER = YBSEG-HWAE2.
+      WHEN '3'.
+        BELEGE-HWAER = YBSEG-HWAE3.
+    ENDCASE.
+    IF YBSEG-SHKZG = 'S'.
+      IF SKB1-XSALH IS INITIAL.
+        BELEGE-KTBTR = YBSEG-WRBTR.
+      ELSE.
+        BELEGE-KTBTR = YBSEG-DMBTR.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          BELEGE-DMBTR = YBSEG-DMBTR.
+        WHEN '2'.
+          BELEGE-DMBTR = YBSEG-DMBE2.
+        WHEN '3'.
+          BELEGE-DMBTR = YBSEG-DMBE3.
+      ENDCASE.
+      BELEGE-WRBTR    = YBSEG-WRBTR.
+      IF SKB1-XSALH IS INITIAL.
+        BELEGE-KTSHB = YBSEG-WRBTR.
+      ELSE.
+        BELEGE-KTSHB = YBSEG-DMBTR.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          BELEGE-DMSHB = YBSEG-DMBTR.
+        WHEN '2'.
+          BELEGE-DMSHB = YBSEG-DMBE2.
+        WHEN '3'.
+          BELEGE-DMSHB = YBSEG-DMBE3.
+      ENDCASE.
+      BELEGE-WRSHB    = YBSEG-WRBTR.
+*-----Negativbuchungen in andere Spalte "Hinweis 0392065
+    IF Belege-xnegp ne 'X'.
+      IF SKB1-XSALH IS INITIAL.
+        BELEGE-KSBTR = YBSEG-WRBTR.
+      ELSE.
+        BELEGE-KSBTR = YBSEG-DMBTR.
+      ENDIF.
+    ELSE.
+     IF SKB1-XSALH IS INITIAL.
+      BELEGE-KHBTR = YBSEG-WRBTR * -1.
+     ELSE.
+      BELEGE-KHBTR = YBSEG-DMBTR * -1.
+      ENDIF.
+      ENDIF.
+*------------------------------
+      CASE WAE-FLAG.
+        WHEN '1'.
+          BELEGE-DSBTR = YBSEG-DMBTR.
+        WHEN '2'.
+          BELEGE-DSBTR = YBSEG-DMBE2.
+        WHEN '3'.
+          BELEGE-DSBTR = YBSEG-DMBE3.
+      ENDCASE.
+      BELEGE-WSBTR    = YBSEG-WRBTR.
+    ELSE.
+      IF SKB1-XSALH IS INITIAL.
+        BELEGE-KTBTR = YBSEG-WRBTR.
+      ELSE.
+        BELEGE-KTBTR = YBSEG-DMBTR.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          BELEGE-DMBTR = YBSEG-DMBTR.
+        WHEN '2'.
+          BELEGE-DMBTR = YBSEG-DMBE2.
+        WHEN '3'.
+          BELEGE-DMBTR = YBSEG-DMBE3.
+      ENDCASE.
+      BELEGE-WRBTR    = YBSEG-WRBTR.
+      IF SKB1-XSALH IS INITIAL.
+        BELEGE-KTSHB = 0 - YBSEG-WRBTR.
+      ELSE.
+        BELEGE-KTSHB = 0 - YBSEG-DMBTR.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          BELEGE-DMSHB = 0 - YBSEG-DMBTR.
+        WHEN '2'.
+          BELEGE-DMSHB = 0 - YBSEG-DMBE2.
+        WHEN '3'.
+          BELEGE-DMSHB = 0 - YBSEG-DMBE3.
+      ENDCASE.
+      BELEGE-WRSHB    = 0 - YBSEG-WRBTR.
+
+*-----Negativbuchungen in andere Spalte "Hinweis 0392065
+    If belege-xnegp ne 'X'.
+      IF SKB1-XSALH IS INITIAL.
+        BELEGE-KHBTR = YBSEG-WRBTR.
+      ELSE.
+        BELEGE-KHBTR = YBSEG-DMBTR.
+      ENDIF.
+     ELSE.
+      IF SKB1-XSALH IS INITIAL.
+       BELEGE-KSBTR = YBSEG-WRBTR * -1.
+      ELSE.
+       BELEGE-KSBTR = YBSEG-DMBTR * -1.
+       ENDIF.
+     ENDIF.
+*.....................................
+
+      CASE WAE-FLAG.
+        WHEN '1'.
+          BELEGE-DHBTR = YBSEG-DMBTR.
+        WHEN '2'.
+          BELEGE-DHBTR = YBSEG-DMBE2.
+        WHEN '3'.
+          BELEGE-DHBTR = YBSEG-DMBE3.
+      ENDCASE.
+      BELEGE-WHBTR    = YBSEG-WRBTR.
+    ENDIF.
+
+    IF NOT GKONTO IS INITIAL.
+      PERFORM GKONTO.
+    ENDIF.
+
+    BELEGE-DOCNR = YBSEG-AWKEY(10).
+    BELEGE-CAJON = YBSEG-AWKEY+10(4).
+    IF NOT BELEGE-DOCNR IS INITIAL.
+      SELECT SINGLE * FROM  TCJ_DOCUMENTS
+             WHERE  COMP_CODE       = BELEGE-BUKRS
+             AND    CAJO_NUMBER     = BELEGE-CAJON
+             AND    POSTING_NUMBER  = BELEGE-DOCNR.
+      BELEGE-DOCNC   = TCJ_DOCUMENTS-D_POSTING_NUMB.
+      BELEGE-BP_NAME = TCJ_DOCUMENTS-BP_NAME.
+    ENDIF.
+    IF NOT XMWST IS INITIAL.
+      PERFORM MWST_DATEN.
+    ENDIF.
+
+    APPEND BELEGE.
+  ENDLOOP.
+* Currencies without position in the time range should be       "830498
+* display to get an overview for the total balance. But only    "830498
+* if the field XOBEL is activated in the selection.             "830498
+* if sy-subrc ne 0.                         "begin 356756       "830498
+    if not xobel is initial.
+      loop at asumm.
+        if asumm-hwaer is initial and asumm-fwaer is initial.   "830498
+           continue.                                            "830498
+        endif.                                                  "830498
+        CLEAR LD_FOUND.                                         "917749
+        LOOP AT belege                                          "917749
+          WHERE BUKRS      =  asumm-BUKRS                       "917749
+          AND   HKONT      =  asumm-SAKNR                       "917749
+          AND   WAERS      =  asumm-FWAER.                      "917749
+          LD_FOUND = 'X'.                                       "917749
+          EXIT.                                                 "917749
+        ENDLOOP.                                                "917749
+        IF LD_FOUND IS INITIAL.                                 "917749
+           clear belege.
+        belege-BUKRS       =  asumm-BUKRS.
+        belege-hkont       =  asumm-saknr.
+        belege-waers       =  asumm-fwaer.
+        belege-hwaer       =  asumm-hwaer.
+        belege-bktxt       =  text-150.
+        belege-sgtxt       =  text-150.
+        belege-gktxt       =  text-150.
+        collect belege.
+        ENDIF.                                                  "917749
+      endloop.
+*** Begin of note 917749. double loop wasn't necessary esumm contains
+***                       the same number of records as asumm
+*     loop at esumm.
+*       if esumm-hwaer is initial and esumm-fwaer is initial.   "830498
+*          continue.                                            "830498
+*       endif.                                                  "830498
+*       clear belege.
+*       belege-BUKRS       =  esumm-BUKRS.
+*       belege-hkont       =  esumm-saknr.
+*       belege-waers       =  esumm-fwaer.
+*       belege-hwaer       =  esumm-hwaer.
+*       belege-bktxt       =  text-150.
+*       belege-sgtxt       =  text-150.
+*       belege-gktxt       =  text-150.
+*       collect belege.
+*     endloop.
+*** End of note 917749
+    endif.
+* endif.                                   "end 356756          "830498
+ENDFORM.                               " create_tab_belege
+
+*&---------------------------------------------------------------------*
+*&      Form  gkonto
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM GKONTO.
+  CALL FUNCTION 'GET_GKONT'
+       EXPORTING
+            BELNR           = YBSEG-BELNR
+            BUKRS           = YBSEG-BUKRS
+            BUZEI           = YBSEG-BUZEI
+            GJAHR           = YBSEG-GJAHR
+            GKNKZ           = GKONTO
+       IMPORTING
+            GKONT           = GKONT
+            KOART           = GKART
+            ghkon           = ghkon
+       EXCEPTIONS
+            BELNR_NOT_FOUND = 1
+            BUZEI_NOT_FOUND = 2
+            GKNKZ_NOT_FOUND = 3
+            OTHERS          = 4.
+
+  BELEGE-GKART = GKART.
+  BELEGE-GKONT = GKONT.
+  BELEGE-Ghkon = Ghkon.
+
+  CASE GKART.
+    WHEN 'D'.
+      SELECT SINGLE * FROM KNA1
+        WHERE KUNNR = GKONT.
+      BELEGE-GKTXT = KNA1-NAME1.
+    WHEN 'K'.
+      SELECT SINGLE * FROM LFA1
+        WHERE LIFNR = GKONT.
+      BELEGE-GKTXT = LFA1-NAME1.
+    WHEN OTHERS.
+      IF GKONT NE '*'.
+
+      clear skat.                            "note 0393663
+ CALL FUNCTION 'READ_HAUPTBUCH_TEXT'
+    EXPORTING
+      KONTENPLAN           = T001-Ktopl
+      SACHKONTO            = GKONT
+      SPRACHE              = SY-Langu
+    IMPORTING
+      TEXT_WA              = skat
+    EXCEPTIONS
+      TEXT_NOT_FOUND       = 1
+      OTHERS               = 2.
+
+        BELEGE-GKTXT = SKAT-TXT50.
+      ENDIF.
+  ENDCASE.
+ENDFORM.                               " gkonto
+
+*&---------------------------------------------------------------------*
+*&      Form  mwstdaten
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM MWST_DATEN.
+  SELECT * FROM BSEG
+    WHERE BUKRS =  YBSEG-BUKRS
+    AND   BELNR =  YBSEG-BELNR
+    AND   GJAHR =  YBSEG-GJAHR
+    AND   BUZEI NE YBSEG-BUZEI.
+    IF BSEG-KTOSL = 'MWS'
+    OR BSEG-KTOSL = 'VST'.
+      BELEGE-MWSKZ = BSEG-MWSKZ.
+
+      IF SKB1-XSALH IS INITIAL.
+        BELEGE-KMWST = BSEG-WRBTR.
+*           BELEGE-KNBTR = YBSEG-WRBTR - BSEG-wrbtr.
+      ELSE.
+        BELEGE-KMWST = BSEG-DMBTR.
+*           BELEGE-KNBTR = YBSEG-DMBTR - BSEG-dmbtr.
+      ENDIF.
+      CASE WAE-FLAG.
+        WHEN '1'.
+          BELEGE-MWSTS = BSEG-DMBTR.
+*             BELEGE-DNBTR = YBSEG-DMBTR - BSEG-dmbtr.
+        WHEN '2'.
+          BELEGE-MWSTS = BSEG-DMBE2.
+*             BELEGE-DNBTR = YBSEG-DMBE2 - BSEG-dmbe2.
+        WHEN '3'.
+          BELEGE-MWSTS = BSEG-DMBE3.
+*             BELEGE-DNBTR = YBSEG-DMBE3 - BSEG-dmbe3.
+      ENDCASE.
+      BELEGE-WMWST = BSEG-WRBTR.
+*         BELEGE-WNBTR = YBSEG-WRBTR - BSEG-wrbtr.
+      IF YBSEG-SHKZG = 'S'.
+        IF SKB1-XSALH IS INITIAL.
+          BELEGE-KSSHB = BSEG-WRBTR.
+*             BELEGE-KNSHB = YBSEG-WRBTR - BSEG-wrbtr.
+        ELSE.
+          BELEGE-KSSHB = BSEG-DMBTR.
+*             BELEGE-KNSHB = YBSEG-DMBTR - BSEG-wrbtr.
+        ENDIF.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            BELEGE-DSSHB = BSEG-DMBTR.
+*               BELEGE-DNSHB = YBSEG-DMBTR - BSEG-dmbtr.
+          WHEN '2'.
+            BELEGE-DSSHB = BSEG-DMBE2.
+*               BELEGE-DNSHB = YBSEG-DMBE2 - BSEG-dmbe2.
+          WHEN '3'.
+            BELEGE-DSSHB = BSEG-DMBE3.
+*               BELEGE-DNSHB = YBSEG-DMBE3 - BSEG-dmbe3.
+        ENDCASE.
+        BELEGE-WSSHB = BSEG-WRBTR.
+*           BELEGE-WNSHB = YBSEG-WRBTR - BSEG-wrbtr.
+
+        IF SKB1-XSALH IS INITIAL.
+          BELEGE-KSMWS = BSEG-WRBTR.
+*             BELEGE-KSNBT = YBSEG-WRBTR - BSEG-wrbtr.
+        ELSE.
+          BELEGE-KSMWS = BSEG-DMBTR.
+*             BELEGE-KSNBT = YBSEG-DMBTR - BSEG-dmbtr.
+        ENDIF.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            BELEGE-DSMWS = BSEG-DMBTR.
+*               BELEGE-DSNBT = YBSEG-DMBTR - BSEG-dmbtr.
+          WHEN '2'.
+            BELEGE-DSMWS = BSEG-DMBE2.
+*               BELEGE-DSNBT = YBSEG-DMBE2 - BSEG-dmbe2.
+          WHEN '3'.
+            BELEGE-DSMWS = BSEG-DMBE3.
+*               BELEGE-DSNBT = YBSEG-DMBE3 - BSEG-dmbe3.
+        ENDCASE.
+        BELEGE-WSMWS = BSEG-WRBTR.
+*           BELEGE-WSNBT = YBSEG-WRBTR - BSEG-wrbtr.
+      ELSE.
+        IF SKB1-XSALH IS INITIAL.
+          BELEGE-KSSHB = 0 - BSEG-WRBTR.
+*             BELEGE-KNSHB = 0 - ( YBSEG-WRBTR - BSEG-wrbtr ).
+        ELSE.
+          BELEGE-KSSHB = 0 - BSEG-DMBTR.
+*             BELEGE-KNSHB = 0 - ( YBSEG-DMBTR - BSEG-dmbtr ).
+        ENDIF.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            BELEGE-DSSHB = 0 - BSEG-DMBTR.
+*               BELEGE-DNSHB = 0 - ( YBSEG-DMBTR - BSEG-dmbtr ).
+          WHEN '2'.
+            BELEGE-DSSHB = 0 - BSEG-DMBE2.
+*               BELEGE-DNSHB = 0 - ( YBSEG-DMBE2 - BSEG-dmbe2 ).
+          WHEN '3'.
+            BELEGE-DSSHB = 0 - BSEG-DMBE3.
+*               BELEGE-DNSHB = 0 - ( YBSEG-DMBE3 - BSEG-dmbe3 ).
+        ENDCASE.
+        BELEGE-WSSHB = 0 - BSEG-WRBTR.
+*           BELEGE-WNSHB = 0 - ( YBSEG-WRBTR - BSEG-wrbtr ).
+
+        IF SKB1-XSALH IS INITIAL.
+          BELEGE-KHMWS = BSEG-WRBTR.
+*             BELEGE-KHNBT = YBSEG-WRBTR - BSEG-wrbtr.
+        ELSE.
+          BELEGE-KHMWS = BSEG-DMBTR.
+*             BELEGE-KHNBT = YBSEG-DMBTR - BSEG-dmbtr.
+        ENDIF.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            BELEGE-DHMWS = BSEG-DMBTR.
+*               BELEGE-DHNBT = YBSEG-DMBTR - BSEG-dmbtr.
+          WHEN '2'.
+            BELEGE-DHMWS = BSEG-DMBE2.
+*               BELEGE-DHNBT = YBSEG-DMBE2 - BSEG-dmbe2.
+          WHEN '3'.
+            BELEGE-DHMWS = BSEG-DMBE3.
+*               BELEGE-DHNBT = YBSEG-DMBE3 - BSEG-dmbe3.
+        ENDCASE.
+        BELEGE-WHMWS = BSEG-WRBTR.
+*           BELEGE-WHNBT = YBSEG-WRBTR - BSEG-wrbtr.
+      ENDIF.
+    ENDIF.
+  ENDSELECT.
+ENDFORM.                               " mwstdaten
+
+*&---------------------------------------------------------------------*
+*&      Form  get_o_c_total                                     "826798
+*&---------------------------------------------------------------------*
+*    get total opening and closing balance for all currencies   "826798
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM GET_O_C_TOTAL.                                             "826798
+  if not N_belege is initial.
+  Clear    xbsis.
+  refresh  xbsis.
+  SELECT * FROM  BSis APPENDING TABLE XBSis
+* SELECT * FROM  BSIS
+         WHERE  BUKRS       =  SKB1-BUKRS
+         AND    HKONT       =  SKB1-SAKNR
+         AND    BUDAT       GE BDATE.
+*        AND    WAERS       IN WAERS.
+  clear   bsis.
+
+  Select * from bsas appending corresponding fields of table xbsis
+         WHERE  BUKRS       =  SKB1-BUKRS
+         AND    HKONT       =  SKB1-SAKNR
+         AND    BUDAT       GE BDATE.
+
+  loop at xbsis.
+    bsis = xbsis.
+
+    CHECK BSIS-BSTAT = SPACE.
+
+    CLEAR BKPF.
+    CLEAR BSEG.
+    IF  xbsis-BUDAT GE DATE-LOW
+    AND xbsis-BUDAT LE DATE-HIGH.
+    SELECT SINGLE * FROM  BKPF
+           WHERE  BUKRS  = BSIS-BUKRS
+           AND    BELNR  = BSIS-BELNR
+           AND    GJAHR  = BSIS-GJAHR.
+    else.
+      MOVE-CORRESPONDING BSIS TO BKPF.
+      BKPF-HWAER = T001-WAERS.
+      BKPF-HWAE2 = X001-HWAE2.
+      BKPF-HWAE3 = X001-HWAE3.
+    endif.
+
+    MOVE-CORRESPONDING BSIS TO BSEG.
+
+    IF  BKPF-BUDAT GE BDATE
+    AND BKPF-BUDAT LT DATE-LOW.
+      IF BSEG-SHKZG = 'S'.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            O_TOTAL = O_TOTAL + BSEG-DMBTR.
+          WHEN '2'.
+            O_TOTAL = O_TOTAL + BSEG-DMBE2.
+          WHEN '3'.
+            O_TOTAL = O_TOTAL + BSEG-DMBE3.
+        ENDCASE.
+      ELSE.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            O_TOTAL = O_TOTAL - BSEG-DMBTR.
+          WHEN '2'.
+            O_TOTAL = O_TOTAL - BSEG-DMBE2.
+          WHEN '3'.
+            O_TOTAL = O_TOTAL - BSEG-DMBE3.
+        ENDCASE.
+      ENDIF.
+    ENDIF.
+
+    IF  BKPF-BUDAT GE DATE-LOW
+    AND BKPF-BUDAT LE DATE-HIGH.
+      IF BSEG-SHKZG = 'S'.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            C_TOTAL = C_TOTAL + BSEG-DMBTR.
+          WHEN '2'.
+            C_TOTAL = C_TOTAL + BSEG-DMBE2.
+          WHEN '3'.
+            C_TOTAL = C_TOTAL + BSEG-DMBE3.
+        ENDCASE.
+      ELSE.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            C_TOTAL = C_TOTAL - BSEG-DMBTR.
+          WHEN '2'.
+            C_TOTAL = C_TOTAL - BSEG-DMBE2.
+          WHEN '3'.
+            C_TOTAL = C_TOTAL - BSEG-DMBE3.
+        ENDCASE.
+      ENDIF.
+    ENDIF.
+  endloop.
+  endif.           "if not N_belege is initial
+
+  if not vbel is initial.
+  SELECT * FROM  v_Vbsegs
+         WHERE  ausbk       =  SKB1-BUKRS
+         AND    saknr       =  SKB1-SAKNR
+         AND    BUDAT       GE BDATE.
+
+
+    CHECK V_vbsegs-bstat = 'V'.
+
+    CLEAR BKPF.
+    CLEAR BSEG.
+    SELECT SINGLE * FROM  BKPF
+           WHERE  BUKRS  = v_vbsegs-BUKRS
+           AND    BELNR  = v_Vbsegs-BELNR
+           AND    GJAHR  = v_Vbsegs-GJAHR.
+
+    MOVE-CORRESPONDING V_Vbsegs TO BSEG.
+    bseg-hkont = V_Vbsegs-saknr.
+    IF  BKPF-BUDAT GE BDATE
+    AND BKPF-BUDAT LT DATE-LOW.
+      IF BSEG-SHKZG = 'S'.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            O_TOTAL = O_TOTAL + BSEG-DMBTR.
+          WHEN '2'.
+            O_TOTAL = O_TOTAL + BSEG-DMBE2.
+          WHEN '3'.
+            O_TOTAL = O_TOTAL + BSEG-DMBE3.
+        ENDCASE.
+      ELSE.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            O_TOTAL = O_TOTAL - BSEG-DMBTR.
+          WHEN '2'.
+            O_TOTAL = O_TOTAL - BSEG-DMBE2.
+          WHEN '3'.
+            O_TOTAL = O_TOTAL - BSEG-DMBE3.
+        ENDCASE.
+      ENDIF.
+    ENDIF.
+    IF  BKPF-BUDAT GE DATE-LOW
+    AND BKPF-BUDAT LE DATE-HIGH.
+      IF BSEG-SHKZG = 'S'.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            C_TOTAL = C_TOTAL + BSEG-DMBTR.
+          WHEN '2'.
+            C_TOTAL = C_TOTAL + BSEG-DMBE2.
+          WHEN '3'.
+            C_TOTAL = C_TOTAL + BSEG-DMBE3.
+        ENDCASE.
+      ELSE.
+        CASE WAE-FLAG.
+          WHEN '1'.
+            C_TOTAL = C_TOTAL - BSEG-DMBTR.
+          WHEN '2'.
+            C_TOTAL = C_TOTAL - BSEG-DMBE2.
+          WHEN '3'.
+            C_TOTAL = C_TOTAL - BSEG-DMBE3.
+        ENDCASE.
+      ENDIF.
+    ENDIF.
+
+  ENDSELECT.
+  endif.
+
+ENDFORM.                               " get_o_c_total
+
+*Text elements
+*----------------------------------------------------------
+* 100 No
+* 101 Text
+* 102 O/acct text
+* 103 Total
+* 104 Total LC
+* 105 Carryfwd
+* 106 Carryfds LC
+* 107 Amount
+* 108 Amount  +/-
+* 109 FC amount
+* 110 LC amount
+* 111 Incom.pmnt
+* 112 Incom.pmnt FC
+* 113 Incom.pmnt LC
+* 114 Payment
+* 115 Out.pmnt FC
+* 116 Out.pmnt LC
+* 117 DT
+* 118 Beg.balance
+* 119 ClsgBal.
+* 120 Carryfwd
+* 121 Wage pmnt
+* 122 Tax
+* 123 Tax    +/-
+* 124 Tax inc.pyt
+* 125 Tax inc.pyt FC
+* 126 Tax inc.pyt LC
+* 127 Tax outg.pyt
+* 128 Tax outg.pyt FC
+* 129 Tax outg.pyt LC
+* 130 Tax FC +/-
+* 131 Tax LC +/-
+* 132 LC amount
+* 133 LC amount
+* 134 Amt (loc. crcy)
+* 135 Amt (loc. crcy)
+* 136 Amount
+* 137 Amount
+* 138 Amount
+* 139 Amount
+* 140 LC tax
+* 141 LC tax
+* 142 LC tax amount
+* 143 LC tax amount
+* 144 Tax
+* 145 Tax amount
+* 146 Tax amount
+* 147 Tax amount
+* 148 OffsetAcct
+* 149 G/L offsetting acct
+* 150 No Pstings in Display Period
+* 151 Currency
+
+
+*Selection texts
+*----------------------------------------------------------
+* ASALDO         Opening balance text
+* DATE         Key dates
+* ESALDO         Closing balance text
+* EVENT         Correspondence type
+* GKONTO         Offsetting acct determination
+* LASTM         Last day of month
+* LASTY         Last day of year
+* NUMBER         Last sequential number: Docs
+* N_BELEGE         Standard documents
+* PAGEM         Last page of month
+* PAGEY         Last Page of Year
+* P_LVAR         List variant
+* SIGNAT         Title text
+* TITLE         Additional heading
+* USALDO         Transfer text
+* VBEL         Parked documents
+* WAERS         Currency
+* XKBEL         Cash documents
+* XMWST         Taxes on sales/purchases
+* XOBEL         Output also Without Items
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 02
+*005   No list generated
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

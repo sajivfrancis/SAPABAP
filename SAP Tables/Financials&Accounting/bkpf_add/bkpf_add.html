@@ -1,0 +1,928 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- BKPF_ADD</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   background-color:#E0E7ED;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   background-color:#F2F4F7;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: BKPF_ADD</h2>
+  <h3>Description: Accounting Document Header</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>ADISC</td>
+  <td>66</td>
+  <td>&nbsp;</td>
+  <td>J_1ADISC</td>
+  <td>ADISC</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: entry represents a discount document</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>AEDAT</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>AEDAT_BKPF</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of the Last Document Change by Transaction</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>ARCID</td>
+  <td>33</td>
+  <td>&nbsp;</td>
+  <td>EXTID_BKPF</td>
+  <td>CHAR10</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Extract ID Document Header</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>AUSBK</td>
+  <td>55</td>
+  <td>&nbsp;</td>
+  <td>AUSBK</td>
+  <td>BUKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Source Company Code</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>AWKEY</td>
+  <td>36</td>
+  <td>&nbsp;</td>
+  <td>AWKEY</td>
+  <td>AWKEY</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Reference Key</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>AWSYS</td>
+  <td>58</td>
+  <td>&nbsp;</td>
+  <td>LOGSYSTEM</td>
+  <td>LOGSYS</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Logical System</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>AWTYP</td>
+  <td>35</td>
+  <td>&nbsp;</td>
+  <td>AWTYP</td>
+  <td>AWTYP</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Reference Transaction</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>BASW2</td>
+  <td>43</td>
+  <td>&nbsp;</td>
+  <td>CURSR</td>
+  <td>CURSR</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Source Currency for Currency Translation</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>BASW3</td>
+  <td>44</td>
+  <td>&nbsp;</td>
+  <td>CURSR</td>
+  <td>CURSR</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Source Currency for Currency Translation</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>BELNR</td>
+  <td>3</td>
+  <td>X</td>
+  <td>BELNR_D</td>
+  <td>BELNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Accounting Document Number</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>BKTXT</td>
+  <td>21</td>
+  <td>&nbsp;</td>
+  <td>BKTXT</td>
+  <td>TEXT25</td>
+  <td>CHAR</td>
+  <td>25</td>
+  <td>X</td>
+  <td>Document Header Text</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>BLART</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>BLART</td>
+  <td>BLART</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Document Type</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>BLDAT</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>BLDAT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Document Date in Document</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>BRNCH</td>
+  <td>64</td>
+  <td>&nbsp;</td>
+  <td>J_1ABRNCH</td>
+  <td>J_1BBRANCH</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Branch Number</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>BSTAT</td>
+  <td>26</td>
+  <td>&nbsp;</td>
+  <td>BSTAT_D</td>
+  <td>BSTAT</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Document Status</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>BUDAT</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>BUDAT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Posting Date in the Document</td>
+</tr>
+<tr class="cell">
+  <td>17</td>
+  <td>BUKRS</td>
+  <td>2</td>
+  <td>X</td>
+  <td>BUKRS</td>
+  <td>BUKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Company Code</td>
+</tr>
+<tr class="cell">
+  <td>18</td>
+  <td>BVORG</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>BVORG</td>
+  <td>BVORG</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>Number of Cross-Company Code Posting Transaction</td>
+</tr>
+<tr class="cell">
+  <td>19</td>
+  <td>CPUDT</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>CPUDT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Day On Which Accounting Document Was Entered</td>
+</tr>
+<tr class="cell">
+  <td>20</td>
+  <td>CPUTM</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>CPUTM</td>
+  <td>UZEIT</td>
+  <td>TIMS</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>Time of Entry</td>
+</tr>
+<tr class="cell">
+  <td>21</td>
+  <td>CURT2</td>
+  <td>50</td>
+  <td>&nbsp;</td>
+  <td>CURT2</td>
+  <td>CURTP</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Currency Type of Second Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>22</td>
+  <td>CURT3</td>
+  <td>51</td>
+  <td>&nbsp;</td>
+  <td>CURT3</td>
+  <td>CURTP</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Currency Type of Third Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>23</td>
+  <td>DBBLG</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>DBBLG</td>
+  <td>BELNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Recurring Entry Document Number</td>
+</tr>
+<tr class="cell">
+  <td>24</td>
+  <td>DOKID</td>
+  <td>32</td>
+  <td>&nbsp;</td>
+  <td>DOKID_BKPF</td>
+  <td>CHAR40</td>
+  <td>CHAR</td>
+  <td>40</td>
+  <td>&nbsp;</td>
+  <td>Document Name in the Archive System</td>
+</tr>
+<tr class="cell">
+  <td>25</td>
+  <td>DUEFL</td>
+  <td>57</td>
+  <td>&nbsp;</td>
+  <td>DUEFL_BKPF</td>
+  <td>DUEFL_BKPF</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Status of Data Transfer into Subsequent Release</td>
+</tr>
+<tr class="cell">
+  <td>26</td>
+  <td>FIKRS</td>
+  <td>37</td>
+  <td>&nbsp;</td>
+  <td>FIKRS</td>
+  <td>FIKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Financial Management Area</td>
+</tr>
+<tr class="cell">
+  <td>27</td>
+  <td>FRATH</td>
+  <td>28</td>
+  <td>&nbsp;</td>
+  <td>FRATH</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Unplanned delivery costs</td>
+</tr>
+<tr class="cell">
+  <td>28</td>
+  <td>GJAHR</td>
+  <td>4</td>
+  <td>X</td>
+  <td>GJAHR</td>
+  <td>GJAHR</td>
+  <td>NUMC</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Fiscal Year</td>
+</tr>
+<tr class="cell">
+  <td>29</td>
+  <td>GLVOR</td>
+  <td>30</td>
+  <td>&nbsp;</td>
+  <td>GLVOR</td>
+  <td>CHAR4</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Business Transaction</td>
+</tr>
+<tr class="cell">
+  <td>30</td>
+  <td>GRPID</td>
+  <td>31</td>
+  <td>&nbsp;</td>
+  <td>GRPID_BKPF</td>
+  <td>CHAR12</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>Batch Input Session Name</td>
+</tr>
+<tr class="cell">
+  <td>31</td>
+  <td>HWAE2</td>
+  <td>39</td>
+  <td>&nbsp;</td>
+  <td>HWAE2</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Currency Key of Second Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>32</td>
+  <td>HWAE3</td>
+  <td>40</td>
+  <td>&nbsp;</td>
+  <td>HWAE3</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Currency Key of Third Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>33</td>
+  <td>HWAER</td>
+  <td>38</td>
+  <td>&nbsp;</td>
+  <td>HWAER</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>34</td>
+  <td>IBLAR</td>
+  <td>34</td>
+  <td>&nbsp;</td>
+  <td>IBLAR</td>
+  <td>IBLAR</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Internal Document Type for Document Control</td>
+</tr>
+<tr class="cell">
+  <td>35</td>
+  <td>KURS2</td>
+  <td>41</td>
+  <td>&nbsp;</td>
+  <td>KURS2</td>
+  <td>KURSF</td>
+  <td>DEC</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>Exchange Rate for the Second Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>36</td>
+  <td>KURS3</td>
+  <td>42</td>
+  <td>&nbsp;</td>
+  <td>KURS3</td>
+  <td>KURSF</td>
+  <td>DEC</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>Exchange Rate for the Third Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>37</td>
+  <td>KURSF</td>
+  <td>23</td>
+  <td>&nbsp;</td>
+  <td>KURSF</td>
+  <td>KURSF</td>
+  <td>DEC</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>Exchange rate</td>
+</tr>
+<tr class="cell">
+  <td>38</td>
+  <td>KUTY2</td>
+  <td>52</td>
+  <td>&nbsp;</td>
+  <td>KURST</td>
+  <td>KURST</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Exchange Rate Type</td>
+</tr>
+<tr class="cell">
+  <td>39</td>
+  <td>KUTY3</td>
+  <td>53</td>
+  <td>&nbsp;</td>
+  <td>KURST</td>
+  <td>KURST</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Exchange Rate Type</td>
+</tr>
+<tr class="cell">
+  <td>40</td>
+  <td>KZKRS</td>
+  <td>25</td>
+  <td>&nbsp;</td>
+  <td>KZKRS</td>
+  <td>KURSF</td>
+  <td>DEC</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>Group Currency Exchange Rate</td>
+</tr>
+<tr class="cell">
+  <td>41</td>
+  <td>KZWRS</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>KZWRS</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Currency Key for the Group Currency</td>
+</tr>
+<tr class="cell">
+  <td>42</td>
+  <td>LOTKZ</td>
+  <td>60</td>
+  <td>&nbsp;</td>
+  <td>PSO_LOTKZ</td>
+  <td>LOTKZ</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Lot Number for Requests</td>
+</tr>
+<tr class="cell">
+  <td>43</td>
+  <td>MANDT</td>
+  <td>1</td>
+  <td>X</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td>44</td>
+  <td>MONAT</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>MONAT</td>
+  <td>MONAT</td>
+  <td>NUMC</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Fiscal Period</td>
+</tr>
+<tr class="cell">
+  <td>45</td>
+  <td>NUMPG</td>
+  <td>65</td>
+  <td>&nbsp;</td>
+  <td>J_1ANOPG</td>
+  <td>J_1ANOPG</td>
+  <td>NUMC</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Number of pages of invoice</td>
+</tr>
+<tr class="cell">
+  <td>46</td>
+  <td>PPNAM</td>
+  <td>63</td>
+  <td>&nbsp;</td>
+  <td>PPNAM</td>
+  <td>XUBNAME</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>Name of User Who Parked this Document</td>
+</tr>
+<tr class="cell">
+  <td>47</td>
+  <td>REINDAT</td>
+  <td>70</td>
+  <td>&nbsp;</td>
+  <td>REINDAT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Invoice Receipt Date</td>
+</tr>
+<tr class="cell">
+  <td>48</td>
+  <td>RLDNR</td>
+  <td>71</td>
+  <td>&nbsp;</td>
+  <td>RLDNR</td>
+  <td>RLDNR</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Ledger</td>
+</tr>
+<tr class="cell">
+  <td>49</td>
+  <td>STBLG</td>
+  <td>19</td>
+  <td>&nbsp;</td>
+  <td>STBLG</td>
+  <td>BELNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Reverse Document Number</td>
+</tr>
+<tr class="cell">
+  <td>50</td>
+  <td>STGRD</td>
+  <td>62</td>
+  <td>&nbsp;</td>
+  <td>STGRD</td>
+  <td>STGRD</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Reason for Reversal</td>
+</tr>
+<tr class="cell">
+  <td>51</td>
+  <td>STJAH</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>STJAH</td>
+  <td>GJAHR</td>
+  <td>NUMC</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Reverse document fiscal year</td>
+</tr>
+<tr class="cell">
+  <td>52</td>
+  <td>STODT</td>
+  <td>48</td>
+  <td>&nbsp;</td>
+  <td>STODT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Planned Date for the Reverse Posting</td>
+</tr>
+<tr class="cell">
+  <td>53</td>
+  <td>TCODE</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>TCODE</td>
+  <td>TCODE</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Transaction Code</td>
+</tr>
+<tr class="cell">
+  <td>54</td>
+  <td>TXKRS</td>
+  <td>59</td>
+  <td>&nbsp;</td>
+  <td>TXKRS_BKPF</td>
+  <td>KURSF</td>
+  <td>DEC</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>Exchange Rate for Taxes</td>
+</tr>
+<tr class="cell">
+  <td>55</td>
+  <td>UMRD2</td>
+  <td>45</td>
+  <td>&nbsp;</td>
+  <td>UMRD2</td>
+  <td>CURDT</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Translation Date Type for Second Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>56</td>
+  <td>UMRD3</td>
+  <td>46</td>
+  <td>&nbsp;</td>
+  <td>UMRD3</td>
+  <td>CURDT</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Translation Date Type for Third Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>57</td>
+  <td>UPDDT</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>UPDDT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of the Last Document Update</td>
+</tr>
+<tr class="cell">
+  <td>58</td>
+  <td>USNAM</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>USNAM</td>
+  <td>XUBNAME</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>User name</td>
+</tr>
+<tr class="cell">
+  <td>59</td>
+  <td>WAERS</td>
+  <td>22</td>
+  <td>&nbsp;</td>
+  <td>WAERS</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Currency Key</td>
+</tr>
+<tr class="cell">
+  <td>60</td>
+  <td>WWERT</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>WWERT_D</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Translation Date</td>
+</tr>
+<tr class="cell">
+  <td>61</td>
+  <td>XBLNR</td>
+  <td>17</td>
+  <td>&nbsp;</td>
+  <td>XBLNR1</td>
+  <td>XBLNR1</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>Reference Document Number</td>
+</tr>
+<tr class="cell">
+  <td>62</td>
+  <td>XMWST</td>
+  <td>49</td>
+  <td>&nbsp;</td>
+  <td>XMWST</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Calculate tax automatically</td>
+</tr>
+<tr class="cell">
+  <td>63</td>
+  <td>XNETB</td>
+  <td>27</td>
+  <td>&nbsp;</td>
+  <td>XNETB</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Document posted net ?</td>
+</tr>
+<tr class="cell">
+  <td>64</td>
+  <td>XREF1_HD</td>
+  <td>67</td>
+  <td>&nbsp;</td>
+  <td>XREF1_HD</td>
+  <td>CHAR20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Reference Key 1 Internal for Document Header</td>
+</tr>
+<tr class="cell">
+  <td>65</td>
+  <td>XREF2_HD</td>
+  <td>68</td>
+  <td>&nbsp;</td>
+  <td>XREF2_HD</td>
+  <td>CHAR20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Reference Key 2 Internal for Document Header</td>
+</tr>
+<tr class="cell">
+  <td>66</td>
+  <td>XREVERSAL</td>
+  <td>69</td>
+  <td>&nbsp;</td>
+  <td>XREVERSAL</td>
+  <td>XREVERSAL</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Specifies whether doc. is reversal doc. or reversed doc.</td>
+</tr>
+<tr class="cell">
+  <td>67</td>
+  <td>XRUEB</td>
+  <td>29</td>
+  <td>&nbsp;</td>
+  <td>XRUEB</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Document is posted to a previous period</td>
+</tr>
+<tr class="cell">
+  <td>68</td>
+  <td>XSNET</td>
+  <td>54</td>
+  <td>&nbsp;</td>
+  <td>XSNET</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>G/L account amounts entered exclude tax</td>
+</tr>
+<tr class="cell">
+  <td>69</td>
+  <td>XSTOV</td>
+  <td>47</td>
+  <td>&nbsp;</td>
+  <td>XSTOV</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Document is flagged for reversal</td>
+</tr>
+<tr class="cell">
+  <td>70</td>
+  <td>XUSVR</td>
+  <td>56</td>
+  <td>&nbsp;</td>
+  <td>XUSVR_BKPF</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: US taxes changed at detail level ?</td>
+</tr>
+<tr class="cell">
+  <td>71</td>
+  <td>XWVOF</td>
+  <td>61</td>
+  <td>&nbsp;</td>
+  <td>XWVOF</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Customer bill of exchange payment before due date</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

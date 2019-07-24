@@ -1,0 +1,398 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- KNEX</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: KNEX</h2>
+  <h3>Description: Customer Master: Legal Control - Sanctioned Party List</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>BL1CO</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>BL1CO</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Reserve boycott list 1 for legal control</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>BL1DA</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>BL1DA</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of last BL1 check for legal control</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>BL1EN</td>
+  <td>25</td>
+  <td>&nbsp;</td>
+  <td>SLDEN</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity end date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>BL1ST</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>SLDST</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity start date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>BL2CO</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>BL2CO</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Reserve boycott list 2 for legal control</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>BL2DA</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>BL2DA</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of last BL2 check for legal control</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>BL2EN</td>
+  <td>27</td>
+  <td>&nbsp;</td>
+  <td>SLDEN</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity end date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>BL2ST</td>
+  <td>26</td>
+  <td>&nbsp;</td>
+  <td>SLDST</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity start date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>DHRCO</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>DHRCO</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>ID: Customer boycott list for export control</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>DHRDA</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>DHRDA</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of last check in inter. boycott list for exp. control</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>DHREN</td>
+  <td>23</td>
+  <td>&nbsp;</td>
+  <td>SLDEN</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity end date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>DHRST</td>
+  <td>22</td>
+  <td>&nbsp;</td>
+  <td>SLDST</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity start date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>KUNNR</td>
+  <td>2</td>
+  <td>X</td>
+  <td>KUNNR</td>
+  <td>KUNNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Customer Number</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>LNDEX</td>
+  <td>3</td>
+  <td>X</td>
+  <td>LNDEX</td>
+  <td>LAND1</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Country key for export control in customer master</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>MANDT</td>
+  <td>1</td>
+  <td>X</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>SDNCO</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>SDNCO</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>ID: SDN boycott list for export control</td>
+</tr>
+<tr class="cell">
+  <td>17</td>
+  <td>SDNDA</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>SDNDA</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of last check of SDN list for export control</td>
+</tr>
+<tr class="cell">
+  <td>18</td>
+  <td>SDNEN</td>
+  <td>21</td>
+  <td>&nbsp;</td>
+  <td>SLDEN</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity end date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td>19</td>
+  <td>SDNST</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>SLDST</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity start date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td>20</td>
+  <td>SLDCK</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>SLDCK</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of last SLS check for sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td>21</td>
+  <td>SLDEN</td>
+  <td>17</td>
+  <td>&nbsp;</td>
+  <td>SLDEN</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity end date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td>22</td>
+  <td>SLDST</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>SLDST</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity start date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td>23</td>
+  <td>SLSCO</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>SLSCO</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Sanctioned party list in legal control</td>
+</tr>
+<tr class="cell">
+  <td>24</td>
+  <td>TDOCO</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>TDOCO</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>ID: TDO boycott list for export control</td>
+</tr>
+<tr class="cell">
+  <td>25</td>
+  <td>TDODA</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>TDODA</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of last check of TDO list for export control</td>
+</tr>
+<tr class="cell">
+  <td>26</td>
+  <td>TDOEN</td>
+  <td>19</td>
+  <td>&nbsp;</td>
+  <td>SLDEN</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity end date of entry in sanctioned party list</td>
+</tr>
+<tr class="cell">
+  <td>27</td>
+  <td>TDOST</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>SLDST</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Validity start date of entry in sanctioned party list</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

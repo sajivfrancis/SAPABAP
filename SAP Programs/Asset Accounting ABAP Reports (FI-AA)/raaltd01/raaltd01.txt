@@ -1,0 +1,3465 @@
+REPORT raaltd01 MESSAGE-ID au.
+
+DATA: gd_off TYPE i.                                        "QKI
+DATA: gd_suffix(2) .                                        "QKI
+
+TABLES:
+* Übernahmeformate.
+  baltd, baltb,
+* Anlagenklasse und Texte.
+  anka,
+  ankt,
+* Bereiche der Einzelanlage (für AS92)
+  anlb,
+* Zuordnungen (Feldname --> Feldgruppe, Feldgruppentabelle).
+  t082f,
+* Zuordnungen (Feldgruppe --> Feldstatusoptionen).
+  t082g,
+* Dynpro-Folge bei Stammdatentransaktionen.
+  t082s,
+* Investitionsschluessel.
+  t085,
+* Bewertungsbereiche.
+  t093,
+* Buchungskreise RA.
+  t093c,
+* Angaben für Altdatenübernahme der AfA-Bereiche.
+  t093u,
+* Feldbeschreibungen aus dem Data Dictionary.
+  dd03p,
+* Nummernkreis-Informationen.
+  nriv,
+* Fehlermeldungen.
+  t100.
+
+
+* Abbruch-Argument bei Abbruch.
+DATA: BEGIN OF abbruch,
+        mandt LIKE baltd-mandt,
+        bukrs LIKE baltd-bukrs,
+        anlkl LIKE baltd-anlkl,
+        oldn1 LIKE baltd-oldn1,
+        oldn2 LIKE baltd-oldn2,
+        tcode LIKE baltd-tcode,
+        rctyp LIKE baltd-rctyp,
+      END OF abbruch.
+*
+DATA: gt_ntab  LIKE dfies OCCURS 0 WITH HEADER LINE,
+      gt_ntab1 LIKE dfies OCCURS 0 WITH HEADER LINE.
+* Enthält BWB der Einzelanlage (bei AS92) oder BWB der Klasse (sonst)
+DATA: BEGIN OF xankb OCCURS 20.
+        INCLUDE STRUCTURE ankb.
+DATA: END OF xankb.
+* Enthält immer BWB der Klasse
+DATA: BEGIN OF xankb_class OCCURS 20.
+        INCLUDE STRUCTURE ankb.
+DATA: END OF xankb_class.
+
+DATA: BEGIN OF x100 OCCURS 0.
+        INCLUDE STRUCTURE t100.
+DATA: END OF x100.
+
+DATA: BEGIN OF x082f OCCURS 0,
+        fldnm LIKE t082f-fldnm,
+        fegtb LIKE t082f-fegtb,
+        fegru LIKE t082f-fegru,
+      END OF x082f.
+
+DATA: BEGIN OF x082g OCCURS 0.
+        INCLUDE STRUCTURE t082g.
+DATA: END OF x082g.
+
+DATA: BEGIN OF x082s OCCURS 0,
+        lfdnr LIKE t082s-lfdnr,
+        progn LIKE d020s-prog,
+        dynnr LIKE t082s-dynnr,
+        afruf LIKE t082s-afruf,
+      END OF x082s.
+
+* Zuordnung (Investitionsschluessel --> AfA-Bereich).
+DATA: BEGIN OF y085 OCCURS 10,
+        invsl LIKE t085-invsl,
+        afabe LIKE t085-eafabe,
+      END OF y085.
+* Investitionsschlüssel der Anlage (gefüllt nur bei AS92)
+DATA: BEGIN OF gt_invsl OCCURS 10,
+        invsl LIKE anlb-invsl,
+      END OF gt_invsl.
+
+DATA: BEGIN OF x093 OCCURS 20.
+        INCLUDE STRUCTURE t093.
+DATA: END OF x093.
+
+DATA: BEGIN OF x093u OCCURS 20,
+        afabe LIKE t093u-afabe,
+        lfdnr LIKE t093u-lfdnr,
+      END OF x093u.
+
+
+* Reihenfolge der AfA-Bereiche auf Bereichebild.
+DATA: BEGIN OF yafaseq OCCURS 20,
+*       Suffix des AfA-Bereichs im Uebernahmesatz.
+        suffix(2) TYPE c,
+*       AfA-Bereich.
+        afabe     LIKE ankb-afabe,
+*       Flag: Investitions-AfA-Bereich.
+        invflg(1) TYPE c,
+      END OF yafaseq.
+
+* Reihenfolge der AfA-Bereiche auf Wertebild.
+DATA: BEGIN OF ywrtseq OCCURS 20,
+*       Suffix des AfA-Bereichs im Übernahmesatz.
+        suffix(2) TYPE c,
+*       AfA-Bereich.
+        afabe     LIKE ankb-afabe,
+*       Flag: Investitions-AfA-Bereich.
+        invflg(1) TYPE c,
+      END OF ywrtseq.
+
+* Statistiktabelle.
+DATA: BEGIN OF xstat OCCURS 0,
+        trcode   LIKE baltd-tcode,
+        bukrs    LIKE anla-bukrs,
+        anlkl    LIKE anla-anlkl,
+        rdcnt TYPE i,
+        upcnt TYPE i,
+        ercnt TYPE i,
+      END OF xstat.
+
+
+* Felder aus BALTD + BALTB plus Angaben für Batch-Input
+* (Dynpro, Feld, Ausgabelaenge, ... ).
+DATA: BEGIN OF ydd03p OCCURS 0,
+*       Tabellenname (BALTD oder BALTB).
+        tabname       LIKE dd03p-tabname,
+*       Feldnamenswurzel in Übernahmesatz ALTD.
+        fieldname     LIKE dd03p-fieldname,
+
+        suffix(2),                                          "QKI
+*       Dynpro, auf das ausgegeben wird.
+        prog          LIKE d020s-prog,
+        dnum          LIKE d020s-dnum,
+*       Tabellenname des Feldes, auf das ausgegeben wird.
+        table(5)      TYPE c,
+*       Feldgruppentabelle (A=ANLA oder B=ANLB).
+        fegtb         LIKE t082f-fegtb,
+*       Feldgruppe.
+        fegru         LIKE t082f-fegru,
+*       Feldtyp (CHAR oder DATS).
+        datatype      LIKE dd03p-datatype,
+*       Offsets in BALTD, BALTB.
+        offset        TYPE i,
+*       Feldlaenge.
+        leng        LIKE dd03p-leng,
+      END OF ydd03p.
+
+
+* Tabelle für Batch-Input
+DATA: BEGIN OF ftab OCCURS 0.
+        INCLUDE STRUCTURE  bdcdata.
+DATA: END OF ftab.
+
+DATA:
+*     Allgemeiner Zähler.
+      cnt    TYPE i.
+
+DATA:
+*     Hilfsfeld fuer Strukturname (BALTD oder BALTB).
+      g_hlp_stru(8)  TYPE c,
+*     Grund fuer Programm-Abbruch.
+      g_grund(2)     TYPE n,
+*     Merker: letztes prozessiertes Dynpro.
+      g_ldynnr       LIKE t082s-dynnr,
+*     Merker: letztes prozessiertes Programm.
+      g_lprog        LIKE d020s-prog,
+*     Merker: letzter Bewertungsplan.
+      g_old_afapl    LIKE t093c-afapl,
+*     Anzahl der zu uebernehmenden AfA-Bereiche.
+      g_anzafabe     TYPE i,
+*     Anzahl der zu uebernehmenden Foerdermassnahmen.
+      g_anzinvsl     TYPE i,
+*     Protokolltyp.
+      g_prottype(1)  TYPE c,
+*     Addierfelder für Offsets.
+      hlp_offset1    TYPE i,
+      hlp_offset2    TYPE i,
+*     Hilfsfeld fuer Konvertierung BALTD-BWCNT.
+      g_bwcnt        TYPE i,
+*     Hilfsfeld für Fehlermessage-Bearbeitung.
+      g_message(120) TYPE c,
+*     Merker fuer aktuellen Index der Statistik-Tabelle.
+      g_xstat_tabix  LIKE sy-tabix.
+
+* Merker: Batch-Input-Mappe eroeffnet.
+DATA: flg_bdc_open(1) TYPE c,
+*     AS94-Skip, d.h. bei Fehler in AS91 folgende Unt.nrern überspringen
+      flg_as94_sk(1)  TYPE c.
+DATA: gd_afapage      LIKE sy-tabix    VALUE 1.    "<<< ins note 190935
+DATA: gd_last_mainno  LIKE anla-anln1.             "<<< ins note 169406
+
+DATA: BEGIN OF key_ydd03p,
+        tabname     LIKE dd03p-tabname,
+        fieldname   LIKE dd03p-fieldname,
+      END OF key_ydd03p.
+
+DATA: BEGIN OF key_x100,
+        sprsl       LIKE t100-sprsl,
+        arbgb       LIKE t100-arbgb,
+        msgnr       LIKE t100-msgnr,
+      END   OF key_x100.
+
+DATA: BEGIN OF key_x082g,
+        mandt       LIKE syst-mandt,
+        fegtb       LIKE t082g-fegtb,
+        felei       LIKE t082g-felei,
+        fegru       LIKE t082g-fegru,
+      END   OF key_x082g.
+
+DATA: BEGIN OF key_x093,
+        mandt       LIKE syst-mandt,
+        afapl       LIKE t093-afapl,
+        afaber      LIKE t093-afaber,
+      END   OF key_x093.
+
+DATA: BEGIN OF key_xstat,
+        trcode      LIKE baltd-tcode,
+        bukrs       LIKE anla-bukrs,
+        anlkl       LIKE anla-anlkl,
+      END   OF key_xstat.
+
+DATA: BEGIN OF key_xankb,
+        mandt       LIKE ankb-mandt,
+        anlkl       LIKE ankb-anlkl,
+        afapl       LIKE ankb-afapl,
+        afabe       LIKE ankb-afabe,
+        bdatu       LIKE ankb-bdatu,
+      END   OF key_xankb.
+
+
+FIELD-GROUPS: header, fehler.
+
+
+PARAMETERS:
+* Name der Eingabedatei.
+  dsnin  LIKE   rapar-dsnin
+                DEFAULT '/a/b/c'
+                OBLIGATORY,
+* Name der Fehlermappe.
+  mappe  LIKE   rapar-mappe
+                DEFAULT 'ERROR_BALTD'
+                OBLIGATORY,
+* Testlauf.
+  xtest  LIKE   rapar-xtest,
+* Option "hell abspielen".
+  xhell  LIKE   rapar-xhell,
+* Option "Struktur der Uebernahmeformate zeigen".
+  xstru  LIKE   rapar-xstru.
+
+DATA: hlp_meldung    LIKE  shkontext-meldung,
+      hlp_titel      LIKE  shkontext-titel.
+* will be hided, to enable 'pick' only for messages
+DATA: gd_is_message.
+
+INITIALIZATION.
+
+* Titelbar setzen.
+  SET TITLEBAR 'STR'.
+
+  INSERT baltd-bukrs
+         baltd-anlkl
+         baltd-oldn1
+         baltd-oldn2 INTO header.
+
+  INSERT baltd-txt50
+         baltd-tcode
+         sy-msgid
+         sy-msgno
+         sy-msgv1
+         sy-msgv2
+         sy-msgv3
+         sy-msgv4    INTO fehler.
+
+
+START-OF-SELECTION.
+
+
+* Nur Beschreibung der Uebernahmeformate BALTD, BALTB ausgeben.
+  IF xstru NE space.
+    PERFORM protokoll_ausgeben.
+  ENDIF.
+
+* Eingabedatei zum Lesen oeffnen.
+  OPEN DATASET dsnin  FOR INPUT IN TEXT MODE ENCODING DEFAULT.
+* Eingabedatei nicht vorhanden oder leer ...
+  IF sy-subrc NE 0.
+*   ... Fehler!
+    MESSAGE e021 WITH dsnin.
+  ENDIF.
+
+* Feldgruppentabelle.
+  SELECT * FROM t082f.
+    x082f-fldnm = t082f-fldnm.
+    x082f-fegtb = t082f-fegtb.
+    x082f-fegru = t082f-fegru.
+    APPEND x082f.
+  ENDSELECT.
+  SORT x082f BY fldnm.
+
+* Feldstatusgruppen.
+  SELECT * FROM t082g INTO TABLE x082g.
+  SORT x082g BY mandt fegtb felei fegru.
+
+
+* Dynprofolge fuer AS91 (ohne Startdynpro) bestimmen.
+  SELECT * FROM t082s
+    WHERE viewx EQ '0'.
+    x082s-lfdnr = t082s-lfdnr.
+    x082s-progn = 'SAPLAIST'.
+    x082s-dynnr = t082s-dynnr.
+    IF t082s-dynnr NE '0140'.
+      x082s-afruf = t082s-afruf.
+    ELSE.
+      CLEAR x082s-afruf.
+    ENDIF.
+    APPEND x082s.
+  ENDSELECT.
+* Keine Altdatensicht definiert ...
+  IF sy-dbcnt = 0.
+*   ... Systemverantwortlichen informieren!
+    MESSAGE e019.
+  ENDIF.
+* Auch noch AfA-Detailbild anhängen.
+  CLEAR x082s.
+  x082s-lfdnr = '96'.                                     "note 1062241
+  x082s-progn = 'SAPLAIST'.
+  x082s-dynnr = '0195'.
+  x082s-afruf = 'SELZ'.
+  APPEND x082s.
+
+* ___ START OF INSERTION NOTE 1062241 ___
+  CLEAR x082s.
+  x082s-lfdnr = '97'.
+  x082s-progn = 'SAPLAIST'.
+  x082s-dynnr = '3095'.
+  APPEND x082s.
+* ___ END OF INSERTION NOTE 1062241 ___
+
+* Auch noch Wertebild anhängen.
+  CLEAR x082s.
+  x082s-lfdnr = '98'.
+  x082s-progn = 'SAPLALTD'.
+  x082s-dynnr = '0100'.
+  x082s-afruf = 'ALTD'.
+  APPEND x082s.
+* Auch noch Bewegungenbild anhängen.
+  CLEAR x082s.
+  x082s-lfdnr = '99'.
+  x082s-progn = 'SAPLALTD'.
+  x082s-dynnr = '0200'.
+  x082s-afruf = 'ALTB'.
+  APPEND x082s.
+* Sortieren nach Dynpro-Reihenfolge.
+  SORT x082s BY lfdnr.
+
+* Steuertabelle YDD03P aufbauen und zum Teil füllen.
+* Hier sollte besser mit dem FB 'DD_GET_DD03P' gearbeitet werden.
+
+  REFRESH: gt_ntab, gt_ntab1.
+  CALL FUNCTION 'DDIF_NAMETAB_GET'
+       EXPORTING    tabname     = 'BALTB'
+       TABLES       dfies_tab   = gt_ntab1
+       EXCEPTIONS   not_found   = 1
+                    OTHERS      = 2.
+  CALL FUNCTION 'DDIF_NAMETAB_GET'
+       EXPORTING    tabname     = 'BALTD'
+       TABLES       dfies_tab   = gt_ntab
+       EXCEPTIONS   not_found   = 1
+                    OTHERS      = 2.
+  APPEND LINES OF gt_ntab1 TO gt_ntab.
+  SORT gt_ntab BY tabname position.
+  LOOP AT gt_ntab.
+*
+    CLEAR ydd03p.
+    ydd03p-tabname   = gt_ntab-tabname.
+    ydd03p-fieldname = gt_ntab-fieldname.
+    ydd03p-leng    = gt_ntab-leng.
+    ydd03p-datatype  = gt_ntab-datatype.
+*
+    IF gt_ntab-tabname EQ 'BALTD'.
+      ydd03p-offset  = hlp_offset1.
+    ELSE.
+      ydd03p-offset  = hlp_offset2.
+    ENDIF.
+
+*   Vorzeitige Sonderzuordnungen.
+    CASE gt_ntab-fieldname.
+*   Felder des ersten Dynpros 0140, die gemäß Dynpro-Definition nicht
+*   eingabebereit sind (nur bei externer NV eingabebereit werden).
+    WHEN 'ANLN1'.
+      ydd03p-prog  = 'SAPLAIST'.
+      ydd03p-dnum  = '0140'.
+      ydd03p-table = 'ANLA'.
+    WHEN 'ANLN2'.
+      ydd03p-prog  = 'SAPLAIST'.
+      ydd03p-dnum  = '0140'.
+      ydd03p-table = 'ANLA'.
+    ENDCASE.
+
+*   Offsets für nächstes Feld von BALTD/BALTB hochzählen.
+    IF gt_ntab-tabname EQ 'BALTD'.
+      hlp_offset1 = hlp_offset1 + gt_ntab-leng.
+    ELSE.
+      hlp_offset2 = hlp_offset2 + gt_ntab-leng.
+    ENDIF.
+
+*   Anzahl AfA-Bereiche im Uebernahmeformat BALTD ermitteln.
+    IF gt_ntab-fieldname(5) EQ 'AFABE'.
+      g_anzafabe = g_anzafabe + 1.
+    ENDIF.
+
+*   Anzahl Foerdermassnahmen im Uebernahmeformat
+*   BALTD ermitteln.
+    IF gt_ntab-fieldname(5) EQ 'INVSL'.
+      g_anzinvsl = g_anzinvsl + 1.
+    ENDIF.
+
+   IF ydd03p-fieldname CA '0123456789'  .                    "QKI
+      gd_off = strlen( ydd03p-fieldname ) - 2.               "QKI
+      gd_suffix = ydd03p-fieldname+gd_off(2).                "QKI
+      IF gd_suffix BETWEEN '01' AND '99'.                    "QKI
+         ydd03p-suffix = gd_suffix.                          "QKI
+      ENDIF.                                                 "QKI
+   ENDIF.                                                    "QKI
+
+    APPEND ydd03p.
+
+  ENDLOOP.
+  REFRESH: gt_ntab, gt_ntab1.
+
+* BALTD nicht im Data-Dictionary ...
+  IF sy-dbcnt EQ 0.
+*   ... Systemverantwortlichen verstaendigen!
+    MESSAGE e018.
+  ENDIF.
+
+
+
+* YDD03P so sortieren, dass AfA-Bereichs-Felder mit gleicher Wurzel
+* (und unterschiedlichem Suffix) hintereinander in YDD03P stehen.
+* Analog Investitionsschlüssel. Diese Sortierung wird in
+* YDD03P_FUELLEN vorausgesetzt!
+  SORT ydd03p BY tabname fieldname.
+* YDD03P komplettieren.
+  LOOP AT x082s.
+    CASE x082s-dynnr.
+*   Bewegungenbild.
+    WHEN '0200'.
+      PERFORM ydd03p_fuellen_bewegungenbild.
+*   Sonstige.
+    WHEN OTHERS.
+      PERFORM ydd03p_fuellen_rest.
+    ENDCASE.
+  ENDLOOP.
+
+
+
+
+* Sortierung für Batch-Input: Sortierung in Reihenfolge der Dynpros
+* und Felder zu einem Suffix hintereinander weg. Dadurch kommen
+* Auf dem AfA-Bereichebild/AfA-Detailbild/Wertebild/Bewegungenbild
+* die Felder zu einem Bewertungsbereich hintereinander weg!
+* SORT YDD03P BY TABNAME PROG DNUM FIELDNAME+5(3) FIELDNAME(5).   "QKI
+  SORT ydd03p BY tabname prog dnum suffix         fieldname   .   "QKI
+
+* Eingabedatei einlesen.
+  DO.
+
+*   Stammsatz lesen.
+    READ DATASET dsnin INTO baltd.
+
+    CASE sy-subrc.
+*   Satz gelesen und übergeben.
+    WHEN 0.
+*     Alle moeglichen Vorbereitungen.
+      PERFORM ankx_lesen.
+*     Transaktion erzeugen.
+      PERFORM as91_erzeugen.
+*   EOF erreicht.
+    WHEN 4.
+      IF flg_bdc_open = 'X'.
+        CALL FUNCTION 'BDC_CLOSE_GROUP'.
+      ENDIF.
+      EXIT.
+*   Sonstiger Fehler.
+*   WHEN 8.
+*     MESSAGE E021 WITH DSNIN.
+    ENDCASE.
+
+
+  ENDDO.
+
+
+  PERFORM protokoll_ausgeben.
+
+
+*--- FORM-Routinen ---------------------------------------------------*
+
+
+FORM as91_fehler_ermitteln USING l_subrc.
+
+  DATA:
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value    LIKE bdcdata-fval,
+*       Aktueller Suffix.
+        l_akt_suffix(2) TYPE c,
+*       Aktueller AfA-Bereich.
+        l_akt_afabe     LIKE ankb-afabe.
+
+* Default: Keine Fehler festgestellt.
+  l_subrc = 0.
+
+* Interne NV aber Hauptnummer trotzdem gesetzt.
+  IF baltd-anln1(1) NE '/' AND
+     nriv-externind NE 'X' .
+    IF l_subrc EQ 0.
+      sy-msgty = 'E'.
+      sy-msgid = 'AU'.
+      sy-msgno = '026'.
+      sy-msgv1 = space.
+      sy-msgv2 = space.
+      sy-msgv3 = space.
+      sy-msgv4 = space.
+      PERFORM fehler_merken.
+      l_subrc = 4.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+* Externe NV aber Hauptnummer nicht gesetzt.
+  IF baltd-anln1(1) EQ '/' AND
+     nriv-externind EQ 'X' .
+    IF l_subrc EQ 0.
+      sy-msgty = 'E'.
+      sy-msgid = 'AU'.
+      sy-msgno = '030'.
+      sy-msgv1 = space.
+      sy-msgv2 = space.
+      sy-msgv3 = space.
+      sy-msgv4 = space.
+      PERFORM fehler_merken.
+      l_subrc = 4.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+* Interne UntNV aber Unternummer trotzdem gesetzt.
+  IF baltd-anln2(1) NE '/' AND
+     anka-xuntv  NE 'X' .
+    IF l_subrc EQ 0.
+      sy-msgty = 'E'.
+      sy-msgid = 'AU'.
+      sy-msgno = '027'.
+      sy-msgv1 = space.
+      sy-msgv2 = space.
+      sy-msgv3 = space.
+      sy-msgv4 = space.
+      PERFORM fehler_merken.
+      l_subrc = 4.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+* Externe UntNV aber Unternummer nicht gesetzt.
+  IF baltd-anln2(1) EQ '/' AND
+     anka-xuntv  EQ 'X' .
+    IF l_subrc EQ 0.
+      sy-msgty = 'E'.
+      sy-msgid = 'AU'.
+      sy-msgno = '031'.
+      sy-msgv1 = space.
+      sy-msgv2 = space.
+      sy-msgv3 = space.
+      sy-msgv4 = space.
+      PERFORM fehler_merken.
+      l_subrc = 4.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+  CLEAR x082g.
+* Feldstatusoptionen checken.
+  LOOP AT ydd03p
+    WHERE NOT ( fegru IS initial ).                     "<< note 481680
+*   Feld nicht gesetzt ==> nix pruefen.
+    PERFORM field_assign
+      USING l_char_value baltd+ydd03p-offset(ydd03p-leng).
+    CHECK l_char_value(1) NE '/'.
+*   Aktuellen Suffix/AfA-Bereich merken.
+*   IF YDD03P-FIELDNAME+5(2) NE L_AKT_SUFFIX.                   "QKI
+    IF ydd03p-suffix         NE l_akt_suffix.                   "QKI
+*     L_AKT_SUFFIX = YDD03P-FIELDNAME+5(2).                     "QKI
+      l_akt_suffix = ydd03p-suffix        .                     "QKI
+      IF l_akt_suffix EQ '  '.
+        CLEAR l_akt_afabe.
+      ELSE.
+        READ TABLE yafaseq WITH KEY l_akt_suffix.
+        l_akt_afabe = yafaseq-afabe.
+      ENDIF.
+    ENDIF.
+*
+    IF ydd03p-fegtb EQ 'A'.
+*     Wechsel der Feldsatusoptionen fuer A-Felder ...
+      IF ydd03p-fegtb NE x082g-fegtb OR
+         anka-felei   NE x082g-felei OR
+         ydd03p-fegru NE x082g-fegru .
+        key_x082g-mandt = syst-mandt.
+        key_x082g-fegtb = ydd03p-fegtb.
+        key_x082g-felei = anka-felei.
+        key_x082g-fegru = ydd03p-fegru.
+*       ... dann Feldstatusoptionen neu einlesen.
+        READ TABLE x082g  WITH KEY key_x082g  BINARY SEARCH.
+      ENDIF.
+    ENDIF.
+*
+    IF ydd03p-fegtb EQ 'B'.
+*     XANKB lesen.
+      key_xankb-mandt = syst-mandt.
+      key_xankb-anlkl = anka-anlkl.
+      key_xankb-afapl = t093c-afapl.
+      key_xankb-afabe = l_akt_afabe.
+      key_xankb-bdatu = '99991231'.
+      READ TABLE xankb WITH KEY key_xankb.
+*     Wechsel der Feldsatusoptionen fuer B-Felder ...
+      IF ydd03p-fegtb NE x082g-fegtb OR
+         xankb-felei  NE x082g-felei OR
+         ydd03p-fegru NE x082g-fegru .
+        key_x082g-mandt = syst-mandt.
+        key_x082g-fegtb = ydd03p-fegtb.
+        key_x082g-felei = xankb-felei.
+        key_x082g-fegru = ydd03p-fegru.
+*       ... dann Feldstatusoptionen neu einlesen.
+        READ TABLE x082g  WITH KEY key_x082g  BINARY SEARCH.
+      ENDIF.
+    ENDIF.
+
+*   Feld ist laut Statusgruppe nicht gewünscht.
+    IF x082g-fnein = 'X'.
+      IF l_subrc EQ 0.
+        sy-msgty = 'E'.
+        sy-msgid = 'AU'.
+        sy-msgno = '028'.
+        sy-msgv1 = ydd03p-fieldname.
+        sy-msgv2 = space.
+        sy-msgv3 = space.
+        sy-msgv4 = space.
+        l_subrc = 4.
+        PERFORM fehler_merken.
+        EXIT.
+      ENDIF.
+    ENDIF.
+*   Feld wird laut Statusgruppe weder auf Haupt- noch auf
+*   Unternummernebene versorgt.
+    IF x082g-ianl1 NE 'X' AND
+       x082g-ianl2 NE 'X' .
+      IF l_subrc EQ 0.
+        sy-msgty = 'E'.
+        sy-msgid = 'AU'.
+        sy-msgno = '029'.
+        sy-msgv1 = ydd03p-fieldname.
+        sy-msgv2 = space.
+        sy-msgv3 = space.
+        sy-msgv4 = space.
+        l_subrc = 4.
+        PERFORM fehler_merken.
+        EXIT.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+
+FORM as92_fehler_ermitteln USING l_subrc.
+
+  DATA:
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value    LIKE bdcdata-fval,
+*       Aktueller Suffix.
+        l_akt_suffix(2) TYPE c,
+*       Aktueller AfA-Bereich.
+        l_akt_afabe     LIKE ankb-afabe.
+
+* Default: Keine Fehler festgestellt.
+  l_subrc = 0.
+
+* Haupt- oder Unternummer nicht gesetzt.
+  IF baltd-anln1(1) EQ '/' OR
+     baltd-anln2(1) EQ '/' .
+    IF l_subrc EQ 0.
+      sy-msgty = 'E'.
+      sy-msgid = 'AU'.
+      sy-msgno = '032'.
+      sy-msgv1 = space.
+      sy-msgv2 = space.
+      sy-msgv3 = space.
+      sy-msgv4 = space.
+      PERFORM fehler_merken.
+      l_subrc = 4.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+  CLEAR x082g.
+* Feldstatusoptionen checken.
+  LOOP AT ydd03p
+    WHERE NOT ( fegru IS initial ).                     "<< note 481680
+*   Feld nicht gesetzt ==> nix pruefen.
+    PERFORM field_assign
+      USING l_char_value baltd+ydd03p-offset(ydd03p-leng).
+    CHECK l_char_value(1) NE '/'.
+*   Aktuellen Suffix/AfA-Bereich merken.
+*   IF YDD03P-FIELDNAME+5(2) NE L_AKT_SUFFIX.                     "QKI
+*     L_AKT_SUFFIX = YDD03P-FIELDNAME+5(2).                       "QKI
+    IF ydd03p-suffix         NE l_akt_suffix.                     "QKI
+      l_akt_suffix = ydd03p-suffix        .                       "QKI
+      IF l_akt_suffix EQ '  '.
+        CLEAR l_akt_afabe.
+      ELSE.
+        READ TABLE yafaseq WITH KEY l_akt_suffix.
+        l_akt_afabe = yafaseq-afabe.
+      ENDIF.
+    ENDIF.
+*
+    IF ydd03p-fegtb EQ 'A'.
+*     Wechsel der Feldsatusoptionen fuer A-Felder ...
+      IF ydd03p-fegtb NE x082g-fegtb OR
+         anka-felei   NE x082g-felei OR
+         ydd03p-fegru NE x082g-fegru .
+        key_x082g-mandt = syst-mandt.
+        key_x082g-fegtb = ydd03p-fegtb.
+        key_x082g-felei = anka-felei.
+        key_x082g-fegru = ydd03p-fegru.
+*       ... dann Feldstatusoptionen neu einlesen.
+        READ TABLE x082g  WITH KEY key_x082g  BINARY SEARCH.
+      ENDIF.
+    ENDIF.
+*
+    IF ydd03p-fegtb EQ 'B'.
+*     XANKB lesen.
+      key_xankb-mandt = syst-mandt.
+      key_xankb-anlkl = anka-anlkl.
+      key_xankb-afapl = t093c-afapl.
+      key_xankb-afabe = l_akt_afabe.
+      key_xankb-bdatu = '99991231'.
+      READ TABLE xankb WITH KEY key_xankb.
+*     Wechsel der Feldsatusoptionen fuer B-Felder ...
+      IF ydd03p-fegtb NE x082g-fegtb OR
+         xankb-felei  NE x082g-felei OR
+         ydd03p-fegru NE x082g-fegru .
+        key_x082g-mandt = syst-mandt.
+        key_x082g-fegtb = ydd03p-fegtb.
+        key_x082g-felei = xankb-felei.
+        key_x082g-fegru = ydd03p-fegru.
+*       ... dann Feldstatusoptionen neu einlesen.
+        READ TABLE x082g  WITH KEY key_x082g  BINARY SEARCH.
+      ENDIF.
+    ENDIF.
+
+*   Feld ist laut Statusgruppe nicht gewünscht.
+    IF x082g-fnein = 'X'.
+      IF l_subrc EQ 0.
+        sy-msgty = 'E'.
+        sy-msgid = 'AU'.
+        sy-msgno = '028'.
+        sy-msgv1 = ydd03p-fieldname.
+        sy-msgv2 = space.
+        sy-msgv3 = space.
+        sy-msgv4 = space.
+        l_subrc = 4.
+        PERFORM fehler_merken.
+        EXIT.
+      ENDIF.
+    ENDIF.
+*   Feld wird laut Statusgruppe weder auf Haupt- noch auf
+*   Unternummernebene versorgt.
+    IF x082g-ianl1 NE 'X' AND
+       x082g-ianl2 NE 'X' .
+      IF l_subrc EQ 0.
+        sy-msgty = 'E'.
+        sy-msgid = 'AU'.
+        sy-msgno = '029'.
+        sy-msgv1 = ydd03p-fieldname.
+        sy-msgv2 = space.
+        sy-msgv3 = space.
+        sy-msgv4 = space.
+        l_subrc = 4.
+        PERFORM fehler_merken.
+        EXIT.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+
+FORM as94_fehler_ermitteln USING l_subrc.
+
+  DATA:
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value    LIKE bdcdata-fval,
+*       Aktueller Suffix.
+        l_akt_suffix(2) TYPE c,
+*       Aktueller AfA-Bereich.
+        l_akt_afabe     LIKE ankb-afabe.
+
+* Default: Keine Fehler festgestellt.
+  l_subrc = 0.
+" Hauptnummer kann hier nicht gefüllt sein, da erst später per Set-/get-
+" besorgt.
+* Hauptnummer nicht gesetzt.
+* IF BALTD-ANLN1(1) EQ '/'.
+*   IF L_SUBRC EQ 0.
+*     SY-MSGTY = 'E'.
+*     SY-MSGID = 'AU'.
+*     SY-MSGNO = '033'.
+*     SY-MSGV1 = SPACE.
+*     SY-MSGV2 = SPACE.
+*     SY-MSGV3 = SPACE.
+*     SY-MSGV4 = SPACE.
+*     PERFORM FEHLER_MERKEN.
+*     L_SUBRC = 4.
+*     EXIT.
+*   ENDIF.
+* ENDIF.
+
+* Nachfolgende AS94-Sätze überspringen, wenn AS91 vorher schief ging.
+  IF flg_as94_sk = 'X'.
+    IF        NOT baltd-anln1 IS INITIAL                 "i note 169406
+          AND     baltd-anln1 <> gd_last_mainno.         "i note 169406
+       CLEAR flg_as94_sk.                                "i note 169406
+    ELSE.                                                "i note 169406
+       IF l_subrc EQ 0.
+         sy-msgty = 'E'. sy-msgid = 'AU'. sy-msgno = '255'.
+         sy-msgv1 = baltd-anln2.       sy-msgv2 = baltd-oldn1.
+         sy-msgv3 = space.             sy-msgv4 = space.
+         PERFORM fehler_merken.
+         l_subrc = 4.
+         EXIT.
+       ENDIF.
+    ENDIF.                                               "i note 169406
+  ENDIF.
+
+
+* Interne UntNV aber Unternummer trotzdem gesetzt.
+  IF baltd-anln2(1) NE '/' AND
+     anka-xuntv  NE 'X' .
+    IF l_subrc EQ 0.
+      sy-msgty = 'E'.
+      sy-msgid = 'AU'.
+      sy-msgno = '027'.
+      sy-msgv1 = space.
+      sy-msgv2 = space.
+      sy-msgv3 = space.
+      sy-msgv4 = space.
+      PERFORM fehler_merken.
+      l_subrc = 4.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+* Externe UntNV aber Unternummer nicht gesetzt.
+  IF baltd-anln2(1) EQ '/' AND
+     anka-xuntv  EQ 'X' .
+    IF l_subrc EQ 0.
+      sy-msgty = 'E'.
+      sy-msgid = 'AU'.
+      sy-msgno = '031'.
+      sy-msgv1 = space.
+      sy-msgv2 = space.
+      sy-msgv3 = space.
+      sy-msgv4 = space.
+      PERFORM fehler_merken.
+      l_subrc = 4.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+  CLEAR x082g.
+* Feldstatusoptionen checken.
+  LOOP AT ydd03p
+    WHERE NOT ( fegru IS initial ).                     "<< note 481680
+*   Feld nicht gesetzt ==> nix pruefen.
+    PERFORM field_assign
+      USING l_char_value baltd+ydd03p-offset(ydd03p-leng).
+    CHECK l_char_value(1) NE '/'.
+*   Aktuellen Suffix/AfA-Bereich merken.
+*   IF YDD03P-FIELDNAME+5(2) NE L_AKT_SUFFIX.                    "QKI
+*     L_AKT_SUFFIX = YDD03P-FIELDNAME+5(2).                      "QKI
+    IF ydd03p-suffix         NE l_akt_suffix.                    "QKI
+      l_akt_suffix = ydd03p-suffix        .                      "QKI
+      IF l_akt_suffix EQ '  '.
+        CLEAR l_akt_afabe.
+      ELSE.
+        READ TABLE yafaseq WITH KEY l_akt_suffix.
+        l_akt_afabe = yafaseq-afabe.
+      ENDIF.
+    ENDIF.
+*
+    IF ydd03p-fegtb EQ 'A'.
+*     Wechsel der Feldsatusoptionen fuer A-Felder ...
+      IF ydd03p-fegtb NE x082g-fegtb OR
+         anka-felei   NE x082g-felei OR
+         ydd03p-fegru NE x082g-fegru .
+        key_x082g-mandt = syst-mandt.
+        key_x082g-fegtb = ydd03p-fegtb.
+        key_x082g-felei = anka-felei.
+        key_x082g-fegru = ydd03p-fegru.
+*       ... dann Feldstatusoptionen neu einlesen.
+        READ TABLE x082g  WITH KEY key_x082g  BINARY SEARCH.
+      ENDIF.
+    ENDIF.
+*
+    IF ydd03p-fegtb EQ 'B'.
+*     XANKB lesen.
+      key_xankb-mandt = syst-mandt.
+      key_xankb-anlkl = anka-anlkl.
+      key_xankb-afapl = t093c-afapl.
+      key_xankb-afabe = l_akt_afabe.
+      key_xankb-bdatu = '99991231'.
+      READ TABLE xankb WITH KEY key_xankb.
+*     Wechsel der Feldsatusoptionen fuer B-Felder ...
+      IF ydd03p-fegtb NE x082g-fegtb OR
+         xankb-felei  NE x082g-felei OR
+         ydd03p-fegru NE x082g-fegru .
+        key_x082g-mandt = syst-mandt.
+        key_x082g-fegtb = ydd03p-fegtb.
+        key_x082g-felei = xankb-felei.
+        key_x082g-fegru = ydd03p-fegru.
+*       ... dann Feldstatusoptionen neu einlesen.
+        READ TABLE x082g  WITH KEY key_x082g  BINARY SEARCH.
+      ENDIF.
+    ENDIF.
+
+*   Feld ist laut Statusgruppe nicht gewünscht.
+    IF x082g-fnein = 'X'.
+      IF l_subrc EQ 0.
+        sy-msgty = 'E'.
+        sy-msgid = 'AU'.
+        sy-msgno = '028'.
+        sy-msgv1 = ydd03p-fieldname.
+        sy-msgv2 = space.
+        sy-msgv3 = space.
+        sy-msgv4 = space.
+        l_subrc = 4.
+        PERFORM fehler_merken.
+        EXIT.
+      ENDIF.
+    ENDIF.
+*   Feld wird laut Statusgruppe weder auf Haupt- noch auf
+*   Unternummernebene versorgt.
+    IF x082g-ianl1 NE 'X' AND
+       x082g-ianl2 NE 'X' .
+      IF l_subrc EQ 0.
+        sy-msgty = 'E'.
+        sy-msgid = 'AU'.
+        sy-msgno = '029'.
+        sy-msgv1 = ydd03p-fieldname.
+        sy-msgv2 = space.
+        sy-msgv3 = space.
+        sy-msgv4 = space.
+        l_subrc = 4.
+        PERFORM fehler_merken.
+        EXIT.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM ankx_lesen.
+
+  DATA:
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value    LIKE bdcdata-fval.
+
+* Zuordnungstabelle (Suffix --> AfA-Bereich). Diese Zuordnung darf
+* sich pro Buchungskreis und Klasse nicht ändern!
+  DATA: BEGIN OF l_seq OCCURS 20,
+          afabe     LIKE ankb-afabe,
+          suffix(2) TYPE c,
+        END OF l_seq.
+
+* Zuordnungstabelle (AfA-Bereich --> Reihenfolgenummer aus T093U).
+  DATA: BEGIN OF l_ord OCCURS 20,
+          lfdnr     LIKE t093u-lfdnr,
+          afabe     LIKE t093u-afabe,
+          suffix(2) TYPE c,
+          invflg(1) TYPE c,
+        END OF l_ord.
+
+* Tabelle der aktiven Bereiche bei AS92
+  DATA: BEGIN OF lt_active_areas OCCURS 20,
+          afabe LIKE anlb-afabe,
+          invsl LIKE anlb-invsl,
+        END OF lt_active_areas.
+* Flag Neuberechnen der Bereichsreihenfolge nötig?
+  DATA: ld_new_sequence.
+* Hilfsfelder für konvertierte Anlagennummern
+  DATA: ld_anln1_alpha  LIKE  anla-anln1,
+        ld_anln2_alpha  LIKE  anla-anln2.
+
+
+* Wenn letzte Transaktion AS92 war, auf jeden Fall Reihenfolge neu
+*  IF KEY_XSTAT-TRCODE = 'AS92'.                     ">del note #150638
+  IF key_xstat-trcode = 'AS92' OR                    ">ins note #150638
+  key_xstat-trcode = 'AS82'.                         ">ins note #150638
+     ld_new_sequence = 'X'.
+  ENDIF.
+
+* Statistik-Tabelle vor-/nachbereiten.
+*
+* Buchungskreis oder Anlagenklasse oder Transaktion wechselt.
+  IF baltd-tcode  NE key_xstat-trcode OR
+     baltd-bukrs  NE key_xstat-bukrs  OR
+     baltd-anlkl  NE key_xstat-anlkl  .
+*   Erstmal vorigen Eintrag modifizieren.
+    IF NOT g_xstat_tabix IS INITIAL.
+      MODIFY xstat INDEX g_xstat_tabix.
+    ENDIF.
+*   Statistiktabelle lesen und eventuell neuen Eintrag dazutun.
+    key_xstat-trcode = baltd-tcode.
+    key_xstat-bukrs  = baltd-bukrs.
+    key_xstat-anlkl  = baltd-anlkl.
+    READ TABLE xstat WITH KEY key_xstat BINARY SEARCH.
+    CASE sy-subrc.
+*   Eintrag existiert bereits.
+    WHEN 0.
+*   Eintrag neu einfuegen (INSERT).
+    WHEN 4.
+      CLEAR xstat.
+      xstat-trcode = baltd-tcode.
+      xstat-bukrs  = baltd-bukrs.
+      xstat-anlkl  = baltd-anlkl.
+      INSERT xstat  INDEX sy-tabix.
+*   Eintrag neu hinten anhaengen (APPEND).
+    WHEN 8.
+      CLEAR xstat.
+      xstat-trcode = baltd-tcode.
+      xstat-bukrs  = baltd-bukrs.
+      xstat-anlkl  = baltd-anlkl.
+      APPEND xstat.
+    ENDCASE.
+*   Aktuellen Index merken für späteren MODIFY.
+    g_xstat_tabix = sy-tabix.
+  ENDIF.
+
+* Read-Counter hochzaehlen.
+  xstat-rdcnt = xstat-rdcnt + 1.
+
+* Buchungskreis nicht gesetzt ...
+  IF baltd-bukrs IS INITIAL OR
+     baltd-bukrs EQ '/ '    .
+*   ... dann kontrollierten Abbruch veranlassen.
+    PERFORM abend USING '01'.
+  ENDIF.
+
+* T-Code nicht gesetzt oder ungültig ...
+  IF baltd-tcode NE 'AS81' AND
+     baltd-tcode NE 'AS82' AND                      ">>ins note #150638
+     baltd-tcode NE 'AS84' AND                      ">>ins note #150638
+     baltd-tcode NE 'AS91' AND
+     baltd-tcode NE 'AS92' AND
+     baltd-tcode NE 'AS94' .
+*   ... dann kontrollierten Abbruch veranlassen.
+    PERFORM abend USING '04'.
+  ENDIF.
+
+* Keine Satzart - dann wahrscheinlich nur Stammsaetze!
+  IF baltd-rctyp EQ '/'.
+     baltd-rctyp = 'A'.
+  ENDIF.
+* Unerwartete Satzart ...
+  IF baltd-rctyp NE 'A' .
+*    ... dann kontrollierten Abbruch veranlassen.
+    PERFORM abend USING '05'.
+  ENDIF.
+
+* Keine Anzahl Bewegungen - dann wahrscheinlich nur Stammsaetze!
+  IF baltd-bwcnt(1) EQ '/'    OR
+     baltd-bwcnt    EQ '    ' .
+     baltd-bwcnt = '0000'.
+  ENDIF.
+* Anzahl der Bewegungen zu Anlage merken.
+  IF     baltd-bwcnt CO ' 0123456789'.
+    MOVE baltd-bwcnt TO g_bwcnt.
+* Anzahl nicht interpretierbar ...
+  ELSE.
+* ... dann kontrollierten Abbruch veranlassen.
+    PERFORM abend USING '03'.
+  ENDIF.
+
+* Bewegungen zu AS92 ...
+*  IF BALTD-TCODE EQ 'AS92' AND                  ">>del note #150638
+*     G_BWCNT     NE 0.                          ">>del note #150638
+  IF ( baltd-tcode EQ 'AS92'                     ">>ins note #150638
+       OR baltd-tcode EQ 'AS82' )                ">>ins note #150638
+      AND g_bwcnt     NE 0.                      ">>ins note #150638
+
+
+*   ... sind nicht erlaubt! Kontrollierter Abbruch.
+    PERFORM abend USING '06'.
+  ENDIF.
+
+* Buchungskreis wechselt.
+  IF t093c-bukrs NE baltd-bukrs.
+*   Buchungskreis RA.
+    SELECT SINGLE * FROM t093c
+      WHERE bukrs EQ baltd-bukrs.
+*   Buchungskreis nicht gefunden ...
+    IF sy-subrc NE 0.
+*     ... dann kontrollierten Abbruch veranlassen.
+      PERFORM abend USING '01'.
+    ENDIF.
+
+*   ANKP nachlesen, wenn (nur) Bewertungsplan wechselt
+    IF NOT g_old_afapl IS INITIAL   AND
+      g_old_afapl <> t093c-afapl    AND
+      baltd-anlkl   =  anka-anlkl.
+
+*     ANKBs lesen.
+      REFRESH xankb.
+      CALL FUNCTION 'ANKB_READ_MULTIPLE_AFABE'
+           EXPORTING   i_afapl   = t093c-afapl
+                       i_anlkl   = baltd-anlkl
+           TABLES      t_ankb    = xankb_class.
+*
+      SORT xankb_class.
+
+      CALL FUNCTION 'ANKP_READ_AND_CHANGE_ANKA'
+           EXPORTING  f_anka   =  anka
+                      i_afapl  =  t093c-afapl
+                      i_anlkl  =  anka-anlkl
+                      i_change =  'X'
+           IMPORTING  f_anka   =  anka
+           EXCEPTIONS not_found = 01
+                      deleted   = 02
+                      locked    = 03.
+    ENDIF.
+    g_old_afapl   = t093c-afapl.
+
+*   Reihenfolge Uebernahme der AfA-Bereiche (Wertebild/Bewegungenbild).
+    REFRESH x093u.
+    SELECT * FROM t093u
+      WHERE bukrs EQ baltd-bukrs.
+      x093u-afabe = t093u-afabe.
+      x093u-lfdnr = t093u-lfdnr.
+      APPEND x093u.
+    ENDSELECT.
+    SORT x093u BY afabe.
+*   Bewertungsbereiche.
+    REFRESH x093.
+    SELECT * FROM t093 INTO TABLE x093
+      WHERE afapl EQ t093c-afapl.
+    SORT x093 BY mandt afapl afaber.
+*   Zuordnung (Investitionsschluessel --> Investitions-AfA-Bereich).
+    REFRESH y085.
+    SELECT * FROM t085
+      WHERE afapl EQ t093c-afapl.
+*     Investitionsschluessel mit eigenem Bereich ...
+      IF NOT t085-eafabe IS INITIAL.
+*       ... in Y085 merken.
+        y085-invsl = t085-invsl.
+        y085-afabe = t085-eafabe.
+        APPEND y085.
+      ENDIF.
+    ENDSELECT.
+    SORT y085 BY invsl.
+  ENDIF.
+
+* Anlagenklasse wechselt.
+  IF anka-anlkl NE baltd-anlkl.
+
+*   ANKA lesen.
+    CLEAR anka.
+    anka-anlkl = baltd-anlkl.
+    CALL FUNCTION 'ANKA_READ_SINGLE'
+         EXPORTING   f_anka    = anka
+         IMPORTING   f_anka    = anka
+         EXCEPTIONS  not_found = 4.
+*   Anlagenklasse nicht gefunden ...
+    IF sy-subrc NE 0.
+*     ... dann kontrollierten Abbruch veranlassen.
+      PERFORM abend USING '02'.
+    ENDIF.
+
+    CALL FUNCTION 'ANKP_READ_AND_CHANGE_ANKA'
+         EXPORTING  f_anka   =  anka
+                    i_afapl  =  t093c-afapl
+                    i_anlkl  =  anka-anlkl
+                    i_change =  'X'
+         IMPORTING  f_anka   =  anka
+         EXCEPTIONS not_found = 01
+                      deleted   = 02
+                      locked    = 03.
+
+*   ANKBs lesen.
+    REFRESH xankb.
+    CALL FUNCTION 'ANKB_READ_MULTIPLE_AFABE'
+         EXPORTING   i_afapl   = t093c-afapl
+                     i_anlkl   = baltd-anlkl
+         TABLES      t_ankb    = xankb_class.
+*
+    SORT xankb_class.
+*
+*   Später Bereichsreihenfolge neu bestimmen
+    ld_new_sequence = 'X'.
+
+  ENDIF.
+
+  REFRESH xankb.
+  REFRESH gt_invsl.
+* Anlage ändern ...
+* IF BALTD-TCODE EQ 'AS92'.                         ">>del note #150638
+  IF baltd-tcode EQ 'AS92' OR baltd-tcode EQ 'AS82'.">>ins note #150638
+*    ... dann feststellen, ob auf Anlagenebene Bereiche deaktiviert
+*    Aktive Bereiche in LT_ACTIVE_AREAS lesen
+     CALL FUNCTION  'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING  input  = baltd-anln1
+          IMPORTING  output = ld_anln1_alpha.
+     CALL FUNCTION  'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING  input  = baltd-anln2
+          IMPORTING  output = ld_anln2_alpha.
+
+     SELECT  afabe invsl  INTO TABLE lt_active_areas
+       FROM anlb
+       WHERE  bukrs EQ baltd-bukrs
+         AND  anln1 EQ ld_anln1_alpha
+         AND  anln2 EQ ld_anln2_alpha
+         AND  xafbe NE 'X'.
+     SORT lt_active_areas.
+*    Schon auf der Anlage vorhandene INVSL in GT_INVSL einstellen
+     LOOP AT lt_active_areas.
+       IF NOT lt_active_areas-invsl IS INITIAL.
+         gt_invsl-invsl = lt_active_areas-invsl.
+         APPEND gt_invsl.
+       ENDIF.
+     ENDLOOP.
+*    Für aktive Bereiche und Investförderungen Einträge in XANKB stellen
+     LOOP AT xankb_class.
+       READ TABLE lt_active_areas
+            WITH KEY afabe = xankb_class-afabe
+            BINARY SEARCH.
+       IF sy-subrc EQ 0.
+         APPEND xankb_class TO xankb.
+       ELSE.
+*        Zusätzlich Investförderungsbereiche beruecksichtigen.
+         key_x093-mandt  = sy-mandt.
+         key_x093-afapl  = t093c-afapl.
+         key_x093-afaber = xankb_class-afabe.
+         READ TABLE x093 WITH KEY key_x093.
+         CHECK sy-subrc EQ 0.
+         CHECK x093-xstore EQ 'X'.
+*        Investitions-AfA-Bereich?
+         IF x093-vzansw EQ '0' AND
+          ( x093-vzinvz EQ '-' OR
+            x093-vzinvz EQ '+' ).
+           APPEND xankb_class TO xankb.
+         ENDIF.
+       ENDIF.
+     ENDLOOP.
+*    Später Bereichsreihenfolge neu bestimmen
+     ld_new_sequence = 'X'.
+* Ansonsten ...
+  ELSE.
+*    ... werden die aktiven Bereiche allein durch die Klasse bestimmt
+     xankb[] = xankb_class[].
+  ENDIF.
+
+* Reihenfolge der AfA-Bereiche auf Bereiche- und Bewegungsbild neu
+  IF  ld_new_sequence = 'X'.
+
+*   Zuordnung (zu übernehmender AfA-Bereich --> Suffix) in L_SEQ.
+    REFRESH l_seq.
+    LOOP AT ydd03p
+      WHERE fieldname(5) EQ 'AFABE'.
+*
+      CLEAR l_seq.
+*     L_SEQ-SUFFIX = YDD03P-FIELDNAME+5(2).                       "QKI
+      l_seq-suffix = ydd03p-suffix        .                       "QKI
+      PERFORM field_assign
+        USING l_char_value baltd+ydd03p-offset(ydd03p-leng).
+*
+      IF NOT l_char_value IS INITIAL AND
+             l_char_value NE '/ '    .
+        l_seq-afabe = l_char_value(2).
+        APPEND l_seq.
+      ENDIF.
+*
+    ENDLOOP.
+*
+    SORT l_seq BY afabe.
+
+*   Reihenfolge der AfA-Bereiche auf AfA-Bereichebild: YAFASEQ.
+    REFRESH yafaseq.
+*   Reihenfolge ergibt sich aus Reihenfolge in ANKB.
+    LOOP AT xankb.
+*     Nur aktive AfA-Bereiche beruecksichtigen.
+      CHECK xankb-xafbe EQ space.
+*     Nur echte AfA-Bereiche beruecksichtigen.
+      key_x093-mandt  = sy-mandt.
+      key_x093-afapl  = t093c-afapl.
+      key_x093-afaber = xankb-afabe.
+      READ TABLE x093 WITH KEY key_x093.
+      CHECK sy-subrc EQ 0.
+      CHECK x093-xstore EQ 'X'.
+*
+      CLEAR yafaseq.
+      yafaseq-afabe = xankb-afabe.
+      READ TABLE l_seq WITH KEY xankb-afabe BINARY SEARCH.
+*     AfA-Bereich auf Bereichsbild ist ein zu übernehmender Bereich.
+      IF sy-subrc EQ 0.
+        yafaseq-suffix = l_seq-suffix.
+*     AfA-Bereich auf Bereichsbild ist kein zu übernehmender Bereich.
+      ELSE.
+        CLEAR yafaseq-suffix.
+      ENDIF.
+*     Investitions-AfA-Bereich?
+      IF x093-vzansw EQ '0' AND
+       ( x093-vzinvz EQ '-' OR
+         x093-vzinvz EQ '+' ).
+        yafaseq-invflg = 'X'.
+      ENDIF.
+*
+      APPEND yafaseq.
+*
+    ENDLOOP.
+
+*   Zuordnung (zu übernehmeder AfA-Bereich --> Suffix,
+*   Reihenfolge-Nr (aus T093U) in Tabelle L_ORD.
+    REFRESH l_ord.
+    LOOP AT yafaseq.
+      READ TABLE x093u WITH KEY yafaseq-afabe BINARY SEARCH.
+*
+      l_ord-lfdnr  = x093u-lfdnr.
+      l_ord-afabe  = yafaseq-afabe.
+      l_ord-suffix = yafaseq-suffix.
+      l_ord-invflg = yafaseq-invflg.
+      APPEND l_ord.
+    ENDLOOP.
+*   Zu übernehmende Bereiche in der L_ORD-Reihenfolge in YWRTSEQ
+*   anordnen.
+    SORT l_ord BY lfdnr.
+    REFRESH ywrtseq.
+    LOOP AT l_ord.
+      ywrtseq-afabe  = l_ord-afabe.
+      ywrtseq-suffix = l_ord-suffix.
+      ywrtseq-invflg = l_ord-invflg.
+      APPEND ywrtseq.
+    ENDLOOP.
+
+  ENDIF.
+
+* Nummernkreis oder Nummernkreisgruppe wechselt.
+  IF nriv-subobject NE t093c-bukrsn OR
+     nriv-nrrangenr NE anka-numkr   .
+*   Nummernkreis einlesen.
+    CALL FUNCTION 'NUMBER_GET_INFO'
+         EXPORTING     nr_range_nr        = anka-numkr
+                       object             = 'ANLAGENNR'
+                       subobject          = t093c-bukrsn
+         IMPORTING     interval           = nriv
+         EXCEPTIONS    interval_not_found = 1
+                       object_not_found   = 2.
+*
+    CASE sy-subrc.
+    WHEN 1.
+      PERFORM abend USING '07'.
+*     MESSAGE E192(AC).
+    WHEN 2.
+      PERFORM abend USING '08'.
+*     MESSAGE E193(AC) WITH 'ANLAGENNR'.
+    ENDCASE.
+  ENDIF.
+
+ENDFORM.
+
+
+FORM as91_erzeugen.
+
+  DATA: l_subrc LIKE sy-subrc,
+*       20 Zeichen langer TCODE. Sonst Typeconflict bei CALL BCD_INSERT
+        l_tcode LIKE tstc-tcode.
+  DATA:
+    ls_opt  TYPE ctu_params.      "<< note 550695
+*   Optionen für CALL TRANSACTION
+
+  l_subrc = 0.
+* Zuerst Formalfehler checken ...
+* Stimmt der Mandant?
+  IF baltd-mandt    NE   syst-mandt.
+    sy-msgty = 'E'.
+    sy-msgid = 'AU'.
+    sy-msgno = '301'.
+    sy-msgv1 = baltd-mandt.
+    sy-msgv2 = syst-mandt.
+    sy-msgv3 = space.
+    sy-msgv4 = space.
+    PERFORM fehler_merken.
+    EXIT.
+   ENDIF.
+
+  CASE baltd-tcode.
+*  WHEN 'AS81'.
+*    PERFORM AS91_FEHLER_ERMITTELN USING L_SUBRC.
+*  WHEN 'AS91'.                                     ">>del note #150638
+  WHEN 'AS91' OR 'AS81'.                            ">>ins note #150638
+*   Skippen von AS94-Sätzen wieder ausschalten.
+    flg_as94_sk = ' '.
+    gd_last_mainno = baltd-anln1.                  "<<< ins note 169406
+    PERFORM as91_fehler_ermitteln USING l_subrc.
+  WHEN 'AS92'.
+    PERFORM as92_fehler_ermitteln USING l_subrc.
+  WHEN 'AS94' OR 'AS84'.
+    PERFORM as94_fehler_ermitteln USING l_subrc.
+  ENDCASE.
+* Fehler ...
+  IF l_subrc NE 0.
+*   ... dann Fehler-Counter hochsetzen.
+    xstat-ercnt = xstat-ercnt + 1.
+*   ... bei fehlerhaftem AS91 sollen alle nachfolgenden
+*       AS94-Sätze übersprungen werden.
+*    IF BALTD-TCODE = 'AS91'.                       ">>del note #150638
+    IF baltd-tcode = 'AS91'                         ">>ins note #150638
+       OR baltd-tcode = 'AS81'.                     ">>ins note #150638
+      flg_as94_sk = 'X'.
+    ENDIF.
+  ENDIF.
+
+* Im Fehlerfalle bei Testlauf erst gar nicht weiter probieren.
+* Im Echtlauf wird weitergemacht, um Fehlermappe zu erstellen oder
+* um feineren Fehler aufzuspueren.
+  IF l_subrc NE 0.
+    IF xtest NE space.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+  REFRESH ftab.
+
+* Interne Hauptnummernvergabe ==> Hauptnummer erst besorgen.
+*  IF NRIV-EXTERNIND IS INITIAL    AND              ">>del note #150638
+*   ( BALTD-TCODE    EQ 'AS92'  OR                  ">>del note #150638
+*     BALTD-TCODE    EQ 'AS94'  )  .                ">>del note #150638
+  IF nriv-externind IS INITIAL    AND               ">>ins note #150638
+   ( baltd-tcode    EQ 'AS92'  OR                   ">>ins note #150638
+     baltd-tcode    EQ 'AS94'  OR                   ">>ins note #150638
+     baltd-tcode    EQ 'AS82'  OR                   ">>ins note #150638
+     baltd-tcode    EQ 'AS84'  )  .                 ">>ins note #150638
+*   Bei AS92: Wird Hauptnummer bereits mitgegeben?
+    IF ( baltd-anln1(1) = '/'     OR
+         baltd-anln1 IS INITIAL ) AND
+         flg_as94_sk = ' '.
+      GET PARAMETER ID 'AN1' FIELD baltd-anln1.
+    ENDIF.
+  ENDIF.
+* Interne Unternummernvergabe ==> Unternummer erst besorgen.
+*  IF ANKA-XUNTV     IS INITIAL AND                 ">>del note #150638
+*     BALTD-TCODE    EQ 'AS92'  .                   ">>del note #150638
+  IF anka-xuntv     IS INITIAL AND                  ">>ins note #150638
+     ( baltd-tcode    EQ 'AS92' OR                  ">>ins note #150638
+       baltd-tcode    EQ 'AS82' ) .                 ">>ins note #150638
+*   Bei AS92: Wird Unternummer bereits mitgegeben?
+    IF baltd-anln2(1) = '/' OR
+       baltd-anln2 IS INITIAL.
+      GET PARAMETER ID 'AN2' FIELD baltd-anln2.
+    ENDIF.
+  ENDIF.
+
+*  IF BALTD-TCODE EQ 'AS94'.                        ">>del note #150638
+  IF  baltd-tcode EQ 'AS94' OR baltd-tcode EQ 'AS84'.">>ins note #150638
+    IF flg_as94_sk = 'X'.
+       baltd-anln1 = '*'.
+    ENDIF.
+  ENDIF.
+
+
+  CASE baltd-tcode.
+  WHEN 'AS81'.
+*   Startdynpro AS81.
+    PERFORM bdc_dynpro USING 'SAPLAIST' '0106'.
+    PERFORM bdc_field  USING 'ANLA-ANLKL' baltd-anlkl.
+    PERFORM bdc_field  USING 'ANLA-BUKRS' baltd-bukrs.
+  WHEN 'AS91'.
+*   Startdynpro AS91.
+    PERFORM bdc_dynpro USING 'SAPLAIST' '0105'.
+    PERFORM bdc_field  USING 'ANLA-ANLKL' baltd-anlkl.
+    PERFORM bdc_field  USING 'ANLA-BUKRS' baltd-bukrs.
+  WHEN 'AS92'.
+*   Startdynpro AS92.
+    PERFORM bdc_dynpro USING 'SAPLAIST' '0100'.
+    PERFORM bdc_field  USING 'ANLA-ANLN1' baltd-anln1.
+    PERFORM bdc_field  USING 'ANLA-ANLN2' baltd-anln2.
+    PERFORM bdc_field  USING 'ANLA-BUKRS' baltd-bukrs.
+*   Anlagennummer auf Folgedynpro nicht mehr eingeben.
+    baltd-anln1 = '/'.
+    baltd-anln2 = '/'.
+  WHEN 'AS94'.
+*   Startdynpro AS94.
+    PERFORM bdc_dynpro USING 'SAPLAIST' '0110'.
+    PERFORM bdc_field  USING 'ANLA-ANLN1' baltd-anln1.
+    PERFORM bdc_field  USING 'ANLA-BUKRS' baltd-bukrs.
+*   Anlagennummer auf Folgedynpro nicht mehr eingeben.
+    baltd-anln1 = '/'.
+  WHEN 'AS82'.                                      ">>ins note #150638
+*   Startdynpro AS82.                               ">>ins note #150638
+    PERFORM bdc_dynpro USING 'SAPLAIST' '0101'.     ">>ins note #150638
+    PERFORM bdc_field                               ">>ins note #150638
+                 USING 'RA02S-ANLGR'  baltd-anln1.  ">>ins note #150638
+    PERFORM bdc_field                               ">>ins note #150638
+                 USING 'RA02S-ANLGR2' baltd-anln2.  ">>ins note #150638
+    PERFORM bdc_field                               ">>ins note #150638
+                 USING 'RA02S-BUKGR'  baltd-bukrs.  ">>ins note #150638
+*   Komplexnr auf Folgedynpro nicht mehr eingeben.  ">>ins note #150638
+    baltd-anln1 = '/'.                              ">>ins note #150638
+    baltd-anln2 = '/'.                              ">>ins note #150638
+  WHEN 'AS84'.                                      ">>ins note #150638
+*   Startdynpro AS84.                               ">>ins note #150638
+    PERFORM bdc_dynpro USING 'SAPLAIST' '0111'.     ">>ins note #150638
+    PERFORM bdc_field                               ">>ins note #150638
+                 USING 'RA02S-ANLGR' baltd-anln1.   ">>ins note #150638
+    PERFORM bdc_field                               ">>ins note #150638
+                 USING 'RA02S-BUKGR' baltd-bukrs.   ">>ins note #150638
+*   Komplexnr auf Folgedynpro nicht mehr eingeben.  ">>ins note #150638
+    baltd-anln1 = '/'.                              ">>ins note #150638
+  ENDCASE.
+
+
+* Alle weiteren Dynpros.
+  LOOP AT x082s.
+    CASE x082s-dynnr.
+*   AfA-Bereichebild.
+    WHEN '0190'.
+      PERFORM bdctab_fuellen_afabereichebild.
+*   AfA-Detailbild.
+    WHEN '0195'.
+      PERFORM bdctab_fuellen_afadetailbild.
+*   Wertebild.
+    WHEN '0100'.
+      PERFORM bdctab_fuellen_wertebild.
+*   Bewegungenbild.
+    WHEN '0200'.
+      PERFORM bdctab_fuellen_bewegungenbild.
+*   Sonstig Bilder.
+    WHEN OTHERS.
+      PERFORM bdctab_fuellen_sonstiges_bild.
+    ENDCASE.
+  ENDLOOP.
+
+* Buchen nicht vergessen
+  IF xtest EQ space.
+    PERFORM bdc_field USING 'BDC_OKCODE' 'BUCH'.
+  ENDIF.
+
+* T-Code umschießen auf alte Transaktionen
+  baltd-tcode+1(1) = 'T'.
+* <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< start of note 550695
+* Optionen für Batch Input setzen
+  CLEAR ls_opt.
+* Transaktion hell abspielen.
+  IF xhell NE space.
+    ls_opt-dismode = 'A'.  "Abspielmodus hell
+* Transaktion dunkel abspielen.
+  ELSE.
+    ls_opt-dismode = 'N'.  "Abspielmodus dunkel
+  ENDIF.
+  ls_opt-updmode = 'S'.  "Synchrone Verbuchung
+  ls_opt-defsize = 'X'.  "Standard-Dynprogröße benutzen!!
+* Sehr wichtig, da der RAALTD01 die alten Step-Loop Dynpros benutzt.
+  CALL TRANSACTION baltd-tcode USING  ftab
+                               OPTIONS FROM ls_opt.
+* <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end of note 550695
+* Testlauf ...
+  IF xtest NE space AND
+*   ... und kein echter Fehler ...
+   ( sy-msgid EQ '00'  AND
+     sy-msgno EQ '344' )   .
+*   ... dann SUBRC zuruecknehmen.
+    sy-subrc = 0.
+  ENDIF.
+
+* Fehlerfreie Transaktion oder kein echter Fehler.
+  IF sy-subrc EQ 0.      ""OR
+** ( SY-MSGID EQ '00'  AND
+**   SY-MSGNO EQ '344' )   .
+    IF xtest EQ space.
+*     Update-Counter hochsetzen.
+      xstat-upcnt = xstat-upcnt + 1.
+    ENDIF.
+* Fehlerhafte Transaktion.
+  ELSE.
+*   ... bei fehlerhaftem AS91 sollen alle nachfolgenden
+*       AS94-Sätze übersprungen werden.
+*    IF BALTD-TCODE = 'AT91'.                       ">>del note #150638
+    IF baltd-tcode = 'AT91' OR baltd-tcode = 'AT81'.">>ins note #150638
+      flg_as94_sk = 'X'.
+    ENDIF.
+*   Echtlauf.
+    IF xtest EQ space.
+*     Eventuell Batch-Input erst mal eroeffnen.
+      IF flg_bdc_open = ' '.
+        CALL FUNCTION 'BDC_OPEN_GROUP'
+             EXPORTING client = sy-mandt
+                       user   = sy-uname
+                       group  = mappe.
+*       Merke: Batch-Input eroeffnet.
+        flg_bdc_open = 'X'.
+      ENDIF.
+*     Fehlerhafte Transaktion in Mappe einstellen.
+      l_tcode = baltd-tcode.
+      CALL FUNCTION 'BDC_INSERT'
+           EXPORTING   tcode     = l_tcode
+           TABLES      dynprotab = ftab.
+    ENDIF.
+*   Grobfehler-Pruefung hatte noch keinen Fehler ergeben ...
+    IF l_subrc EQ 0.
+*     T-Code für Protokollausgabe wieder zurücksetzen
+      baltd-tcode+1(1) = 'S'.
+*     ... dann jetzt Fehler merken ...
+      PERFORM fehler_merken.
+*     ... und Fehlerstatistik fortschreiben.
+      xstat-ercnt = xstat-ercnt + 1.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.
+
+
+* Batch-Input: Neues Dynpro anmelden.
+FORM bdc_dynpro USING program dynpro.
+
+  CLEAR ftab.
+*
+  ftab-program  = program.
+  ftab-dynpro   = dynpro.
+  ftab-dynbegin = 'X'.
+*
+  APPEND ftab.
+
+* Aktuelles Dynpro merken.
+  g_ldynnr = dynpro.
+* Aktuelles Programm merken.
+  g_lprog  = program.
+
+ENDFORM.
+
+
+* BatchInput: Feld + Inhalt uebergeben.
+FORM bdc_field USING fnam fval.
+
+  CLEAR ftab.
+*
+  ftab-fnam  = fnam.
+  ftab-fval  = fval.
+*
+*
+  APPEND ftab.
+
+* SOnderbehandlung für RA02S-XNEU_AM und RA02S-XBGBR_AM       "QKI
+  IF ftab-fnam = 'RA02S-XGBR_AM'.                             "QKI
+     ftab-fnam = 'RA02S-XNEU_AM'.                             "QKI
+     IF NOT ftab-fval IS INITIAL.                             "QKI
+        ftab-fval = ' '.                                      "QKI
+     ELSE.                                                    "QKI
+        ftab-fval = 'X'.                                      "QKI
+     ENDIF.                                                   "QKI
+     APPEND ftab.                                             "QKI
+  ENDIF.                                                      "QKI
+
+ENDFORM.
+
+
+* Felder an beliebiges sonstiges Bild uebergeben.
+FORM bdctab_fuellen_sonstiges_bild.
+
+  DATA:
+*       Flag: Dynpro X082S-PROGN X082S-DYNNR anmelden.
+        l_calldynpro  TYPE c VALUE 'X',
+*       Feldname + Feldinhalt.
+        l_fnam        LIKE bdcdata-fnam,
+        l_fval        LIKE bdcdata-fval,
+*       Counter fuer Investitionsschluessel.
+        l_suffix(2)   TYPE n,
+*       Merker: Initialen L_SUFFIX berechnet?
+        l_first_suffix_calculated,                  "<< ins note 164060
+        l_remaining   LIKE sy-tabix,                "<< ins note 164060
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value  LIKE bdcdata-fval,
+        l_dats_value  LIKE sy-datum.
+
+* Felder zum Dynpro X082S-PROGN X082S-DYNNR einarbeiten.
+  LOOP AT ydd03p
+    WHERE dnum EQ x082s-dynnr.
+
+*   Feld nicht gesetzt ==> keine Verarbeitung.
+    PERFORM field_assign
+      USING l_char_value baltd+ydd03p-offset(ydd03p-leng).
+    CHECK l_char_value(1) NE '/'.
+
+*   Dynpro anmelden, falls nicht schon geschehen.
+    IF l_calldynpro EQ 'X'.
+      PERFORM bdc_field  USING 'BDC_OKCODE' x082s-afruf.
+      PERFORM bdc_dynpro USING x082s-progn  x082s-dynnr.
+      l_calldynpro = ' '.
+    ENDIF.
+
+*   Feldname.
+    CLEAR l_fnam.
+*   Beliebiges Feld.
+    IF ydd03p-table NE 'RA02S'.
+       CASE ydd03p-fieldname.                                  "YDZ
+        WHEN 'XAFABCH'.     l_fnam = 'RA02S-XGBR_AM'.          "QKI YDZ
+        WHEN 'ANEQK'.       l_fnam = 'RA02S-XHIST'.            "YDZ
+        WHEN OTHERS.                                           "YDZ
+         CONCATENATE ydd03p-table ydd03p-fieldname
+                     INTO l_fnam SEPARATED BY '-'.
+       ENDCASE.                                                "QKI YDZ
+*   Investitionsschlüssel.
+    ELSE.
+      l_fnam(5)    = ydd03p-table(5).
+      l_fnam+5(1)  = '-'.
+      l_fnam+6(5)  = ydd03p-fieldname(5).
+      l_fnam+11(4) = '(  )'.
+*     L_FNAM+12(2) = YDD03P-FIELDNAME+5(2).
+*     Ersten Suffix berechnen (nötig, falls schon Investitionsmaßnahmen
+*     auf der Anlage vorhanden sind)
+      IF l_first_suffix_calculated IS INITIAL.         "boi note 164060
+         DESCRIBE TABLE gt_invsl LINES l_remaining.
+         WHILE l_remaining > 0.
+            l_suffix = l_suffix + '01'.
+            IF l_suffix = '05'.
+*             Cursor auf ersten Invest-Schluessel setzen ...
+              l_fnam+12(2) = '01'.
+              PERFORM bdc_field  USING 'BDC_CURSOR' l_fnam.
+*             ... einmal vorwaerts blaettern ...
+              PERFORM bdc_field  USING 'BDC_OKCODE' 'NISL'.
+*             ... und Dynpro neu anmelden.
+              PERFORM bdc_dynpro USING 'SAPLAIST'   '0160'.
+              l_suffix = l_suffix - '05'.
+            ENDIF.
+            l_remaining = l_remaining - 1.
+         ENDWHILE.
+         l_first_suffix_calculated = 'X'.
+      ENDIF.                                           "eoi note 164060
+
+      l_suffix = l_suffix + '01'.
+      IF l_suffix GT '05'.
+*       Cursor auf ersten Invest-Schluessel setzen ...
+        l_fnam+12(2) = '01'.
+        PERFORM bdc_field  USING 'BDC_CURSOR' l_fnam.
+*       ... einmal vorwaerts blaettern ...
+        PERFORM bdc_field  USING 'BDC_OKCODE' 'NISL'.
+*       ... und Dynpro neu anmelden.
+        PERFORM bdc_dynpro USING 'SAPLAIST'   '0160'.
+*
+        l_suffix = l_suffix - '05'.
+      ENDIF.
+      l_fnam+12(2) = l_suffix.
+    ENDIF.
+*   Feldinhalt, eventuell aufbereitet.
+    CASE ydd03p-datatype.
+    WHEN 'CHAR'.
+      MOVE  l_char_value TO l_fval.
+      IF ydd03p-fieldname = 'ANEQK'.                            "YDZ
+        IF l_char_value = '1'.                                  "YDZ
+           l_fval = 'X'.                                        "YDZ
+          ELSE.                                                 "YDZ
+           l_fval = ' '.                                        "YDZ
+        ENDIF.                                                  "YDZ
+      ENDIF.                                                    "YDZ
+    WHEN 'DATS'.
+      l_dats_value = l_char_value(8).
+      WRITE l_dats_value TO l_fval DD/MM/YYYY.
+    WHEN 'NUMC'.                                                "YDZ
+    ENDCASE.
+*   Feld samt Inhalt an BDC-Tabelle übergeben
+    PERFORM bdc_field USING l_fnam l_fval.
+
+  ENDLOOP.
+
+ENDFORM.
+
+* Felder an Wertebild uebergeben.
+FORM bdctab_fuellen_wertebild.
+
+  DATA:
+*       Merker: letzter aktueller Suffix.
+        l_suffix(2)   TYPE c,
+*       Aktuelle Seite auf Wertebild.
+        l_scroll      LIKE sy-tabix VALUE 1,
+*       Rechenfeld.
+        l_index       LIKE sy-tabix,
+*       Formalfeld Investitionsschluessel.
+        l_invsl       LIKE ra02s-invsl,
+*       Feldname + Feldinhalt.
+        l_fnam        LIKE bdcdata-fnam,
+        l_fval        LIKE bdcdata-fval,
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value  LIKE bdcdata-fval,
+        l_dats_value  LIKE sy-datum,
+*       Reihenfolgenummer zu aktuellem Suffix.
+        l_tabix       LIKE sy-tabix,
+*       Feld fuer Konvertierung des Tabix.
+        l_tabixc(1)   TYPE c.
+
+* AfA-Bereiche zu Investitionsschluesseln der Anlage.
+* DATA: L_INVBE01 LIKE T093-AFABER,
+*       L_INVBE02 LIKE T093-AFABER.
+  DATA: BEGIN OF l_foerd OCCURS 2,
+          afabe LIKE anlb-afabe,
+        END OF l_foerd.
+
+  DATA: BEGIN OF l_yseq OCCURS 10.
+         INCLUDE STRUCTURE yafaseq.
+  DATA: END OF l_yseq.
+
+* Feststellen der Investitions-AfA-Bereiche der aktuellen
+* Anlage in L_INVBE01, L_INVBE02.
+* READ TABLE Y085 WITH KEY BALTD-INVSL01 BINARY SEARCH.
+* IF SY-SUBRC EQ 0.
+*   L_INVBE01 = Y085-AFABE.
+* ENDIF.
+* READ TABLE Y085 WITH KEY BALTD-INVSL02 BINARY SEARCH.
+* IF SY-SUBRC EQ 0.
+*   L_INVBE02 = Y085-AFABE.
+* ENDIF.
+
+* Feststellen der Investitions-AfA-Bereiche der aktuellen
+* Anlage in L_FOERD.
+  DO g_anzinvsl TIMES VARYING l_invsl FROM baltd-invsl01
+                                      NEXT baltd-invsl02.
+*   IF NOT L_INVSL IS INITIAL.                "TEST1
+    IF NOT ( l_invsl    IS INITIAL OR         "TEST1
+             l_invsl(1) EQ '/'     ).         "TEST1
+      READ TABLE y085 WITH KEY l_invsl BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        MOVE y085-afabe TO l_foerd-afabe.
+        APPEND l_foerd.
+      ENDIF.
+    ENDIF.
+  ENDDO.
+* Auch noch Bereiche schon vorhandener INVSL aufnehmen
+  LOOP AT gt_invsl.
+     READ TABLE y085 WITH KEY
+          gt_invsl-invsl BINARY SEARCH.
+     IF sy-subrc EQ 0.
+        MOVE y085-afabe TO l_foerd-afabe.
+        APPEND l_foerd.
+     ENDIF.
+  ENDLOOP.
+  SORT l_foerd BY afabe.
+
+* Standard-Reihenfolge aus YWRTSEQ in L_YSEQ uebernehmen,
+* jedoch nicht die in der Anlage ungenutzten
+* Investitions-AfA-Bereiche.
+* LOOP AT YWRTSEQ.
+*   Investitions-AfA-Bereich.
+*   IF YWRTSEQ-INVFLG EQ 'X'.
+*     Wird dieser Bereich in der Anlage genutzt?
+*     CHECK YWRTSEQ-AFABE EQ L_INVBE01 OR
+*           YWRTSEQ-AFABE EQ L_INVBE02 .
+*   ENDIF.
+*   MOVE YWRTSEQ TO L_YSEQ.
+*   APPEND L_YSEQ.
+* ENDLOOP.
+  LOOP AT ywrtseq.
+*   Investitions-AfA-Bereich.
+    IF ywrtseq-invflg EQ 'X'.
+*     Wird dieser Bereich in der Anlage genutzt?
+      READ TABLE l_foerd WITH KEY ywrtseq-afabe
+                                  BINARY SEARCH.
+      CHECK sy-subrc EQ 0.
+    ENDIF.
+    MOVE ywrtseq TO l_yseq.
+    APPEND l_yseq.
+  ENDLOOP.
+
+* Zu uebergebende Felder an Dynpro uebergeben.
+* YDD03P ist nach Tabelle - Dynpro - Suffix - Feldname geordnet!
+  LOOP AT ydd03p
+    WHERE dnum EQ x082s-dynnr.
+
+*   Feld nicht gesetzt ==> keine Verarbeitung.
+    PERFORM field_assign
+      USING l_char_value baltd+ydd03p-offset(ydd03p-leng).
+    CHECK l_char_value(1) NE '/'.
+
+*   Suffix wechselt.
+*   IF YDD03P-FIELDNAME+5(2) NE L_SUFFIX.                       "QKI
+    IF ydd03p-suffix         NE l_suffix.                       "QKI
+
+*     Aktuelle Reihenfolgenummer ermitteln.
+*     READ TABLE L_YSEQ WITH KEY YDD03P-FIELDNAME+5(2).          "QKI
+      READ TABLE l_yseq WITH KEY ydd03p-suffix        .          "QKI
+*     AfA-Bereich kommt auf Dynpro gar nicht hoch (z.B. Investitions-
+*     AfA-Bereich aber Anlage ohne Investitionsschlüssel) ==> Nix tun.
+      CHECK sy-subrc EQ 0.
+*     Aktuelle Zeile merken.
+      l_tabix  = sy-tabix.
+
+*     Wo komm ich her?
+*     Bin schon auf Wertebild ... dann nix machen!
+*     Bin auf anderem Dynpro ...
+      IF NOT ( g_ldynnr = '0100' AND g_lprog = 'SAPLALTD' ).
+*       ... dann erst mal auf Wertebild huepfen ...
+        PERFORM bdc_field  USING 'BDC_OKCODE' x082s-afruf.
+*       ... und Wertebild anmelden.
+        PERFORM bdc_dynpro USING 'SAPLALTD' '0100'.
+      ENDIF.
+
+*     Gewuenschte Seite in L_INDEX bestimmen ...
+      l_index = 1.
+      WHILE l_tabix GT 4.
+        l_tabix = l_tabix - 4.
+        l_index = l_index + 1.
+      ENDWHILE.
+*     ... mit aktueller Seite L_SCROLL vergleichen und
+*     entsprechend blaettern.
+      WHILE l_scroll LT l_index.
+        PERFORM bdc_field  USING 'BDC_OKCODE' 'NAFA'.
+        PERFORM bdc_dynpro USING 'SAPLALTD'   '0100'.
+        l_scroll = l_scroll + 1.
+      ENDWHILE.
+      WHILE l_scroll GT l_index.
+        PERFORM bdc_field  USING 'BDC_OKCODE' 'VAFA'.
+        PERFORM bdc_dynpro USING 'SAPLALTD'   '0100'.
+        l_scroll = l_scroll - 1.
+      ENDWHILE.
+
+    ENDIF.
+
+*   Feldname.
+    l_fnam(4)   = ydd03p-table(4).
+    MOVE l_tabix TO l_tabixc.
+    l_fnam+3(1) = l_tabixc.
+    l_fnam+4(1) = '-'.
+    l_fnam+5(5) = ydd03p-fieldname(5).
+*   Feldinhalt, eventuell aufbereitet.
+    CASE ydd03p-datatype.
+    WHEN 'CHAR'.
+      MOVE  l_char_value TO l_fval.
+    WHEN 'DATS'.
+      l_dats_value = l_char_value(8).
+      WRITE l_dats_value TO l_fval DD/MM/YYYY.
+    ENDCASE.
+*   Feld samt Inhalt an BDC-Tabelle übergeben
+    PERFORM bdc_field USING l_fnam l_fval.
+
+*   Letzten Suffix merken.
+*   L_SUFFIX = YDD03P-FIELDNAME+5(2).                            "QKI
+    l_suffix = ydd03p-suffix        .                            "QKI
+
+  ENDLOOP.
+
+ENDFORM.
+
+*-------------------------------------------------------------------
+* Auf die richtige Seite im AfA-Übersichtsbild blättern
+* In id_tabix wird die Position des Bewertungsbereich übergeben
+FORM afapage CHANGING cd_tabix.                "<<< boi note 190935
+  DATA: ld_page  LIKE  sy-tabix.
+
+* Gewuenschte Seite bestimmen ...
+  ld_page = 1.
+  WHILE cd_tabix GT 13.
+     cd_tabix = cd_tabix - 13.
+     ld_page  = ld_page + 1.
+  ENDWHILE.
+* ... mit aktueller Seite GD_AFAPAGE vergleichen und entsprechend
+* blaettern.
+  WHILE gd_afapage LT ld_page.
+     PERFORM bdc_field  USING 'BDC_OKCODE' 'FORB'.
+     PERFORM bdc_dynpro USING 'SAPLAIST'   '0190'.
+     gd_afapage = gd_afapage + 1.
+  ENDWHILE.
+  WHILE gd_afapage GT ld_page.
+     PERFORM bdc_field  USING 'BDC_OKCODE' 'RUEB'.
+     PERFORM bdc_dynpro USING 'SAPLAIST'   '0190'.
+     gd_afapage = gd_afapage - 1.
+  ENDWHILE.
+ENDFORM.                                        "<<< eoi note 190935
+
+*-------------------------------------------------------------------
+* Felder an AfA-Detailbild uebergeben.
+FORM bdctab_fuellen_afadetailbild.
+
+  DATA:
+*       Merker: letzter aktueller Suffix.
+        l_suffix(2)   TYPE c,
+*       Aktuelle Seite auf Bereichebild.
+*       L_SCROLL      LIKE SY-TABIX VALUE 1,
+*       Rechenfeld.
+*       L_INDEX       LIKE SY-TABIX,
+*       Feldname + Feldinhalt.
+        l_fnam        LIKE bdcdata-fnam,
+        l_fval        LIKE bdcdata-fval,
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value  LIKE bdcdata-fval,
+        l_dats_value  LIKE sy-datum,
+*       Reihenfolgenummer zu aktuellem Suffix.
+        l_tabix       LIKE sy-tabix,
+*       Formalfeld Investitionsschluessel.
+        l_invsl       LIKE ra02s-invsl,
+*       Felder für Konvertierung des Tabix.
+        l_tabixn(2)   TYPE n.
+DATA: ld_len  TYPE i.                                           "QKI
+* AfA-Bereiche in der Reihenfolge auf dem AfA-Bereichsbild.
+  DATA: BEGIN OF l_yseq OCCURS 10.
+         INCLUDE STRUCTURE yafaseq.
+  DATA: END OF l_yseq.
+
+* AfA-Bereiche zu Investitionsschluesseln der Anlage.
+* DATA: L_INVBE01 LIKE T093-AFABER,
+*       L_INVBE02 LIKE T093-AFABER.
+  DATA: BEGIN OF l_foerd OCCURS 2,
+          afabe LIKE anlb-afabe,
+        END OF l_foerd.
+
+* Feststellen der Investitions-AfA-Bereiche der aktuellen
+* Anlage in L_INVBE01, L_INVBE02.
+* READ TABLE Y085 WITH KEY BALTD-INVSL01 BINARY SEARCH.
+* IF SY-SUBRC EQ 0.
+*   L_INVBE01 = Y085-AFABE.
+* ENDIF.
+* READ TABLE Y085 WITH KEY BALTD-INVSL02 BINARY SEARCH.
+* IF SY-SUBRC EQ 0.
+*   L_INVBE02 = Y085-AFABE.
+* ENDIF.
+
+* Feststellen der Investitions-AfA-Bereiche der aktuellen
+* Anlage in L_FOERD.
+  DO g_anzinvsl TIMES VARYING l_invsl FROM baltd-invsl01
+                                      NEXT baltd-invsl02.
+    IF NOT l_invsl IS INITIAL.
+      READ TABLE y085 WITH KEY l_invsl BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        MOVE y085-afabe TO l_foerd-afabe.
+        APPEND l_foerd.
+      ENDIF.
+    ENDIF.
+  ENDDO.
+* Auch noch Bereiche schon vorhandener INVSL aufnehmen
+  LOOP AT gt_invsl.
+     READ TABLE y085 WITH KEY
+          gt_invsl-invsl BINARY SEARCH.
+     IF sy-subrc EQ 0.
+        MOVE y085-afabe TO l_foerd-afabe.
+        APPEND l_foerd.
+     ENDIF.
+  ENDLOOP.
+  SORT l_foerd BY afabe.
+
+* Standard-Reihenfolge aus YAFASEQ in L_YSEQ uebernehmen,
+* jedoch nicht die in der Anlage ungenutzten
+* Investitions-AfA-Bereiche.
+* LOOP AT YAFASEQ.
+*   Investitions-AfA-Bereich.
+*   IF YAFASEQ-INVFLG EQ 'X'.
+*     Wird dieser Bereich in der Anlage genutzt?
+*     CHECK YAFASEQ-AFABE EQ L_INVBE01 OR
+*           YAFASEQ-AFABE EQ L_INVBE02 .
+*   ENDIF.
+*   MOVE YAFASEQ TO L_YSEQ.
+*   APPEND L_YSEQ.
+* ENDLOOP.
+  LOOP AT yafaseq.
+*   Investitions-AfA-Bereich.
+    IF yafaseq-invflg EQ 'X'.
+*     Wird dieser Bereich in der Anlage genutzt?
+      READ TABLE l_foerd WITH KEY yafaseq-afabe
+                                  BINARY SEARCH.
+      CHECK sy-subrc EQ 0.
+    ENDIF.
+    MOVE yafaseq TO l_yseq.
+    APPEND l_yseq.
+  ENDLOOP.
+
+* Zu uebergebende Felder an Dynpro uebergeben.
+* YDD03P ist nach Tabelle - Dynpro - Suffix - Feldname geordnet!
+  LOOP AT ydd03p
+    WHERE dnum EQ x082s-dynnr.
+
+*   Feld nicht gesetzt ==> keine Verarbeitung.
+    PERFORM field_assign
+      USING l_char_value baltd+ydd03p-offset(ydd03p-leng).
+    CHECK l_char_value(1) NE '/'.
+
+*   Suffix wechselt.
+*   IF YDD03P-FIELDNAME+5(2) NE L_SUFFIX.                       "QKI
+    IF ydd03p-suffix         NE l_suffix.                       "QKI
+
+*     Aktuelle Reihenfolgenummer ermitteln.
+*     READ TABLE L_YSEQ WITH KEY YDD03P-FIELDNAME+5(2).         "QKI
+      READ TABLE l_yseq WITH KEY ydd03p-suffix        .         "QKI
+*     AfA-Bereich kommt auf Dynpro gar nicht hoch (z.B. Investitions-
+*     AfA-Bereich aber Anlage ohne Investitionsschlüssel) ==> Nix tun.
+      CHECK sy-subrc EQ 0.
+*     Aktuelle Zeile merken.
+      l_tabix  = sy-tabix.
+
+*     Wo komm ich her?
+      CASE g_ldynnr.
+*     Bin auf AfA-Bereichsbild ...
+      WHEN '0190'.
+*       ... zuerst eventuell blaettern, d.h.
+*       gewuenschte Seite in L_INDEX bestimmen ...
+*       L_INDEX = 1.
+*       WHILE L_TABIX GT 14.
+*         L_TABIX = L_TABIX - 14.
+*         L_INDEX = L_INDEX + 1.
+*       ENDWHILE.
+*       ... mit aktueller Seite L_SCROLL vergleichen und
+*       entsprechend blaettern ...
+*       WHILE L_SCROLL LT L_INDEX.
+*         PERFORM BDC_FIELD  USING 'BDC_OKCODE' 'FORB'.
+*         PERFORM BDC_DYNPRO USING 'SAPMA02S'   '0190'.
+*         L_SCROLL = L_SCROLL + 1.
+*       ENDWHILE.
+*       WHILE L_SCROLL GT L_INDEX.
+*         PERFORM BDC_FIELD  USING 'BDC_OKCODE' 'RUEB'.
+*         PERFORM BDC_DYNPRO USING 'SAPMA02S'   '0190'.
+*         L_SCROLL = L_SCROLL - 1.
+*       ENDWHILE.
+        PERFORM afapage CHANGING l_tabix.           "<<< ins note 190935
+*       ... dann Cursor setzen ...
+        CLEAR l_fnam.
+        MOVE l_tabix TO l_tabixn.
+        l_fnam       = 'ANLB-AFABE(  )'.
+        l_fnam+11(2) = l_tabixn.
+        PERFORM bdc_field USING 'BDC_CURSOR' l_fnam.
+*       ... PickUp machen ...
+        PERFORM bdc_field USING 'BDC_OKCODE' x082s-afruf.
+*       ... und AfA-Detailbild anmelden.
+        PERFORM bdc_dynpro USING 'SAPLAIST' '0195'.
+*     Bin schon auf AfA-Detailbild, aber Suffix wechselt ...
+      WHEN '0195'.
+*       ... dann erst mal auf AfA-Bereichsbild hüpfen ...
+        PERFORM bdc_field USING 'BDC_OKCODE' 'RW  '.
+*       ... AfA-Bereichsbild anmelden ...
+        PERFORM bdc_dynpro USING 'SAPLAIST' '0190'.
+*       ... zuerst eventuell blaettern, d.h.
+*       gewuenschte Seite in L_INDEX bestimmen ...
+*       L_INDEX = 1.
+*       WHILE L_TABIX GT 14.
+*         L_TABIX = L_TABIX - 14.
+*         L_INDEX = L_INDEX + 1.
+*       ENDWHILE.
+*       ... mit aktueller Seite L_SCROLL vergleichen und
+*       entsprechend blaettern ...
+*       WHILE L_SCROLL LT L_INDEX.
+*         PERFORM BDC_FIELD  USING 'BDC_OKCODE' 'FORB'.
+*         PERFORM BDC_DYNPRO USING 'SAPMA02S'   '0190'.
+*         L_SCROLL = L_SCROLL + 1.
+*       ENDWHILE.
+*       WHILE L_SCROLL GT L_INDEX.
+*         PERFORM BDC_FIELD  USING 'BDC_OKCODE' 'RUEB'.
+*         PERFORM BDC_DYNPRO USING 'SAPMA02S'   '0190'.
+*         L_SCROLL = L_SCROLL - 1.
+*       ENDWHILE.
+        PERFORM afapage CHANGING l_tabix.           "<<< ins note 190935
+*       ... Cursor neu setzen ...
+        CLEAR l_fnam.
+        MOVE l_tabix TO l_tabixn.
+        l_fnam       = 'ANLB-AFABE(  )'.
+        l_fnam+11(2) = l_tabixn.
+        PERFORM bdc_field USING 'BDC_CURSOR' l_fnam.
+*       ... PickUp machen ...
+        PERFORM bdc_field USING 'BDC_OKCODE' x082s-afruf.
+*       ... und AfA-Detailbild neu anmelden.
+        PERFORM bdc_dynpro USING 'SAPLAIST' '0195'.
+*     Bin auf anderem Dynpro ...
+      WHEN OTHERS.
+*       ... dann erst mal auf AfA-Bereichebild hüpfen ...
+        PERFORM bdc_field  USING 'BDC_OKCODE' 'D190'.
+*       ... AfA-Bereichebild anmelden ...
+        PERFORM bdc_dynpro USING 'SAPLAIST' '0190'.
+*       ... zuerst eventuell blaettern, d.h.
+*       gewuenschte Seite in L_INDEX bestimmen ...
+*       L_INDEX = 1.
+*       WHILE L_TABIX GT 14.
+*         L_TABIX = L_TABIX - 14.
+*         L_INDEX = L_INDEX + 1.
+*       ENDWHILE.
+*       ... mit aktueller Seite L_SCROLL vergleichen und
+*       entsprechend blaettern ...
+*       WHILE L_SCROLL LT L_INDEX.
+*         PERFORM BDC_FIELD  USING 'BDC_OKCODE' 'FORB'.
+*         PERFORM BDC_DYNPRO USING 'SAPMA02S'   '0190'.
+*         L_SCROLL = L_SCROLL + 1.
+*       ENDWHILE.
+*       WHILE L_SCROLL GT L_INDEX.
+*         PERFORM BDC_FIELD  USING 'BDC_OKCODE' 'RUEB'.
+*         PERFORM BDC_DYNPRO USING 'SAPMA02S'   '0190'.
+*         L_SCROLL = L_SCROLL - 1.
+*       ENDWHILE.
+        PERFORM afapage CHANGING l_tabix.           "<<< ins note 190935
+*       ... Cursor setzen ...
+        CLEAR l_fnam.
+        MOVE l_tabix TO l_tabixn.
+        l_fnam       = 'ANLB-AFABE(  )'.
+        l_fnam+11(2) = l_tabixn.
+        PERFORM bdc_field USING 'BDC_CURSOR' l_fnam.
+*       ... PickUp machen ...
+        PERFORM bdc_field USING 'BDC_OKCODE' x082s-afruf.
+*       ... und AfA-Detailbild anmelden.
+        PERFORM bdc_dynpro USING 'SAPLAIST' '0195'.
+      ENDCASE.
+
+    ENDIF.
+
+*   Feldname.
+    CLEAR l_fnam.
+    l_fnam(4)   = ydd03p-table(4).
+    l_fnam+4(1) = '-'.
+*   L_FNAM+5(5) = YDD03P-FIELDNAME(5).                      "QKI
+    ld_len      = strlen( ydd03p-fieldname ) - 2.           "QKI
+    l_fnam+5(ld_len) = ydd03p-fieldname(ld_len).            "QKI
+*   Feldinhalt, eventuell aufbereitet.
+    CASE ydd03p-datatype.
+    WHEN 'CHAR'.
+      MOVE  l_char_value TO l_fval.
+    WHEN 'DATS'.
+      l_dats_value = l_char_value(8).
+      WRITE l_dats_value TO l_fval DD/MM/YYYY.
+    ENDCASE.
+*   Feld samt Inhalt an BDC-Tabelle übergeben.
+    PERFORM bdc_field USING l_fnam l_fval.
+
+*   Letzten Suffix merken.
+*   L_SUFFIX = YDD03P-FIELDNAME+5(2).                            "qki
+    l_suffix = ydd03p-suffix        .                            "qki
+
+  ENDLOOP.
+
+ENDFORM.
+
+* Felder an AfA-Bereichebild uebergeben.
+FORM bdctab_fuellen_afabereichebild.
+
+  DATA:
+*       Merker: letzter aktueller Suffix.
+        l_suffix(2)   TYPE c,
+*       Aktuelle Seite auf Wertebild.
+        l_scroll      LIKE sy-tabix VALUE 1,
+*       Rechenfeld.
+        l_index       LIKE sy-tabix,
+*       Feldname + Feldinhalt.
+        l_fnam        LIKE bdcdata-fnam,
+        l_fval        LIKE bdcdata-fval,
+*       Formalfeld Investitionsschluessel.
+        l_invsl       LIKE ra02s-invsl,
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value  LIKE bdcdata-fval,
+        l_dats_value  LIKE sy-datum,
+*       Reihenfolgenummer zu aktuellem Suffix.
+        l_tabix       LIKE sy-tabix,
+*       Felder für Konvertierung des Tabix.
+        l_tabixn(2)   TYPE n.
+
+* AfA-Bereiche in der Reihenfolge auf dem AfA-Bereichsbild.
+  DATA: BEGIN OF l_yseq OCCURS 10.
+         INCLUDE STRUCTURE yafaseq.
+  DATA: END OF l_yseq.
+
+* AfA-Bereiche zu Investitionsschluesseln der Anlage.
+  DATA: BEGIN OF l_foerd OCCURS 2,
+          afabe LIKE anlb-afabe,
+        END OF l_foerd.
+
+* Feststellen der Investitions-AfA-Bereiche der aktuellen
+* Anlage in L_FOERD.
+  DO g_anzinvsl TIMES VARYING l_invsl FROM baltd-invsl01
+                                      NEXT baltd-invsl02.
+    IF NOT l_invsl IS INITIAL.
+      READ TABLE y085 WITH KEY l_invsl BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        MOVE y085-afabe TO l_foerd-afabe.
+        APPEND l_foerd.
+      ENDIF.
+    ENDIF.
+  ENDDO.
+* Auch noch Bereiche schon vorhandener INVSL aufnehmen
+  LOOP AT gt_invsl.
+     READ TABLE y085 WITH KEY
+          gt_invsl-invsl BINARY SEARCH.
+     IF sy-subrc EQ 0.
+        MOVE y085-afabe TO l_foerd-afabe.
+        APPEND l_foerd.
+     ENDIF.
+  ENDLOOP.
+  SORT l_foerd BY afabe.
+
+* Standard-Reihenfolge aus YAFASEQ in L_YSEQ uebernehmen,
+* jedoch nicht die in der Anlage ungenutzten
+* Investitions-AfA-Bereiche.
+* LOOP AT YAFASEQ.
+*   Investitions-AfA-Bereich.
+*   IF YAFASEQ-INVFLG EQ 'X'.
+*     Wird dieser Bereich in der Anlage genutzt?
+*     CHECK YAFASEQ-AFABE EQ L_INVBE01 OR
+*           YAFASEQ-AFABE EQ L_INVBE02 .
+*   ENDIF.
+*   MOVE YAFASEQ TO L_YSEQ.
+*   APPEND L_YSEQ.
+* ENDLOOP.
+  LOOP AT yafaseq.
+*   Investitions-AfA-Bereich.
+    IF yafaseq-invflg EQ 'X'.
+*     Wird dieser Bereich in der Anlage genutzt?
+      READ TABLE l_foerd WITH KEY yafaseq-afabe
+                                  BINARY SEARCH.
+      CHECK sy-subrc EQ 0.
+    ENDIF.
+    MOVE yafaseq TO l_yseq.
+    APPEND l_yseq.
+  ENDLOOP.
+
+* Zu uebergebende Felder an Dynpro uebergeben.
+* YDD03P ist nach Tabelle - Dynpro - Suffix - Feldname geordnet!
+  LOOP AT ydd03p
+    WHERE dnum EQ x082s-dynnr.
+
+*   Feld nicht gesetzt ==> keine Verarbeitung.
+    PERFORM field_assign
+      USING l_char_value baltd+ydd03p-offset(ydd03p-leng).
+    CHECK l_char_value(1) NE '/'.
+
+*   Suffix wechselt.
+*   IF YDD03P-FIELDNAME+5(2) NE L_SUFFIX.                        "qki
+    IF ydd03p-suffix         NE l_suffix.                        "qki
+
+*     Aktuelle Reihenfolgenummer ermitteln.
+*     READ TABLE L_YSEQ WITH KEY YDD03P-FIELDNAME+5(2).           "qki
+      READ TABLE l_yseq WITH KEY ydd03p-suffix        .           "qki
+*     AfA-Bereich kommt auf Dynpro gar nicht hoch (z.B. Investitions-
+*     AfA-Bereich aber Anlage ohne Investitionsschlüssel) ==> Nix tun.
+      CHECK sy-subrc EQ 0.
+*     Aktuelle Zeile merken.
+      l_tabix  = sy-tabix.
+
+*     Wo komm ich her?
+      CASE g_ldynnr.
+*     Bin schon auf AfA-Bereichebild ... dann nix machen!
+      WHEN '0190'.
+*     Bin auf anderem Dynpro ...
+      WHEN OTHERS.
+*       ... dann erst mal auf AfA-Bereichebild huepfen ...
+        PERFORM bdc_field  USING 'BDC_OKCODE' x082s-afruf.
+*       ... und AfA-Bereichebild anmelden.
+        PERFORM bdc_dynpro USING 'SAPLAIST' '0190'.
+      ENDCASE.
+
+*     Gewuenschte Seite in L_INDEX bestimmen ...
+      l_index = 1.
+      WHILE l_tabix GT 13.                              "P30K086037
+        l_tabix = l_tabix - 13.                         "P30K086037
+        l_index = l_index + 1.
+      ENDWHILE.
+*     ... mit aktueller Seite L_SCROLL vergleichen und
+*     entsprechend blaettern.
+      WHILE l_scroll LT l_index.
+        PERFORM bdc_field  USING 'BDC_OKCODE' 'FORB'.
+        PERFORM bdc_dynpro USING 'SAPLAIST'   '0190'.
+        l_scroll = l_scroll + 1.
+      ENDWHILE.
+      WHILE l_scroll GT l_index.
+        PERFORM bdc_field  USING 'BDC_OKCODE' 'RUEB'.
+        PERFORM bdc_dynpro USING 'SAPLAIST'   '0190'.
+        l_scroll = l_scroll - 1.
+      ENDWHILE.
+
+    ENDIF.
+
+*   Feldname.
+    CLEAR l_fnam.
+    l_fnam(4)    = ydd03p-table(4).
+    l_fnam+4(1)  = '-'.
+    l_fnam+5(5)  = ydd03p-fieldname(5).
+    l_fnam+10(4) = '(  )'.
+    MOVE l_tabix TO l_tabixn.
+    MOVE l_tabixn TO l_fnam+11(2).
+*   Feldinhalt, eventuell aufbereitet.
+    CASE ydd03p-datatype.
+    WHEN 'CHAR'.
+      MOVE  l_char_value TO l_fval.
+    WHEN 'DATS'.
+      l_dats_value = l_char_value(8).
+      WRITE l_dats_value TO l_fval DD/MM/YYYY.
+    ENDCASE.
+*   Feld samt Inhalt an BDC-Tabelle übergeben.
+    PERFORM bdc_field USING l_fnam l_fval.
+
+*   Letzten Suffix merken.
+*   L_SUFFIX = YDD03P-FIELDNAME+5(2).                           "QKI
+    l_suffix = ydd03p-suffix        .                           "QKI
+
+  ENDLOOP.
+* Seite, auf die zuletzt gescrolled wurde, merken
+  gd_afapage = l_scroll.                        "<<< insert note 190935
+
+ENDFORM.
+
+* Felder an Bewegungenbild uebergeben.
+FORM bdctab_fuellen_bewegungenbild.
+
+  DATA:
+*       Rechenfeld fuer Zeilennummer bei Bewegungen.
+        l_line(2)     TYPE n,
+*       Feldname + Feldinhalt.
+        l_fnam        LIKE bdcdata-fnam,
+        l_fval        LIKE bdcdata-fval,
+*       Zwischenspeicher für Feldinhalte.
+        l_char_value  LIKE bdcdata-fval,
+        l_dats_value  LIKE sy-datum,
+*       Anzahl der auf Dynpro erscheinenden Bewertungsbereiche.
+        l_anz         LIKE sy-tabix,
+        l_cnt         LIKE sy-tabix,
+*       Reihenfolgenummer zu aktuellem Suffix.
+        l_tabix       LIKE sy-tabix,
+*       Formalfeld Investitionsschluessel.
+        l_invsl       LIKE ra02s-invsl,
+*       Felder für Konvertierung des Tabix.
+        l_tabixn(2)   TYPE n,
+        l_tabixc(1)   TYPE c.
+
+* AfA-Bereiche zu Investitionsschluesseln der Anlage.
+* DATA: L_INVBE01 LIKE T093-AFABER,
+*       L_INVBE02 LIKE T093-AFABER.
+  DATA: BEGIN OF l_foerd OCCURS 2,
+          afabe LIKE anlb-afabe,
+        END OF l_foerd.
+
+  DATA: BEGIN OF l_yseq OCCURS 10.
+         INCLUDE STRUCTURE yafaseq.
+  DATA: END OF l_yseq.
+
+  DATA: BEGIN OF det OCCURS 8,
+          tabix LIKE sy-tabix,
+          anbtr LIKE baltb-anbtr01,
+        END OF det.
+
+* Keine Bewegungen zu Anlage ==> Nix tun.
+  IF g_bwcnt EQ 0.
+    EXIT.
+  ENDIF.
+
+* Falls letztes Dynpro nicht D0100 war ...
+ IF NOT ( g_ldynnr = '0100' AND g_lprog = 'SAPLALTD' ).
+*   ... dann erst mal auf Wertebild huepfen, da das Bewegungenbild
+*   nur von dort aus rufbar ist.
+    PERFORM bdc_field  USING 'BDC_OKCODE' 'ALTD'.
+    PERFORM bdc_dynpro USING 'SAPLALTD'   '0100'.
+  ENDIF.
+
+* Bewegungenbild erstmals callen + anmelden.
+  PERFORM bdc_field  USING 'BDC_OKCODE' x082s-afruf.
+  PERFORM bdc_dynpro USING 'SAPLALTD'   '0200'.
+
+* Feststellen der Investitions-AfA-Bereiche der aktuellen
+* Anlage in L_INVBE01, L_INVBE02.
+* READ TABLE Y085 WITH KEY BALTD-INVSL01 BINARY SEARCH.
+* IF SY-SUBRC EQ 0.
+*   L_INVBE01 = Y085-AFABE.
+* ENDIF.
+* READ TABLE Y085 WITH KEY BALTD-INVSL02 BINARY SEARCH.
+* IF SY-SUBRC EQ 0.
+*   L_INVBE02 = Y085-AFABE.
+* ENDIF.
+
+* Feststellen der Investitions-AfA-Bereiche der aktuellen
+* Anlage in L_FOERD.
+  DO g_anzinvsl TIMES VARYING l_invsl FROM baltd-invsl01
+                                      NEXT baltd-invsl02.
+    IF NOT l_invsl IS INITIAL.
+      READ TABLE y085 WITH KEY l_invsl BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        MOVE y085-afabe TO l_foerd-afabe.
+        APPEND l_foerd.
+      ENDIF.
+    ENDIF.
+  ENDDO.
+* Auch noch Bereiche schon vorhandener INVSL aufnehmen
+  LOOP AT gt_invsl.
+     READ TABLE y085 WITH KEY
+          gt_invsl-invsl BINARY SEARCH.
+     IF sy-subrc EQ 0.
+        MOVE y085-afabe TO l_foerd-afabe.
+        APPEND l_foerd.
+     ENDIF.
+  ENDLOOP.
+  SORT l_foerd BY afabe.
+
+* Standard-Reihenfolge aus YWRTSEQ in L_YSEQ uebernehmen,
+* jedoch nicht die in der Anlage ungenutzten
+* Investitions-AfA-Bereiche.
+* LOOP AT YWRTSEQ.
+*   Investitions-AfA-Bereich.
+*   IF YWRTSEQ-INVFLG EQ 'X'.
+*     Wird dieser Bereich in der Anlage genutzt?
+*     CHECK YWRTSEQ-AFABE EQ L_INVBE01 OR
+*           YWRTSEQ-AFABE EQ L_INVBE02 .
+*   ENDIF.
+*   MOVE YWRTSEQ TO L_YSEQ.
+*   APPEND L_YSEQ.
+* ENDLOOP.
+  LOOP AT ywrtseq.
+*   Investitions-AfA-Bereich.
+    IF ywrtseq-invflg EQ 'X'.
+*     Wird dieser Bereich in der Anlage genutzt?
+      READ TABLE l_foerd WITH KEY ywrtseq-afabe
+                                  BINARY SEARCH.
+      CHECK sy-subrc EQ 0.
+    ENDIF.
+    MOVE ywrtseq TO l_yseq.
+    APPEND l_yseq.
+  ENDLOOP.
+
+* Anzahl der im Dynpro erscheinenden Bewertungsbereiche bereitstellen.
+  DESCRIBE TABLE l_yseq LINES l_anz.
+
+  l_line = '00'.
+* Bewegungssatz lesen.
+  DO g_bwcnt TIMES.
+
+*   Aktuelle Step-Loop-Zeile.
+    l_line = l_line + '01'.
+
+*   Eventuell auf neue Seite blaettern.
+    IF l_line GT '16'.
+      PERFORM bdc_field  USING 'BDC_OKCODE' 'FORW'.
+      PERFORM bdc_dynpro USING 'SAPLALTD'   '0200'.
+      l_line = l_line - '16'.
+    ENDIF.
+
+    READ DATASET dsnin INTO baltb.
+
+*   Unerwartete Satzart ...
+    IF sy-subrc    EQ 0   AND
+       baltb-rctyp NE 'B' .
+*     ... dann kontrollierten Abbruch veranlassen.
+      PERFORM abend USING '05'.
+    ENDIF.
+
+*   Merktabelle fuer Eingaben auf Bewegungendetailbild zuruecksetzen.
+    CLEAR det. REFRESH det.
+
+*   Felder zum Dynpro SAPLALTD 0200 einarbeiten (Bewegungenbild).
+    LOOP AT ydd03p
+      WHERE dnum EQ x082s-dynnr.
+
+*     Feldinhalt besorgen.
+      PERFORM field_assign
+        USING l_char_value baltb+ydd03p-offset(ydd03p-leng).
+      CHECK l_char_value(1) NE '/'.
+
+*     Rechtsbuendig angegebener Wert ...
+*     IF YDD03P-FIELDNAME(5) EQ 'ANBTR'.
+*        ... und links noch Platz frei ...
+*        IF L_CHAR_VALUE(1) EQ SPACE.
+*           ... dann um 1 nach links shiften, da Dynpro-Feld
+*           nur 15 Stellen, Feldlaenge jedoch 16.
+*           SHIFT L_CHAR_VALUE LEFT.
+*        ENDIF.
+*     ENDIF.
+
+*     Feld ANBTRnn.
+*     IF YDD03P-FIELDNAME+5(2) NE SPACE.                         "QKI
+      IF ydd03p-suffix         NE space.                         "QKI
+*       Aktuelle Spalte ermitteln.
+*       READ TABLE L_YSEQ WITH KEY YDD03P-FIELDNAME+5(2).        "QKI
+        READ TABLE l_yseq WITH KEY ydd03p-suffix        .        "QKI
+*       AfA-Bereich kommt auf Dynpro gar nicht hoch
+*       (z.B. Investitions-AfA-Bereich bei Anlage ohne
+*       Investitionsschlüssel) ==> Nix tun ...
+        CHECK sy-subrc EQ 0.
+*       ... ansonsten Reihenfolgenummer merken.
+        l_tabix  = sy-tabix.
+*     Feld BWASL oder BZDAT werden auf Dynpro-Feldern
+*     ANW1-BZDAT, ANW1-BWASL eingegeben.
+      ELSE.
+        l_tabix = 1.
+      ENDIF.
+
+*     Feld wird auf Bewegungenbild eingegeben.
+      IF l_tabix LE 4.
+*       Feldname.
+        CLEAR l_fnam.
+        MOVE l_tabix TO l_tabixc.
+        l_fnam(4)    = ydd03p-table(4).
+        l_fnam+3(1)  = l_tabixc.
+        l_fnam+4(1)  = '-'.
+        l_fnam+5(5)  = ydd03p-fieldname(5).
+        l_fnam+10(4) = '(  )'.
+        MOVE l_line TO l_fnam+11(2).
+*       Feldinhalt, eventuell aufbereitet.
+        CASE ydd03p-datatype.
+        WHEN 'CHAR'.
+          MOVE  l_char_value TO l_fval.
+        WHEN 'DATS'.
+          l_dats_value = l_char_value(8).
+          WRITE l_dats_value TO l_fval DD/MM/YYYY.
+        ENDCASE.
+*       Feld samt Inhalt an BDC-Tabelle übergeben
+        PERFORM bdc_field USING l_fnam l_fval.
+*     Feld wird auf Bewegung-Detailbild eingegeben.
+      ELSE.
+*       In Merktabelle fuer Detailbild merken.
+        MOVE: l_tabix      TO det-tabix,
+              l_char_value TO det-anbtr.
+        APPEND det.
+      ENDIF.
+
+    ENDLOOP.
+
+*   Sind Eingaben im Bewegungendetailbild zu machen?
+    READ TABLE det INDEX 1.
+    IF sy-subrc EQ 0.
+*     Cursor setzen ...
+      CLEAR l_fnam.
+*     MOVE L_TABIX TO L_TABIXN.
+      l_fnam       = 'ANW1-BWASL(  )'.
+      l_fnam+11(2) = l_line.
+      PERFORM bdc_field USING 'BDC_CURSOR' l_fnam.
+*     ... und PickUp.
+      PERFORM bdc_field USING 'BDC_OKCODE' 'SELP'.
+*
+      l_cnt = 0.
+      WHILE l_cnt LT l_anz.
+*       Bewegungendetailbild anmelden.
+        PERFORM bdc_dynpro USING 'SAPLALTD' '0210'.
+*
+        l_cnt = l_cnt + 1.
+        LOOP AT det.
+*         Eintrag zu aktuellem Bereich?
+          IF l_cnt = det-tabix.
+*           Ja, dann setzen.
+            l_fnam = 'RALTD1-ANBTR(01)'.
+            l_fval = det-anbtr.
+            PERFORM bdc_field USING l_fnam l_fval.
+          ENDIF.
+        ENDLOOP.
+*
+        l_cnt = l_cnt + 1.
+        LOOP AT det.
+*         Eintrag zu aktuellem Bereich?
+          IF l_cnt = det-tabix.
+*           Ja, dann setzen.
+            l_fnam = 'RALTD1-ANBTR(02)'.
+            l_fval = det-anbtr.
+            PERFORM bdc_field USING l_fnam l_fval.
+          ENDIF.
+        ENDLOOP.
+
+*       Weiterblaettern
+        PERFORM bdc_field USING 'BDC_OKCODE' 'NAFA'.
+
+      ENDWHILE.
+
+*     Zurueckhuepfen auf Bewegungenbild und dieses wieder anmelden.
+      PERFORM bdc_field  USING 'BDC_OKCODE' 'RW  '.
+      PERFORM bdc_dynpro USING 'SAPLALTD'   '0200'.
+
+    ENDIF.
+
+  ENDDO.
+
+ENDFORM.
+
+
+FORM ydd03p_fuellen_rest.
+
+* Hilfstabellen fuer IMPORT DYNPRO.
+*
+* Header.
+  DATA: BEGIN OF import_h.
+          INCLUDE STRUCTURE d020s.
+  DATA: END OF import_h.
+* Felder.
+  DATA: BEGIN OF import_f OCCURS 250.
+          INCLUDE STRUCTURE d021s.
+  DATA: END OF import_f.
+* Ablauf-Logik.
+  DATA: BEGIN OF import_l OCCURS 100.
+          INCLUDE STRUCTURE d022s.
+  DATA: END OF import_l.
+* Matchcode-Sub-IDs.
+  DATA: BEGIN OF import_m OCCURS 20.
+          INCLUDE STRUCTURE d023s.
+  DATA: END OF import_m.
+
+  DATA: l_dynpro(44) TYPE c,
+        l_tabix      LIKE sy-tabix,
+        l_fmb1a      LIKE d021s-fmb1  VALUE '40',
+        l_fmb1b      LIKE d021s-fmb1  VALUE '00',
+        l_dummy(10).
+
+* Dynpro aus X082S einlesen.
+  MOVE: x082s-progn TO l_dynpro(40),
+        x082s-dynnr TO l_dynpro+40(4).
+*
+  IMPORT DYNPRO import_h
+                import_f
+                import_l
+                import_m
+                ID l_dynpro.
+
+* Dynpro nicht gefunden ...
+  IF sy-subrc NE 0.
+*   ... Fehler!
+    MESSAGE e020  WITH l_dynpro(40) l_dynpro+40(4).
+  ENDIF.
+
+* Alle Felder des Dynpros abloopen ...
+  LOOP AT import_f
+*   ... die eingabebereit sind.
+    WHERE fmb1 = l_fmb1a OR
+          fmb1 = l_fmb1b.
+    CASE import_f-fnam.                                       "YDZ
+     WHEN 'RA02S-XGBR_AM'.   import_f-fnam = 'ANLA-XAFABCH'.  "QKI YDZ
+     WHEN 'RA02S-XHIST'.     import_f-fnam = 'ANLA-ANEQK'.    "YDZ
+    ENDCASE.                                                  "QKI. YDZ
+
+
+*   Auf Wertebild nur über Felder der 1. Kolonne loopen.
+    IF x082s-dynnr EQ '0100'.
+      CHECK import_f-fnam(4) NE 'ANW2' AND
+            import_f-fnam(4) NE 'ANW3' AND
+            import_f-fnam(4) NE 'ANW4' .
+    ENDIF.
+
+
+*   Key von YDD03P fuellen.
+    key_ydd03p-tabname   = 'BALTD'.
+    SPLIT import_f-fnam AT '-' INTO l_dummy key_ydd03p-fieldname.
+
+**    KEY_YDD03P-FIELDNAME = IMPORT_F-FNAM+5.
+*   Felder für Investitionsförderung.
+**    IF IMPORT_F-FNAM(5) = 'RA02S'.
+**      KEY_YDD03P-FIELDNAME = IMPORT_F-FNAM+6.
+**    ENDIF.
+
+*   AfA-Bereichsfeld oder AfA-Wertfeld ...
+    IF import_f-fnam(4) EQ 'ANLB'   OR
+       import_f-fnam(4) EQ 'ANLC'   OR
+       import_f-fnam(3) EQ 'ANW'    OR
+*      ... oder Investitionsschlüssel ...
+       import_f-fnam(5) EQ 'RA02S'.
+       CONCATENATE key_ydd03p-fieldname '01' INTO             "QKI
+                    key_ydd03p-fieldname .                    "QKI
+*      IF KEY_YDD03P-FIELDNAME(6) = 'ANLGR2'.                 "QKI
+*        KEY_YDD03P-FIELDNAME+6(2) = '01'.                    "QKI
+*       ELSE.                                                 "QKI
+*        KEY_YDD03P-FIELDNAME+5(2) = '01'.                     "QKI
+*      ENDIF.                                                 "QKI
+    ENDIF.
+
+    READ TABLE ydd03p WITH KEY key_ydd03p BINARY SEARCH.
+    IF sy-subrc EQ 0.
+*     Index merken.
+      l_tabix = sy-tabix.
+*     Tabellenname in YDD03P einarbeiten.
+      CASE import_f-fnam(4).
+        WHEN 'ANLA'. ydd03p-table = 'ANLA'.
+        WHEN 'ANLB'. ydd03p-table = 'ANLB'.
+        WHEN 'ANLC'. ydd03p-table = 'ANLC'.
+        WHEN 'ANLV'. ydd03p-table = 'ANLV'.
+        WHEN 'ANLZ'. ydd03p-table = 'ANLZ'.
+        WHEN 'ANW1'. ydd03p-table = 'ANWX'.
+        WHEN 'RA02'. ydd03p-table = 'RA02S'.
+*       für Anlagenhauptnummerntext.                         "vta
+        WHEN 'ANLH'. ydd03p-table = 'ANLH'.
+      ENDCASE.
+*     Dynpro, in das ausgegeben wird, in YDD03P einarbeiten.
+*     Abfrage auf INITIAL, wegen Feldern die auf mehereren Dynpros
+*     vorkommen, z.B. AfA-Schlüssel!
+      IF ydd03p-prog IS INITIAL.
+        ydd03p-prog  = l_dynpro(40).
+        ydd03p-dnum  = l_dynpro+40(4).
+        IF ydd03p-dnum EQ '3095'.                         "note 1062241
+          ydd03p-dnum = '0195'.                           "note 1062241
+        ENDIF.                                            "note 1062241
+      ENDIF.
+*     Feldgruppe + Feldgruppentabelle auch noch besorgen.
+      READ TABLE x082f
+        WITH KEY key_ydd03p-fieldname(10) BINARY SEARCH.   "note 174192
+      IF sy-subrc NE 0.
+        CLEAR x082f.
+      ENDIF.
+      ydd03p-fegru = x082f-fegru.
+      ydd03p-fegtb = x082f-fegtb.
+*
+      MODIFY ydd03p INDEX l_tabix.
+
+*     Wird mehr als ein AfA-Bereich übernommen?
+      cnt = g_anzafabe - 1.
+      IF cnt GT 0.
+*       AfA-Bereichs-Feld am Wickel ...
+        IF import_f-fnam(4)  = 'ANLB' OR
+           import_f-fnam(4)  = 'ANLC' OR
+           import_f-fnam(4)  = 'ANW1' .
+*         Dann andere AfA-Bereichsfelder in YDD03P auch versorgen.
+
+          DO cnt TIMES.
+            l_tabix = l_tabix + 1.
+            READ TABLE ydd03p INDEX l_tabix.
+*           Tabellenname in YDD03P einarbeiten.
+            CASE import_f-fnam(4).
+              WHEN 'ANLB'. ydd03p-table = 'ANLB'.
+              WHEN 'ANLC'. ydd03p-table = 'ANLC'.
+              WHEN 'ANW1'. ydd03p-table = 'ANWX'.
+            ENDCASE.
+*           Dynpro, in das ausgegeben wird, in DD03P einarbeiten.
+*           Abfrage auf INITIAL, wegen Feldern die auf mehereren
+*           Dynpros vorkommen, z.B. AfA-Schlüssel!
+            IF ydd03p-prog IS INITIAL.
+              ydd03p-prog  = l_dynpro(40).
+              ydd03p-dnum  = l_dynpro+40(4).
+              IF ydd03p-dnum EQ '3095'.                   "note 1062241
+                ydd03p-dnum = '0195'.                     "note 1062241
+              ENDIF.                                      "note 1062241
+            ENDIF.
+*           Bereits besorgte Feldgruppe einarbeiten.
+            ydd03p-fegru = x082f-fegru.
+            ydd03p-fegtb = x082f-fegtb.
+*
+            MODIFY ydd03p INDEX l_tabix.
+          ENDDO.
+        ENDIF.
+      ENDIF.
+
+*     Feld für Investitionsförderung?
+      IF import_f-fnam(5) = 'RA02S'.
+*       Dann zweiten Investitionsschlüssel in YDD03P auch versorgen.
+        DO.
+        l_tabix = l_tabix + 1.
+
+        READ TABLE ydd03p INDEX l_tabix.
+        IF sy-subrc <> 0 OR ydd03p-fieldname(5) <> 'INVSL'.
+           EXIT.
+        ENDIF.
+*       Tabellenname in YDD03P einarbeiten.
+        ydd03p-table = 'RA02S'.
+*       Dynpro, auf das ausgegeben wird, in YDD03P einarbeiten.
+        ydd03p-prog  = l_dynpro(40).
+        ydd03p-dnum  = l_dynpro+40(4).
+*       Bereits besorgte Feldgruppe einarbeiten.
+        ydd03p-fegru = x082f-fegru.
+        ydd03p-fegtb = x082f-fegtb.
+*
+        MODIFY ydd03p INDEX l_tabix.
+        ENDDO.
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM ydd03p_fuellen_bewegungenbild.
+
+* Hilfstabellen fuer IMPORT DYNPRO.                                   *
+*
+* Header.
+  DATA: BEGIN OF import_h.
+          INCLUDE STRUCTURE d020s.
+  DATA: END OF import_h.
+* Felder.
+  DATA: BEGIN OF import_f OCCURS 250.
+          INCLUDE STRUCTURE d021s.
+  DATA: END OF import_f.
+* Ablauf-Logik.
+  DATA: BEGIN OF import_l OCCURS 100.
+          INCLUDE STRUCTURE d022s.
+  DATA: END OF import_l.
+* Matchcode-Sub-IDs.
+  DATA: BEGIN OF import_m OCCURS 20.
+          INCLUDE STRUCTURE d023s.
+  DATA: END OF import_m.
+
+  DATA: l_dynpro(44) TYPE c,
+        l_tabix      LIKE sy-tabix,
+*       L_FMB1       LIKE D021S-FMB1  VALUE '00'.     "TEST1
+        l_fmb1a      LIKE d021s-fmb1  VALUE '40',     "TEST1
+        l_fmb1b      LIKE d021s-fmb1  VALUE '00'.     "TEST1
+
+* Dynpro aus X082S einlesen.
+  MOVE: x082s-progn TO l_dynpro(40),
+        x082s-dynnr TO l_dynpro+40(4).
+*
+  IMPORT DYNPRO import_h
+                import_f
+                import_l
+                import_m
+                ID l_dynpro.
+
+* Dynpro nicht gefunden ...
+  IF sy-subrc NE 0.
+*   ... Fehler!
+    MESSAGE e020  WITH l_dynpro(40) l_dynpro+40(4).
+  ENDIF.
+
+* Alle eingabebereiten Felder des Dynpros abloopen.
+  LOOP AT import_f
+    WHERE fmb1 = l_fmb1a OR
+          fmb1 = l_fmb1b.
+
+*   Auf Bewegungenbild nur über Felder der 1. Kolonne loopen.
+    CHECK import_f-fnam(4) NE 'ANW2' AND
+          import_f-fnam(4) NE 'ANW3' AND
+          import_f-fnam(4) NE 'ANW4' .
+
+*   Key von YDD03P fuellen.
+    key_ydd03p-tabname   = 'BALTB'.
+    key_ydd03p-fieldname = import_f-fnam+5.
+*   Bewegungsbetragsfeld ...
+    IF import_f-fnam(10) EQ 'ANW1-ANBTR'.
+*     ... dann auch noch Suffix anhaengen.
+      key_ydd03p-fieldname+5(2) = '01'.
+    ENDIF.
+
+    READ TABLE ydd03p WITH KEY key_ydd03p BINARY SEARCH.
+    IF sy-subrc EQ 0.
+
+*     Index merken.
+      l_tabix = sy-tabix.
+*     Tabellenname in YDD03P einarbeiten.
+      ydd03p-table = 'ANWX'.
+*     Dynpro, in das ausgegeben wird, in YDD03P einarbeiten.
+      ydd03p-prog  = l_dynpro(40).
+      ydd03p-dnum  = l_dynpro+40(4).
+*     Feldgruppe + Feldgruppentabelle nicht sinnvoll.
+      CLEAR ydd03p-fegru.
+      CLEAR ydd03p-fegtb.
+*
+      MODIFY ydd03p INDEX l_tabix.
+
+*     Werden mehr als ein AfA-Bereich übernommen?
+      cnt = g_anzafabe - 1.
+*     Dann auch noch restliche Betragsfelder anhaengen.
+      IF cnt                GT 0       AND
+         import_f-fnam+5(5) EQ 'ANBTR' .
+*       Dann andere AfA-Bereichsfelder in YDD03P auch versorgen.
+        DO cnt TIMES.
+          l_tabix = l_tabix + 1.
+          READ TABLE ydd03p INDEX l_tabix.
+*         Tabellenname in YDD03P einarbeiten.
+          ydd03p-table = 'ANWX'.
+*         Dynpro, in das ausgegeben wird, in YDD03P einarbeiten.
+          ydd03p-prog  = l_dynpro(40).
+          ydd03p-dnum  = l_dynpro+40(4).
+*         Feldgruppe + Feldgruppentabelle nicht sinnvoll.
+          CLEAR ydd03p-fegru.
+          CLEAR ydd03p-fegtb.
+*
+          MODIFY ydd03p INDEX l_tabix.
+        ENDDO.
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+
+
+* Meine Lieblingsroutine!!!!!
+FORM field_assign USING target source.
+
+  target = source.
+
+ENDFORM.
+
+
+FORM fehler_merken.
+
+* Tabelle der bisherigen Fehlermeldungen fortschreiben.
+  key_x100-sprsl = sy-langu.
+  key_x100-arbgb = sy-msgid.
+  key_x100-msgnr = sy-msgno.
+  READ TABLE x100 WITH KEY key_x100 BINARY SEARCH.
+  CASE sy-subrc.
+* Eintrag existiert bereits.
+  WHEN 0.
+* Eintrag neu einfuegen (INSERT).
+  WHEN 4.
+    CLEAR x100.
+    SELECT SINGLE * FROM t100
+      WHERE sprsl EQ sy-langu
+      AND   arbgb EQ sy-msgid
+      AND   msgnr EQ sy-msgno.
+    IF sy-subrc EQ 0.
+      MOVE t100 TO x100.
+      INSERT x100 INDEX sy-tabix.
+    ENDIF.
+* Eintrag neu hinten anhaengen (APPEND).
+  WHEN 8.
+    CLEAR x100.
+    SELECT SINGLE * FROM t100
+      WHERE sprsl EQ sy-langu
+      AND   arbgb EQ sy-msgid
+      AND   msgnr EQ sy-msgno.
+    IF sy-subrc EQ 0.
+      MOVE t100 TO x100.
+      APPEND x100.
+    ENDIF.
+  ENDCASE.
+
+  EXTRACT fehler.
+
+ENDFORM.
+
+
+
+FORM protokoll_ausgeben.
+
+  DATA: l_totlen LIKE dd03p-leng.
+
+  DATA: BEGIN OF l_zdd03p OCCURS 500.
+          INCLUDE STRUCTURE dfies.
+  DATA: END OF l_zdd03p.
+
+* Spezieller PF-Status für Langtext-PickUp bei Fehlerliste.
+  SET PF-STATUS 'CALL'.
+
+* Titelbar setzen.
+  SET TITLEBAR 'PRO'.
+
+
+* Nur Strukturbeschreibung ausgeben.
+  IF xstru NE space.
+
+    g_prottype = '0'.
+
+    g_hlp_stru = 'BALTD   '.
+*
+
+    CALL FUNCTION 'DDIF_NAMETAB_GET'
+         EXPORTING  tabname      = 'BALTD'
+         TABLES      dfies_tab   = l_zdd03p
+         EXCEPTIONS  not_found   = 1
+                     OTHERS      = 2.
+    SORT l_zdd03p BY position.
+*
+    LOOP AT l_zdd03p.
+      DETAIL.
+      WRITE: / l_zdd03p-fieldname,
+               l_zdd03p-datatype,
+               l_zdd03p-leng,
+               l_totlen,
+               l_zdd03p-scrtext_l.
+      l_totlen = l_totlen + l_zdd03p-leng.
+    ENDLOOP.
+*
+    SUMMARY.
+    ULINE.
+    WRITE: /(15) text-106 UNDER l_zdd03p-fieldname,
+                 l_totlen UNDER l_totlen.
+
+    g_hlp_stru = 'BALTB   '.
+*
+    CLEAR l_zdd03p. REFRESH l_zdd03p. l_totlen = 0.
+*
+    CALL FUNCTION 'DDIF_NAMETAB_GET'
+         EXPORTING  tabname      = 'BALTB'
+         TABLES      dfies_tab   = l_zdd03p
+         EXCEPTIONS  not_found   = 1
+                     OTHERS      = 2.
+    SORT l_zdd03p BY position.
+*
+    NEW-PAGE.
+*
+    LOOP AT l_zdd03p.
+      DETAIL.
+      WRITE: / l_zdd03p-fieldname,
+               l_zdd03p-datatype,
+               l_zdd03p-leng,
+               l_totlen,
+               l_zdd03p-scrtext_l.
+      l_totlen = l_totlen + l_zdd03p-leng.
+    ENDLOOP.
+*
+    SUMMARY.
+    ULINE.
+    WRITE: /(15) text-106 UNDER l_zdd03p-fieldname,
+                 l_totlen UNDER l_totlen.
+
+*   Sonst nix mehr machen, wenn nur Satzstruktur gewuenscht wurde.
+    STOP.
+  ENDIF.
+
+
+  IF NOT g_grund IS INITIAL.
+    SUMMARY.
+    WRITE: /001(60) text-aa1,
+           /001(60) text-aa2,
+           /001(60) text-aa1.
+    SKIP.
+    DETAIL.
+    WRITE: /001(60) text-aa5.
+  ENDIF.
+
+* Protokolltyp 'Statistik'.
+  g_prottype = '1'.
+
+* Noch letzten Update auf Statistiktabelle nachholen.
+  IF NOT g_xstat_tabix IS INITIAL.
+    MODIFY xstat INDEX g_xstat_tabix.
+  ENDIF.
+
+  LOOP AT xstat.
+*
+    AT NEW trcode.
+      NEW-PAGE.
+    ENDAT.
+*
+    SELECT SINGLE * FROM ankt
+      WHERE spras  = sy-langu
+      AND   anlkl  = xstat-anlkl.
+    DETAIL.
+    WRITE: /(04) xstat-bukrs,
+            (08) xstat-anlkl,
+            (20) ankt-txk20,
+            (06) xstat-rdcnt,
+            (06) xstat-upcnt,
+            (06) xstat-ercnt.
+  ENDLOOP.
+
+
+* Protokolltyp 'Einzelliste'.
+  g_prottype = '2'.
+
+  SORT.
+
+  gd_is_message = 'X'.
+  LOOP.
+*
+    AT NEW baltd-anlkl.
+      NEW-PAGE.
+    ENDAT.
+*
+    CLEAR g_message.
+    key_x100-sprsl = sy-langu.
+    key_x100-arbgb = sy-msgid.
+    key_x100-msgnr = sy-msgno.
+    READ TABLE x100 WITH KEY key_x100.
+    IF sy-subrc EQ 0.
+      g_message = x100-text.
+*
+      REPLACE '&1' WITH sy-msgv1 INTO g_message.
+      REPLACE '&2' WITH sy-msgv2 INTO g_message.
+      REPLACE '&3' WITH sy-msgv3 INTO g_message.
+      REPLACE '&4' WITH sy-msgv4 INTO g_message.
+*
+      REPLACE '&' WITH sy-msgv1 INTO g_message.
+      IF sy-subrc NE 0.
+        REPLACE '$' WITH sy-msgv1 INTO g_message.
+      ENDIF.
+*     CONDENSE G_MESSAGE.
+*
+      REPLACE '&' WITH sy-msgv2 INTO g_message.
+      IF sy-subrc NE 0.
+        REPLACE '$' WITH sy-msgv2 INTO g_message.
+      ENDIF.
+*     CONDENSE G_MESSAGE.
+*
+      REPLACE '&' WITH sy-msgv3 INTO g_message.
+      IF sy-subrc NE 0.
+        REPLACE '$' WITH sy-msgv3 INTO g_message.
+      ENDIF.
+*     CONDENSE G_MESSAGE.
+*
+      REPLACE '&' WITH sy-msgv4 INTO g_message.
+      IF sy-subrc NE 0.
+        REPLACE '$' WITH sy-msgv4 INTO g_message.
+      ENDIF.
+      CONDENSE g_message.
+*
+    ENDIF.
+
+    RESERVE 3 LINES.
+    SUMMARY.
+    WRITE: /  baltd-oldn1, baltd-oldn2, baltd-txt50.
+    DETAIL.
+    WRITE: /3  baltd-tcode, sy-msgty, sy-msgid(2), sy-msgno,
+               g_message(60).
+    HIDE:      sy-msgty, sy-msgid, sy-msgno, g_message,
+               sy-msgv1, sy-msgv2, sy-msgv3, sy-msgv4, gd_is_message.
+    WRITE: /17 g_message+60(60).
+  ENDLOOP.
+  CLEAR gd_is_message.
+
+* Abnormal End?
+  IF NOT g_grund IS INITIAL.
+
+*   Protokolltyp 'Abbruch'.
+    g_prottype = '3'.
+
+    NEW-PAGE.
+
+    SUMMARY.
+    WRITE: /001(60) text-aa1,
+           /001(60) text-aa2,
+           /001(60) text-aa1.
+    SKIP.
+    DETAIL.
+    WRITE: /001(60) text-aa3.
+    SKIP.
+*
+    CASE g_grund.
+    WHEN '01'.
+      WRITE: /001(60) text-a01.
+    WHEN '02'.
+      WRITE: /001(60) text-a02.
+    WHEN '03'.
+      WRITE: /001(60) text-a03.
+    WHEN '04'.
+      WRITE: /001(60) text-a04.
+    WHEN '05'.
+      WRITE: /001(60) text-a05.
+    WHEN '06'.
+      WRITE: /001(60) text-a06.
+    WHEN '07'.
+      WRITE: /001(60) text-a07,
+                /(15) text-a51, anka-numkr,   '/',
+                 (15) text-a52, 'ANLAGENNR',  '/',
+                 (15) text-a53, t093c-bukrsn.
+    WHEN '08'.
+      WRITE: /001(60) text-a08,
+                /(15) text-a51, anka-numkr,   '/',
+                 (15) text-a52, 'ANLAGENNR',  '/',
+                 (15) text-a53, t093c-bukrsn.
+    ENDCASE.
+*
+    SKIP.
+*
+    WRITE: /001(60) text-aa4.
+*
+    SKIP.
+    WRITE: /001(15) text-b01, '=', abbruch-mandt, ',',
+           /001(15) text-b02, '=', abbruch-bukrs, ',',
+           /001(15) text-b03, '=', abbruch-anlkl, ',',
+           /001(15) text-b04, '=', abbruch-oldn1, ',',
+           /001(15) text-b05, '=', abbruch-oldn2, ',',
+           /001(15) text-b06, '=', abbruch-tcode, ',',
+           /001(15) text-b07, '=', abbruch-rctyp, '.'.
+
+  ENDIF.
+
+
+
+* Fehlermappe erstellt?
+  IF flg_bdc_open EQ 'X'.
+*   NEW-PAGE.
+    SKIP.
+    SUMMARY.
+*   "Fehlermappe HUGO erstellt".
+    WRITE: /001(15) text-113, mappe, (15) text-114.
+  ENDIF.
+
+ENDFORM.
+
+
+FORM abend USING grund.
+
+* Eventuell Batch-Input schließen.
+  IF flg_bdc_open = 'X'.
+    CALL FUNCTION 'BDC_CLOSE_GROUP'.
+  ENDIF.
+
+* Error-Counter hochzählen.
+  xstat-ercnt = xstat-ercnt + 1.
+
+* Abbruchargument merken ...
+  MOVE: baltd-mandt TO abbruch-mandt,
+        baltd-bukrs TO abbruch-bukrs,
+        baltd-anlkl TO abbruch-anlkl,
+        baltd-oldn1 TO abbruch-oldn1,
+        baltd-oldn2 TO abbruch-oldn2,
+        baltd-tcode TO abbruch-tcode,
+        baltd-rctyp TO abbruch-rctyp.
+
+* Ursache an Protokoll-Routine weitergeben ...
+  g_grund = grund.
+* ... Protokoll ausgeben ...
+  PERFORM protokoll_ausgeben.
+* ... und Ende.
+  STOP.
+
+ENDFORM.
+
+
+TOP-OF-PAGE.
+
+  CASE g_prottype.
+* Beschreibung der Schnittstellenstruktur.
+  WHEN '0'.
+    MOVE: text-103     TO sy-tvar1,
+          text-104     TO sy-tvar4,
+          g_hlp_stru   TO sy-tvar5.
+    SUMMARY.
+    WRITE: /(10) text-107,
+            (04) text-108,
+            (06) text-109,
+            (06) text-110,
+            (20) text-111.
+    ULINE.
+    SKIP.
+* Statistik.
+  WHEN '1'.
+    MOVE: text-100     TO sy-tvar1,
+          xstat-trcode TO sy-tvar2.
+          IF xtest NE space.
+            MOVE text-102 TO sy-tvar6.
+          ENDIF.
+    SUMMARY.
+    WRITE: /(04) text-001,
+            (08) text-002,
+            (20) text-003,
+            (06) text-004,
+            (06) text-005,
+            (06) text-006.
+    ULINE.
+    SKIP.
+* Fehler-Einzelliste.
+  WHEN '2'.
+    MOVE: text-101     TO sy-tvar1,
+          text-001     TO sy-tvar2,
+          baltd-bukrs  TO sy-tvar3,
+          text-002     TO sy-tvar4,
+          baltd-anlkl  TO sy-tvar5.
+          IF xtest NE space.
+            MOVE text-102 TO sy-tvar6.
+          ENDIF.
+    SUMMARY.
+    WRITE: /3(04) text-007,
+             (01) text-008,
+             (02) text-009,
+             (03) text-010,
+             (60) text-011.
+    ULINE.
+    SKIP.
+* Abbruch.
+  WHEN '3'.
+    MOVE: text-112 TO sy-tvar1,
+          space    TO sy-tvar2,
+          space    TO sy-tvar3,
+          space    TO sy-tvar4,
+          space    TO sy-tvar5.
+    IF xtest NE space.
+      MOVE text-102 TO sy-tvar6.
+    ENDIF.
+    SKIP.
+  ENDCASE.
+
+
+
+AT PF02.
+    IF gd_is_message IS INITIAL.
+       MESSAGE s720(sh).
+    ELSE.
+       hlp_titel   = text-200.
+       hlp_meldung = g_message.
+
+       CALL FUNCTION 'HELPSCREEN_NA_CREATE'
+            EXPORTING  langu   =  sy-langu
+                       meldung =  hlp_meldung
+                       meld_id =  sy-msgid
+                       meld_nr =  sy-msgno
+                       titel   =  hlp_titel
+                       msgv1   =  sy-msgv1
+                       msgv2   =  sy-msgv2
+                       msgv3   =  sy-msgv3
+                       msgv4   =  sy-msgv4.
+       CLEAR gd_is_message.
+    ENDIF.
+
+*Text elements
+*----------------------------------------------------------
+* AA4 Key of data record which caused termination:
+* AA3 Cause:
+* AA2 *** Termination of processing                            ***
+* AA1 ************************************************************;
+* A53 Sub-object
+* A52 Object
+* A51 Number range
+* A08 Number range object is not defined:
+* A07 Number range interval is not defined:
+* A06 Field BALTD-BWCNT is not equal to 0 with AS92.
+* A05 Unexpected record type.
+* A04 Transaction code not set or invalid
+* A03 Field BALTD-BWCNT (number of transactions) not numeric
+* AA5 The input file may not have been completely processed.
+* B07 Record type
+* B06 Transaction
+* B05 Old subnumber
+* B04 Old main number
+* B03 Asset class
+* B02 Company Code
+* B01 Client
+* A02 Asset class not set or invalid.
+* 101 Error list
+* 100 Statistics
+* 011 Text
+* 010 No.
+* 009 ID
+* 008 T;
+* 007 TrCd
+* 006  Error
+* 005 Update
+* 004   Read
+* 003 Name
+* 002 Class
+* 001 CoCd
+* 102 (Test run)
+* A01 Company code not set or invalid.
+* 200 Long text for error messages in Asset Data Transfer FI-AA
+* 114 created
+* 113 Error file
+* 112 Termination
+* 111 Field name
+* 110 Offset
+* 109  Length
+* 108 Type
+* 107 Field name
+* 106 Total length:
+* 104 Structure
+* 103 Description
+
+
+*Selection texts
+*----------------------------------------------------------
+* XTEST         Test run without DB update
+* XSTRU         Structure of transfer formats
+* XHELL         Transaction run in foreground
+* MAPPE         Error session name
+* DSNIN         Input file name
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: AU
+*018   Processing termination (contact your system administrator)
+*019   Processing termination (contact your system administrator)
+*020   Screen & - & not found
+*021   Input file does not exist
+*
+* Message class: SH
+*720   No documentation available
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

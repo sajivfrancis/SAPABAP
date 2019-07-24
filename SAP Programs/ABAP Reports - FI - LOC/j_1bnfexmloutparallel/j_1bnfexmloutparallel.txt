@@ -1,0 +1,317 @@
+*&---------------------------------------------------------------------*
+*& Report  J_1BNFEXMLOUTPARALLEL                                       *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  j_1bnfexmloutparallel                   .
+
+*----------------------------------------------------------------------*
+*  INCLUDES                                                            *
+*----------------------------------------------------------------------*
+* INCLUDE for General Table Descriptions for Print Programs ------------
+INCLUDE rvadtabl.
+
+* Nota Fiscal header structure -----------------------------------------
+DATA: BEGIN OF wk_header.
+        INCLUDE STRUCTURE j_1bnfdoc.
+DATA: END OF wk_header.
+* Nota Fiscal header structure - add. segment --------------------------
+DATA: BEGIN OF wk_header_add.
+        INCLUDE STRUCTURE j_1bindoc.
+DATA: END OF wk_header_add.
+* Nota Fiscal partner structure ----------------------------------------
+DATA: BEGIN OF wk_partner OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfnad.
+DATA: END OF wk_partner.
+* Nota Fiscal item structure -------------------------------------------
+DATA: BEGIN OF wk_item OCCURS 0.
+        INCLUDE STRUCTURE j_1bnflin.
+DATA: END OF wk_item.
+* Nota Fiscal item tax structure ---------------------------------------
+DATA: BEGIN OF wk_item_tax OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfstx.
+DATA: END OF wk_item_tax.
+* Nota Fiscal item structure - add. segment ----------------------------
+DATA: BEGIN OF wk_item_add OCCURS 0.
+        INCLUDE STRUCTURE j_1binlin.
+DATA: END OF wk_item_add.
+* Nota Fiscal header message structure ---------------------------------
+DATA: BEGIN OF wk_header_msg OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfftx.
+DATA: END OF wk_header_msg.
+
+* Nota Fiscal reference to header message structure -------------------
+DATA: BEGIN OF wk_refer_msg OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfref.
+DATA: END OF wk_refer_msg.
+
+DATA: wk_docnum LIKE j_1bnfdoc-docnum, " Nota Fiscal document number
+      retcode LIKE sy-subrc,           " return code indicator
+      xscreen.                         " Output on printer or screen
+
+* Nota Fiscal one-time data --------------------------------------------
+DATA: BEGIN OF wk_ot_partner OCCURS 0.   "1240212
+        INCLUDE STRUCTURE j_1bnfcpd.     "1240212
+DATA: END OF wk_ot_partner.              "1240212
+
+* Nota Fiscal information on import documents -------------------1590946
+DATA: BEGIN OF wk_import_di OCCURS 0.                           "1590946
+        INCLUDE STRUCTURE j_1bnfimport_di.                      "1590946
+DATA: END OF wk_import_di.                                      "1590946
+
+* Nota Fiscal additions to import documents  ------------------- 1590946
+DATA: BEGIN OF wk_import_adi OCCURS 0.                          "1590946
+        INCLUDE STRUCTURE j_1bnfimport_adi.                     "1590946
+DATA: END OF wk_import_adi.                                     "1590946
+
+* Nota Fiscal Transported Volumes--------------------------------1844621
+DATA: BEGIN OF wk_trans_volumes OCCURS 0.                       "1844621
+         INCLUDE STRUCTURE j_1bnftransvol.                      "1844621
+DATA: END OF wk_trans_volumes.                                  "1844621
+
+* Nota Fiscal information on Trailer Information ----------------1844621
+DATA: BEGIN OF wk_trailer_info OCCURS 0.                        "1844621
+         INCLUDE STRUCTURE j_1bnftrailer.                       "1844621
+DATA: END OF wk_trailer_info.                                   "1844621
+
+* Nota Fiscal information on Trade Notes ------------------------1844621
+DATA: BEGIN OF wk_trade_notes OCCURS 0.                         "1844621
+         INCLUDE STRUCTURE j_1bnftradenotes.                    "1844621
+DATA: END OF wk_trade_notes.                                    "1844621
+
+* Nota Fiscal information on Free Usage Fields for Additional Information 1844621
+DATA: BEGIN OF wk_add_info OCCURS 0.                            "1844621
+         INCLUDE STRUCTURE j_1bnfadd_info.                      "1844621
+DATA: END OF wk_add_info.                                       "1844621
+
+* Nota Fiscal information on Referenced Processes----------------1844621
+DATA: BEGIN OF wk_ref_proc OCCURS 0.                            "1844621
+         INCLUDE STRUCTURE j_1bnfrefproc.                       "1844621
+DATA: END OF wk_ref_proc.                                       "1844621
+
+* Nota Fiscal information on Daily Supply of Sugarcane -----------1844621
+DATA: BEGIN OF wk_sugar_suppl OCCURS 0.                         "1844621
+         INCLUDE STRUCTURE j_1bnfsugarsuppl.                    "1844621
+DATA: END OF wk_sugar_suppl.                                    "1844621
+
+* Nota Fiscal information on Taxes and Contributions on Sugarcane 1844621
+DATA: BEGIN OF wk_sugar_deduc OCCURS 0.                         "1844621
+         INCLUDE STRUCTURE j_1bnfsugardeduc.                    "1844621
+DATA: END OF wk_sugar_deduc.                                    "1844621
+
+* Nota Fiscal information on Vehicle Details --------------------1844621
+DATA: BEGIN OF wk_vehicle OCCURS 0.                             "1844621
+         INCLUDE STRUCTURE j_1bnfvehicle.                       "1844621
+DATA: END OF wk_vehicle.                                        "1844621
+
+* Nota Fiscal information on Pharmaceutical ---------------------1844621
+DATA: BEGIN OF wk_pharmaceut OCCURS 0.                          "1844621
+         INCLUDE STRUCTURE j_1bnfpharmaceut.                    "1844621
+DATA: END OF wk_pharmaceut.                                     "1844621
+
+* Nota Fiscal information on Fuel Details------------------------1844621
+DATA: BEGIN OF wk_fuel OCCURS 0.                                "1844621
+         INCLUDE STRUCTURE j_1bnffuel.                          "1844621
+DATA: END OF wk_fuel.                                           "1844621
+
+*--- XML Header structure
+DATA: xmlh TYPE j1b_nf_xml_header.
+*--- XML Item structure
+DATA: xmli       TYPE j1b_nf_xml_item,
+      xmli_tab   TYPE j1b_nf_xml_item_tab,
+      access_key TYPE j1b_nf_xml_b1,     "structure for NF
+      xmlb       TYPE j1b_nf_xml_j,      "batch item
+      xmlb_tab   TYPE j1b_nf_xml_j_tab,  "batch item table
+      xmld_tab   TYPE j1b_nf_xml_u2_tab. "duplicata item table
+
+DATA: xmlr       TYPE j1b_nf_xml_b12,    "reference documents  V1.05
+      xmlr_tab   TYPE j1b_nf_xml_b12_tab,"reference documents  V1.05
+      ls_acckey  TYPE j_1b_nfe_access_key.
+DATA: ls_cust3   TYPE j_1bnfe_cust3, "1512569
+      ls_cust1   TYPE j_1bnfe_cust1. "1512569
+*---------------------------------------------------------------------*
+*  -->  RETURN_CODE                                                   *
+*  -->  US_SCREEN                                                     *
+*---------------------------------------------------------------------*
+FORM entry USING return_code us_screen. "#EC *                  "1833356
+* initialize retcode and xscreen----------------------------------------
+
+*  CLEAR retcode.                                               "1833356
+*  xscreen = us_screen.                                         "1833356
+
+** main
+*-----------------------------------------------------------------
+
+*  PERFORM transfer_to_xml USING nast-objky.                    "1833356
+
+*
+* check retcode (return code)
+*------------------------------------------
+*  IF retcode NE 0.                                             "1833356
+*    return_code = 1.                                           "1833356
+*  ELSE.                                                        "1833356
+*    return_code = 0.                                           "1833356
+*  ENDIF.                                                       "1833356
+
+ENDFORM.                               " ENTRY
+
+*&---------------------------------------------------------------------*
+*&      Form  transfer_to_xml
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_OBJKY    text
+*----------------------------------------------------------------------*
+FORM transfer_to_xml USING p_objky TYPE nast-objky. "#EC *      "1833356
+*  nast-objky = p_objky.                                        "1833356
+
+*  CLEAR: xmlh, xmli, xmli_tab[] .                              "1833356
+
+*  PERFORM nota_fiscal_read.                                    "1833356
+
+* only NFs with assigned FORM are relevant for NF-e processing
+*  CHECK NOT wk_header-form IS INITIAL.                         "1833356
+
+*  wk_header-model = '55'.                                      "1833356
+*  wk_header-nfenum = wk_header-nfnum.                          "1833356
+* 1512569 Begin
+*(XML version was empty;tpemis was 0, making the the access key invalid)
+* first, try to read the XML version from branch customizing
+*CALL FUNCTION 'J_1BNFE_CUST3_READ'                             "1833356
+*  EXPORTING                                                    "1833356
+*    IV_BUKRS             = wk_header-bukrs                     "1833356
+*    IV_BRANCH            = wk_header-branch                    "1833356
+*    IV_MODEL             = wk_header-model                     "1833356
+*  IMPORTING                                                    "1833356
+*    ES_CUST3             = ls_cust3                            "1833356
+*  EXCEPTIONS                                                   "1833356
+*    NO_ENTRY_FOUND       = 1                                   "1833356
+*    OTHERS               = 2.                                  "1833356
+*  wk_header-xmlvers = ls_cust3-version.                        "1833356
+* if empty, read the XML vers. from the region customizing
+*  IF ls_cust3 IS INITIAL.                                      "1833356
+*    CALL FUNCTION 'J_1BNFE_CUST1_READ'                         "1833356
+*      EXPORTING                                                "1833356
+*        IV_LAND1             = wk_header-land1                 "1833356
+*        IV_REGIO             = wk_header-regio                 "1833356
+*      IMPORTING                                                "1833356
+*        ES_CUST1             = ls_cust1                        "1833356
+*      EXCEPTIONS                                               "1833356
+*        NO_ENTRY_FOUND       = 1                               "1833356
+*        OTHERS               = 2.                              "1833356
+*  wk_header-xmlvers = ls_cust1-xmlvers.                        "1833356
+*  ENDIF.                                                       "1833356
+*1512569 End
+*  CALL FUNCTION 'J_1B_NFE_FILL_MONITOR_TABLE'                  "1833356
+*    EXPORTING                                                  "1833356
+*      i_doc    = wk_header                                     "1833356
+*      i_docnum = wk_header-docnum                              "1833356
+*    IMPORTING                                                  "1833356
+*      e_acckey = ls_acckey.                                    "1833356
+
+*  CALL FUNCTION 'J_1B_NF_MAP_TO_XML'                           "1833356
+*    EXPORTING                                                  "1833356
+*      i_nfdoc     = wk_header                                  "1833356
+*      i_acckey    = ls_acckey                                  "1833356
+*      i_parallel  = 'X'                               "1276438, 1833356
+*    TABLES                                                     "1833356
+*      it_nflin    = wk_item                                    "1833356
+*      it_nfnad    = wk_partner                                 "1833356
+*      it_nfstx    = wk_item_tax                                "1833356
+*      it_nfftx    = wk_header_msg                              "1833356
+*      it_nfref    = wk_refer_msg                               "1833356
+*      it_nfcpd   = wk_ot_partner                      "1240212, 1833356
+*      it_import_di = wk_import_di                     "1590946, 1833356
+*      it_import_adi = wk_import_adi                   "1590946, 1833356
+*    EXCEPTIONS                                                 "1833356
+*      rfc_failure = 1                                          "1833356
+*      OTHERS      = 2.                                         "1833356
+
+
+ENDFORM.                    "transfer_to_xml
+
+*---------------------------------------------------------------------*
+*       FORM nota_fiscal_read                                         *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM nota_fiscal_read. "#EC *                                   "1833356
+* get the key ----------------------------------------------------------
+*  MOVE nast-objky TO wk_docnum.                                "1833356
+
+* read the Nota Fiscal document ----------------------------------------
+*  CALL FUNCTION 'J_1B_NF_DOCUMENT_READ'                        "1833356
+*    EXPORTING                                                  "1833356
+*      doc_number         = wk_docnum                           "1833356
+*    IMPORTING                                                  "1833356
+*      doc_header         = wk_header                           "1833356
+*    TABLES                                                     "1833356
+*      doc_partner        = wk_partner                          "1833356
+*      doc_item           = wk_item                             "1833356
+*      doc_item_tax       = wk_item_tax                         "1833356
+*      doc_header_msg     = wk_header_msg                       "1833356
+*      doc_refer_msg      = wk_refer_msg                        "1833356
+*      doc_ot_partner     = wk_ot_partner              "1240212, 1833356
+*      doc_import_di      = wk_import_di               "1590946, 1833356
+*      doc_import_adi     = wk_import_adi              "1590946, 1833356
+*    EXCEPTIONS
+*      document_not_found = 1
+*      docum_lock         = 2
+*      OTHERS             = 3.
+
+* check the sy-subrc ---------------------------------------------------
+*  PERFORM check_error.                                         "1833356
+
+
+*  CALL FUNCTION 'J_1B_NF_VALUE_DETERMINATION'                  "1833356
+*    EXPORTING                                                  "1833356
+*      nf_header   = wk_header                                  "1833356
+*    IMPORTING                                                  "1833356
+*      ext_header  = wk_header_add                              "1833356
+*    TABLES                                                     "1833356
+*      nf_item     = wk_item                                    "1833356
+*      nf_item_tax = wk_item_tax                                "1833356
+*      ext_item    = wk_item_add.                               "1833356
+
+ENDFORM.                               " NOTA_FISCAL_READ
+
+*---------------------------------------------------------------------*
+*       FORM check_error                                              *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM check_error. "#EC *                                        "1833356
+*  IF sy-subrc <> 0.                                            "1833356
+*    retcode = sy-subrc.                                        "1833356
+*    PERFORM protocol_update.                                   "1833356
+*  ENDIF.                                                       "1833356
+
+ENDFORM.                               " CHECK_ERROR
+
+*---------------------------------------------------------------------*
+*       FORM protocol_update                                          *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM protocol_update. "#EC *                                    "1833356
+
+*  CHECK xscreen = space.                                       "1833356
+*  CALL FUNCTION 'NAST_PROTOCOL_UPDATE'                         "1833356
+*    EXPORTING                                                  "1833356
+*      msg_arbgb = syst-msgid                                   "1833356
+*      msg_nr    = syst-msgno                                   "1833356
+*      msg_ty    = syst-msgty                                   "1833356
+*      msg_v1    = syst-msgv1                                   "1833356
+*      msg_v2    = syst-msgv2                                   "1833356
+*      msg_v3    = syst-msgv3                                   "1833356
+*      msg_v4    = syst-msgv4                                   "1833356
+*    EXCEPTIONS                                                 "1833356
+*      OTHERS    = 1.                                           "1833356
+
+ENDFORM.                               " PROTOCOL_UPDATE
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

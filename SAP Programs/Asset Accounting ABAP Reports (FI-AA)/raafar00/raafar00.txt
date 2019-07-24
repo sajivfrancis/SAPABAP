@@ -1,0 +1,1287 @@
+* Change history of ALV Development
+* Porgram Description: Recalculate Drpreciation
+* Author: Satyaev Dutta [C5053255]
+*
+* Also, two includes have been changed:
+* RAAFARTP_ALV - The data definitions for the report are done here
+* RAAFARF3_ALV - This include takes care of the report output. All the
+*                major changes have been done in this include for the
+*                ALV conversion using function modules:
+*                REUSE_ALV_GRID_DISPLAY
+*                BAL_DSP_LOG_DISPLAY / BAL_DSP_LOG_PRINT
+*-----------------------------------------------------------------------
+
+REPORT raafar00 MESSAGE-ID aa LINE-SIZE  132.
+
+INCLUDE raafartp .   " code commented by C5053255
+*INCLUDE raafartp_alv.  " code inserted by  C5053255
+
+* Include für Workflow - notwendig für Schedule Manager
+INCLUDE rkasmawf.                                           "> 553995
+INCLUDE schedman_events.                                    "> 553995
+
+* Sichern Geschäftsjahr das auf dem Selektionsbild eingegeben wurde
+DATA: sav_gjahr     TYPE gjahr.                             "> 627533
+
+DATA: ld_err_out    TYPE  ys_message.                       ">1666093
+
+* Schedule Manager
+DATA:     g_aplstat LIKE smmain-aplstat.                    "> 553995
+DATA:     l_event LIKE swetypecou-event.                    "> 553995
+DATA:     ls_key     TYPE schedman_key.                     "> 553995
+DATA:     lt_selkrit TYPE TABLE OF schedman_selkrit.        "> 553995
+CONSTANTS: con_ok VALUE '0',                                "> 553995
+           con_warning VALUE '2',                           "> 553995
+           con_error VALUE '4',                             "> 553995
+           con_break VALUE 'A',                             "> 553995
+           con_active VALUE 'R'.                            "> 553995
+
+* Selectionsbild
+SELECT-OPTIONS: s_bukrs FOR anla-bukrs MEMORY ID  buk OBLIGATORY.
+
+SELECT-OPTIONS: s_anln1 FOR anla-anln1,
+                s_anln2 FOR anla-anln2,
+                s_ktogr FOR  ext-ktogr,
+                s_afabe FOR  ext-afabe.
+PARAMETERS:     p_gjahr                 LIKE anlc-gjahr,
+                p_einzel                LIKE rarep-einzl,
+                p_test      DEFAULT 'X' LIKE rarep-xtest.
+PARAMETERS:     p_rfcgr LIKE rarep-rfcgr.
+PARAMETERS:     p_limit LIKE rarep-dlimit.
+
+* code insert by C5053255 begins here
+SELECTION-SCREEN SKIP.
+PARAMETERS:     p_vari  LIKE disvariant-variant.  " Display Variant
+
+
+INITIALIZATION.
+
+* Variant Initialization
+  PERFORM variant_init CHANGING gs_variant.
+
+* Get the default variant for report
+  PERFORM get_default_variant CHANGING gs_variant
+                                       p_vari.
+.
+AT SELECTION-SCREEN.                                        "> 796252
+* Prüfen Servergruppe und Abgrenzung nach Anlagennummer     "> 796252
+  IF NOT s_anln1[] IS INITIAL OR NOT s_anln2[] IS INITIAL.  "> 796252
+    IF NOT p_rfcgr IS INITIAL.                              "> 796252
+      MESSAGE E775.                                         "> 796252
+    ENDIF.                                                  "> 796252
+  ENDIF.                                                    "> 796252
+
+
+* Get the F4 values for the parameter for report layout variant
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_vari.
+  PERFORM reuse_alv_get_variant USING    gv_repid
+                                CHANGING p_vari.
+
+
+* Check for the existence of layout variant, if input by user
+AT SELECTION-SCREEN ON p_vari.
+  PERFORM variant_existence_check USING    p_vari
+                                  CHANGING gs_variant.
+
+* code insert by C5053255 ends here
+
+
+* F4-Hilfe
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_rfcgr.
+  CALL FUNCTION 'CK_F_RFC_GROUP_SELECTION_LIST'
+    IMPORTING
+      rfc_group_exp = p_rfcgr.
+
+START-OF-SELECTION.
+
+  gv_ucomm = sscrfields-ucomm. " code inserted by C5053255
+
+*  Report mit Selektion nur im Testlauf
+  IF p_test = space AND NOT  ( p_limit IS INITIAL AND       "321089
+                             s_ktogr IS INITIAL ).  "<< note 646691
+*     WRITE: text-z03. " code commented by C5053255
+    message E899(AC) with text-z03.
+    STOP.
+  ENDIF.
+
+* RFC prüfen
+  IF NOT p_rfcgr IS INITIAL.
+    CALL FUNCTION 'AM_CHECK_RFC'
+      EXPORTING
+        i_rfcgr = p_rfcgr.
+  ELSE.
+
+*  Report nur im Batch starten oder mit Servergruppe
+    CALL FUNCTION 'AM_CONFIRM_LIMIT'
+      EXPORTING
+        i_test       = p_test
+      IMPORTING
+        e_leave_prog = answer.
+
+
+    IF NOT answer IS INITIAL.
+      exit.
+*      LEAVE PROGRAM.
+    ENDIF.
+  ENDIF.
+
+* sichern des eingegebenen Geschäftsjahres
+  sav_gjahr = p_gjahr.                                      "> 627533
+
+* Öffnen des Schedule Managers
+  PERFORM open_schedman CHANGING ls_key                     "> 553995
+                                 g_aplstat.                 "> 553995
+
+  INSERT  ext-bukrs ext-gjahr ext-afabe ext-ktogr
+          ext-anln1 ext-anln2            INTO header.
+  INSERT  ext-txt50
+          ext-nneu  ext-nalt
+          ext-sneu  ext-salt
+          ext-zneu  ext-zalt
+          ext-awneu ext-awalt
+          ext-anneu ext-analt  INTO posten.
+
+
+  CALL FUNCTION 'T093C_READ_MULTIPLE'
+    TABLES
+      t_t093c = x093c.
+  DELETE x093c WHERE NOT bukrs IN s_bukrs.
+  SORT x093c.
+
+  LOOP AT x093c.
+
+    AUTHORITY-CHECK   OBJECT  'A_PERI_BUK'
+                      ID      'AM_ACT_PER'      FIELD con_31
+                      ID      'BUKRS'           FIELD x093c-bukrs.
+    IF sy-subrc NE 0.
+*       WRITE: / text-f08, x093c-bukrs. commented by C5053255
+* start of note 1666093
+      CONCATENATE text-f08 ' ' x093c-bukrs INTO ld_err_out  RESPECTING BLANKS.
+      list_status = 'FEHLER'.
+      PERFORM create_error_list CHANGING gt_err_out.
+      CLEAR list_status.
+* end of note 1666093
+      CONTINUE.
+    ELSE.
+*      Rücklesen des eingegebenen Geschäftsjahres pro Buchungskreis
+      p_gjahr = sav_gjahr.                                  "> 627533
+    ENDIF.
+
+*    Statistiktabelle mit COLLECT aufbauen wegen RFC
+*    CLEAR STAT1.
+*    MOVE X093C-BUKRS TO STAT1-BUKRS.
+*    COLLECT STAT1.
+
+    MOVE  x093c TO t093c.
+    PERFORM t001_lesen.
+    PERFORM letztes_abschlussjahr.
+    PERFORM get_open_area TABLES s_afabe.  "<< note 585581
+    IF p_test IS INITIAL AND NOT s_afabe[] IS INITIAL.
+      PERFORM check_selected_afabe TABLES s_afabe. "<< note 646691
+    ENDIF.
+    PERFORM neurechnen.
+
+  ENDLOOP.
+
+END-OF-SELECTION.
+
+* Code Insertion by C5053255 begins here
+  IF NOT gt_err_out[] IS INITIAL.
+    g_aplstat = gc_error.
+  ENDIF.
+* Code Insertion by C5053255 ends here
+
+* Schedule Manager
+  PERFORM close_schedman USING ls_key                       "> 553995
+                               g_aplstat                    "> 553995
+                               wf_witem                     "> 553995
+                               wf_okey.                     "> 553995
+
+  PERFORM listausgabe.
+
+*eject
+***********************************************************************
+* Zeitpunkte
+* code comment by C5053255 begin here
+*TOP-OF-PAGE.
+*
+*   CASE list_status.
+*      WHEN 'FEHLER'.
+*         NEW-LINE.
+*         WRITE : text-030, x093c-bukrs.
+*         WRITE / text-031.
+*         ULINE.
+*      WHEN 'STATIS'.
+*      WHEN 'LISTE'.
+*         PERFORM header_liste.
+*   ENDCASE.
+* code comment by C5053255 end here
+*eject
+***********************************************************************
+***********************************************************************
+**************  U N T E R R O U T I N E N  ****************************
+***********************************************************************
+***********************************************************************
+
+*----------------------------------------------------------------------*
+*       FORM  NEURECHNEN                                               *
+*----------------------------------------------------------------------*
+*       Neurechnen der Anlagen aus dem Buchungkreis                    *
+*----------------------------------------------------------------------*
+*  -->  keine USING                                                    *
+*----------------------------------------------------------------------*
+FORM neurechnen.
+  DATA: ld_anln1_init LIKE anla-anln1,             "Sperren Bukrs
+        ld_anln2_init LIKE anla-anln2.             " Sperren Bukrs
+
+  IF p_test EQ space.
+*       Buchungskreis sperren
+    CALL FUNCTION 'RA_ASSET_ENQUEUE'
+      EXPORTING
+        bukrs   = t093c-bukrs
+        anln1   = ld_anln1_init
+        anln2   = ld_anln2_init
+        i_scope = '1'.
+  ENDIF.
+
+*    Neurechnen ausführen
+  IF p_rfcgr IS INITIAL.
+    PERFORM afaneurechnen .
+  ELSE.
+    PERFORM afaneurechnen_rfc.
+  ENDIF.
+
+*    eventuelle Fehler ausgeben.
+  IF NOT fehl[] IS INITIAL.
+    list_status = 'FEHLER'.
+*   PERFORM fehlerprotokoll.  " commented by C5053255
+    PERFORM create_error_list CHANGING gt_err_out. "inserted by C5053255
+    CLEAR list_status.
+  ENDIF.
+
+  PERFORM RFC_FEHLERMELDUNGEN CHANGING gt_err_out.             "> 774314
+
+  IF p_test EQ space.
+*       Buchungskreis entsperren
+    CALL FUNCTION 'RA_ASSET_DEQUEUE'
+      EXPORTING
+        bukrs = t093c-bukrs
+        anln1 = ld_anln1_init
+        anln2 = ld_anln2_init.
+  ENDIF.
+
+ENDFORM.                    "neurechnen
+
+
+*----------------------------------------------------------------------*
+*       FORM  AFANEURECHNEN                                            *
+*----------------------------------------------------------------------*
+*       AfA neurechnen                                                 *
+*----------------------------------------------------------------------*
+*  -->  keine USING                                                    *
+*----------------------------------------------------------------------*
+FORM afaneurechnen.
+  CONSTANTS: con_extform LIKE anla-txt50 VALUE 'EXTRAHIEREN'.
+
+  gd_tasks_finished = space.
+
+  CALL FUNCTION 'AM_DEPR_RECALCULATE_RFC'
+       EXPORTING  i_test         = p_test
+                  i_bukrs        = t093c-bukrs
+                  i_gjahr        = p_gjahr
+                  i_extform      = con_extform
+       TABLES     t_fehl         = fehl
+                  t_stat1        = stat1
+*                  T_EXT          = LT_EXT
+                  t_r_anln1      = s_anln1
+                  t_r_anln2      = s_anln2
+                  t_r_afabe      = r_afabe .
+
+  gd_tasks_finished = con_x.
+
+ENDFORM.                    "afaneurechnen
+
+*----------------------------------------------------------------------*
+*       FORM  AFANEURECHNEN_RFC                                        *
+*----------------------------------------------------------------------*
+*       AfA neurechnen                                                 *
+*----------------------------------------------------------------------*
+*  -->  keine USING                                                    *
+*----------------------------------------------------------------------*
+FORM afaneurechnen_rfc.
+  DATA: ld_tabix      LIKE sy-tabix,
+        LD_RCV_JOBS   LIKE GD_RCV_JOBS,                        "> 774314
+        lt_r1_anln1   LIKE anln1_rang OCCURS 1 WITH HEADER LINE,
+        lt_r_anln1    LIKE anln1_rang OCCURS 0 WITH HEADER LINE.
+
+* Anlagenhauptnummer splitten
+  CALL FUNCTION 'GET_ANLN1_RANGES'
+    EXPORTING
+      i_bukrs    = x093c-bukrs
+      i_records  = 500
+    TABLES
+      t_so_anln1 = s_anln1
+      t_r_anln1  = lt_r_anln1.
+
+* Tabelle LT_R1_ANLN1 mit Initialeintrag versorgen
+  APPEND lt_r1_anln1.
+
+  LOOP AT lt_r_anln1.
+
+    MODIFY lt_r1_anln1 FROM lt_r_anln1 INDEX 1.
+
+    gd_snd_jobs = gd_snd_jobs + 1.
+
+    xrfc-tasknr = gd_snd_jobs.
+    xrfc-subrc_snd  = 99.
+    xrfc-subrc_rcv  = 99.
+    xrfc-r_anln1 = lt_r1_anln1[].
+    APPEND xrfc.
+    ld_tabix = sy-tabix.
+    PERFORM start_new_task TABLES lt_r1_anln1
+                           USING  xrfc-tasknr xrfc-subrc_snd.
+    MODIFY xrfc INDEX ld_tabix TRANSPORTING subrc_snd.
+*   BATCH-Protokoll.
+    IF NOT SY-BATCH IS INITIAL.                                "> 774314
+      MESSAGE I768 WITH XRFC-TASKNR XRFC-SUBRC_SND             "> 774314
+                        LT_R_ANLN1-LOW LT_R_ANLN1-HIGH.        "> 774314
+    ENDIF.                                                     "> 774314
+  ENDLOOP.
+
+* alle Jobs gestartet jetzt noch warten bis alle zurück sind
+  gd_tasks_finished = con_x.
+  LD_RCV_JOBS =  GD_RCV_JOBS.                                  "> 774314
+  WHILE GD_RCV_JOBS <  GD_SND_JOBS.                            "> 774314
+    WAIT UNTIL GD_RCV_JOBS >  LD_RCV_JOBS.                     "> 774314
+*   BATCH-Protokoll.
+    IF NOT SY-BATCH IS INITIAL AND SY-SUBRC = 0.               "> 774314
+       MESSAGE I769 WITH GD_TASKNAME-NR GD_TASKNAME-RC.        "> 774314
+    ENDIF.                                                     "> 774314
+    ADD 1 TO LD_RCV_JOBS.                                      "> 774314
+  ENDWHILE.                                                    "> 774314
+  IF sy-subrc <> 0 OR gd_rcv_jobs < gd_snd_jobs.
+*    es haben sich nicht alle Jobs zurückgemeldet.
+*    letzter Versuch ohne RFC
+    PERFORM rfc_error_handling.
+  ENDIF.
+
+  LOOP AT xrfc WHERE subrc_snd <> 0 OR
+                     subrc_rcv <> 0 .
+    task_err-bukrs = x093c-bukrs.
+    task_err-xrfc   = xrfc.                                    "> 774314
+    APPEND task_err.
+  ENDLOOP.
+
+  REFRESH xrfc.
+
+ENDFORM.                    "afaneurechnen_rfc
+
+*&--------------------------------------------------------------------*
+*&      Form  start_new_task
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+*      -->UT_R_ANLN1 text
+*      -->U_TASKNR   text
+*      -->U_SUBRC    text
+*---------------------------------------------------------------------*
+FORM start_new_task TABLES ut_r_anln1 STRUCTURE anln1_rang
+                    USING u_tasknr LIKE xrfc-tasknr
+                          u_subrc  LIKE sy-subrc.
+
+  DATA: ld_rcv_jobs TYPE i,
+        lt_fehl  LIKE arf_fehl   OCCURS 0 WITH HEADER LINE,
+        lt_ext   LIKE arf_ext    OCCURS 0 WITH HEADER LINE,
+        lt_stat1 LIKE arf_stat1  OCCURS 0 WITH HEADER LINE.
+
+  u_subrc = 4.
+  DO.
+
+    ld_rcv_jobs = gd_rcv_jobs.
+
+    CALL FUNCTION 'AM_DEPR_RECALCULATE_RFC'
+      STARTING NEW TASK u_tasknr DESTINATION IN GROUP p_rfcgr
+      PERFORMING return_rfc ON END OF TASK
+      EXPORTING
+        i_test                = p_test
+        i_bukrs               = t093c-bukrs
+        i_gjahr               = p_gjahr
+      TABLES
+        t_fehl                = lt_fehl
+        t_stat1               = lt_stat1
+        t_ext                 = lt_ext
+        t_r_anln1             = ut_r_anln1
+        t_r_afabe             = r_afabe
+      EXCEPTIONS
+        communication_failure = 8
+        system_failure        = 16
+        RESOURCE_FAILURE      = 4.
+* hier noch die Warning-Tabelle in die Schnittstelle aufnehmen
+    u_subrc = sy-subrc.
+    CASE sy-subrc.
+      WHEN 0.      EXIT.
+      WHEN 4.      "Momentan keine Ressourcen vorhanden
+        WAIT UNTIL gd_rcv_jobs > ld_rcv_jobs.
+*       BATCH-Protokoll.
+        IF NOT sy-batch IS INITIAL AND sy-subrc = 0.           "> 774314
+          MESSAGE I769 WITH gd_taskname-nr gd_taskname-rc.     "> 774314
+        ENDIF.                                                 "> 774314
+      WHEN OTHERS. EXIT.
+    ENDCASE.
+  ENDDO.
+
+ENDFORM.                    "start_new_task
+
+*&--------------------------------------------------------------------*
+*&      Form  return_rfc
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+*      -->U_TASKNAME text
+*---------------------------------------------------------------------*
+FORM return_rfc  USING u_taskname.
+  DATA: ld_subrc LIKE sy-subrc.
+  DATA: lt_fehl  LIKE arf_fehl   OCCURS 0 WITH HEADER LINE,
+        lt_ext   LIKE arf_ext    OCCURS 0 WITH HEADER LINE,
+        lt_stat1 LIKE arf_stat1  OCCURS 0 WITH HEADER LINE.
+
+  RECEIVE RESULTS FROM FUNCTION 'AM_DEPR_RECALCULATE_RFC'
+          TABLES     t_fehl         = lt_fehl
+                     t_stat1        = lt_stat1
+                     t_ext          = lt_ext
+*                     T_R_ANLN1      = S_ANLN1
+*                     T_R_ANLN2      = S_ANLN1
+*                     T_R_AFABE      = R_AFABE
+          EXCEPTIONS communication_failure = 8
+                     system_failure        = 16 .
+
+  ld_subrc = sy-subrc.
+  xrfc-subrc_rcv   = ld_subrc.
+  MODIFY xrfc TRANSPORTING subrc_rcv
+              WHERE tasknr = u_taskname.
+
+  IF ld_subrc = 0.
+    PERFORM extrahieren TABLES lt_ext.
+    IF NOT lt_fehl[] IS INITIAL.
+      APPEND LINES OF lt_fehl TO fehl.
+    ENDIF.
+    LOOP AT lt_stat1.
+      COLLECT lt_stat1 INTO stat1.
+    ENDLOOP.
+  ENDIF.
+  gd_rcv_jobs = gd_rcv_jobs + 1.             "Empfangende Daten
+  GD_TASKNAME-NR = U_TASKNAME.                                 "> 774314
+  GD_TASKNAME-RC = LD_SUBRC.                                   "> 774314
+ENDFORM.                    "return_rfc
+
+*----------------------------------------------------------------------*
+*       FORM  EXTRAHIEREN                                              *
+*----------------------------------------------------------------------*
+*       Routine wird extern aufgerufen um die Tabelle UT_EXT           *
+*       zu extrahieren                                                 *
+*----------------------------------------------------------------------*
+*       TABLES: UT_EXT  Extraktbestand                                 *
+*----------------------------------------------------------------------*
+FORM extrahieren TABLES ut_ext STRUCTURE ext.
+
+* Wertfelddifferenzen
+  DATA: l_max(1).
+  DATA: diff_n LIKE ext-nalt.      " NAfA
+  DATA: diff_s LIKE ext-nalt.      " SAfA
+  DATA: diff_z LIKE ext-nalt.      " Zins
+  DATA: diff_aw LIKE ext-nalt.     " Aufw.
+  DATA: diff_an LIKE ext-nalt.     " NAfA-Aufw.
+* Pruefen Ktogr/Bewbe
+  DATA: alt_k_bukrs LIKE ext-bukrs.
+  DATA: alt_k_anln1 LIKE ext-anln1.
+  DATA: alt_k_anln2 LIKE ext-anln2.
+* Pruefen Ktogr/Bewbe/Limit
+  DATA: alt_l_bukrs LIKE ext-bukrs.
+  DATA: alt_l_anln1 LIKE ext-anln1.
+  DATA: alt_l_anln2 LIKE ext-anln2.
+* Pruefen Limit
+  DATA: alt_g_bukrs LIKE ext-bukrs.
+  DATA: alt_g_anln1 LIKE ext-anln1.
+  DATA: alt_g_anln2 LIKE ext-anln2.
+
+  LOOP AT ut_ext.
+    MOVE ut_ext TO ext.
+* NAfA-Differenz
+    diff_n = ext-nneu - ext-nalt.
+    IF diff_n < 0. diff_n = 0 - diff_n. ENDIF.
+* SAfA-Differenz
+    diff_s = ext-sneu - ext-salt.
+    IF diff_s < 0. diff_s = 0 - diff_s. ENDIF.
+* Zins-Differenz
+    diff_z = ext-zneu - ext-zalt.
+    IF diff_z < 0. diff_z = 0 - diff_z. ENDIF.
+* Aufw-Differenz
+    diff_aw = ext-awneu - ext-awalt.
+    IF diff_aw < 0. diff_aw = 0 - diff_aw. ENDIF.
+* NAfA-Aufw-Differenz
+    diff_an = ext-anneu - ext-analt.
+    IF diff_an < 0. diff_an = 0 - diff_an. ENDIF.
+* Spitzenreiter merken
+    CLEAR l_max.
+    IF diff_n  > diff_g_max.
+      diff_g_max = diff_n.  l_max = 'X'.
+    ENDIF.
+    IF diff_s  > diff_g_max.
+      diff_g_max = diff_s.  l_max = 'X'.
+    ENDIF.
+    IF diff_z  > diff_g_max.
+      diff_g_max = diff_z.  l_max = 'X'.
+    ENDIF.
+    IF diff_aw > diff_g_max.
+      diff_g_max = diff_aw. l_max = 'X'.
+    ENDIF.
+    IF diff_an > diff_g_max.
+      diff_g_max = diff_an. l_max = 'X'.
+    ENDIF.
+    IF l_max NE space.
+      max_g_bukrs = ext-bukrs.
+      max_g_anln1 = ext-anln1.
+      max_g_anln2 = ext-anln2.
+      max_g_afabe = ext-afabe.
+    ENDIF.
+* Limit ueberschritten ?
+    IF diff_n  > p_limit OR
+       diff_s  > p_limit OR
+       diff_z  > p_limit OR
+       diff_aw > p_limit OR
+       diff_an > p_limit.
+      IF ext-bukrs NE alt_g_bukrs OR
+         ext-anln1 NE alt_g_anln1 OR
+         ext-anln2 NE alt_g_anln2.
+        ADD 1 TO stat1_upd_limitg.
+        alt_g_bukrs = ext-bukrs.
+        alt_g_anln1 = ext-anln1.
+        alt_g_anln2 = ext-anln2.
+      ENDIF.
+    ENDIF.
+* Bew.Bereich/Kontogruppe selektiert ?
+    CHECK s_afabe.
+    CHECK s_ktogr.
+    IF ext-bukrs NE alt_k_bukrs OR
+       ext-anln1 NE alt_k_anln1 OR
+       ext-anln2 NE alt_k_anln2.
+      ADD 1 TO stat1_upd_ktogr.
+      alt_k_bukrs = ext-bukrs.
+      alt_k_anln1 = ext-anln1.
+      alt_k_anln2 = ext-anln2.
+    ENDIF.
+* In Bewbe/Ktogr Spitzenreiter merken
+    CLEAR l_max.
+    IF diff_n  > diff_k_max.
+      diff_k_max = diff_n.  l_max = 'X'.
+    ENDIF.
+    IF diff_s  > diff_k_max.
+      diff_k_max = diff_s.  l_max = 'X'.
+    ENDIF.
+    IF diff_z  > diff_k_max.
+      diff_k_max = diff_z.  l_max = 'X'.
+    ENDIF.
+    IF diff_aw > diff_k_max.
+      diff_k_max = diff_aw. l_max = 'X'.
+    ENDIF.
+    IF diff_an > diff_k_max.
+      diff_k_max = diff_an. l_max = 'X'.
+    ENDIF.
+    IF l_max NE space.
+      max_k_bukrs = ext-bukrs.
+      max_k_anln1 = ext-anln1.
+      max_k_anln2 = ext-anln2.
+      max_k_afabe = ext-afabe.
+    ENDIF.
+* In Bewbe/Ktogr Limit ueberschritten ?
+    CHECK diff_n  > p_limit OR
+          diff_s  > p_limit OR
+          diff_z  > p_limit OR
+          diff_aw > p_limit OR
+          diff_an > p_limit.
+    IF ext-bukrs NE alt_l_bukrs OR
+       ext-anln1 NE alt_l_anln1 OR
+       ext-anln2 NE alt_l_anln2.
+      ADD 1 TO stat1_upd_limit.
+      alt_l_bukrs = ext-bukrs.
+      alt_l_anln1 = ext-anln1.
+      alt_l_anln2 = ext-anln2.
+    ENDIF.
+* Extraxkt schreiben
+    EXTRACT posten.
+  ENDLOOP.
+
+ENDFORM.                    "extrahieren
+
+*&--------------------------------------------------------------------*
+*&      Form  rfc_error_handling
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+FORM rfc_error_handling.
+  DATA: lt_fehl  LIKE arf_fehl     OCCURS 0 WITH HEADER LINE,
+        lt_ext   LIKE arf_ext      OCCURS 0 WITH HEADER LINE,
+        lt_stat1 LIKE arf_stat1    OCCURS 0 WITH HEADER LINE,
+        lt_r_anln1 LIKE anln1_rang OCCURS 2 WITH HEADER LINE.
+
+  gd_tasks_finished = space.
+  LOOP AT xrfc WHERE subrc_snd <> 0 OR
+                     subrc_rcv <> 0 .
+    lt_r_anln1[] = xrfc-r_anln1.
+    REFRESH: lt_fehl,lt_stat1,lt_ext.
+    CALL FUNCTION 'AM_DEPR_RECALCULATE_RFC'
+      EXPORTING
+        i_test    = p_test
+        i_bukrs   = t093c-bukrs
+        i_gjahr   = p_gjahr
+      TABLES
+        t_fehl    = lt_fehl
+        t_stat1   = lt_stat1
+        t_ext     = lt_ext
+        t_r_anln1 = lt_r_anln1
+        t_r_afabe = r_afabe.
+*
+    xrfc-subrc_rcv = sy-subrc.
+    xrfc-subrc_snd = 0.
+    MODIFY xrfc TRANSPORTING subrc_snd subrc_rcv.
+*
+    PERFORM extrahieren TABLES lt_ext.
+    IF NOT lt_fehl[] IS INITIAL.
+      APPEND LINES OF lt_fehl TO fehl.
+    ENDIF.
+    LOOP AT lt_stat1.
+      COLLECT lt_stat1 INTO stat1..
+    ENDLOOP.
+  ENDLOOP.
+  gd_tasks_finished = con_x.
+
+ENDFORM.                    "rfc_error_handling
+
+*&--------------------------------------------------------------------*
+*&      Form  get_open_area
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+*      -->U_R_AFABE  text
+*---------------------------------------------------------------------*
+FORM get_open_area TABLES u_r_afabe STRUCTURE r_afabe.
+
+*<<<<<<<<<<<< reworked by note 585581 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  DATA:
+    lt_t093b TYPE TABLE OF t093b.
+  DATA:
+    lr_open_afabe LIKE TABLE OF r_afabe.
+
+*  Für welche Bereiche kann noch ein AfA-Neurechnen durchgeführt
+*  werden?
+  CALL FUNCTION 'AREAS_OPEN_IN_YEAR'
+    EXPORTING
+      i_ccode = t093c-bukrs
+      i_year  = p_gjahr
+    TABLES
+      t_areas = lr_open_afabe.
+
+*  Die Bereiche holen, die im Buchungskreis vorhanden sind.
+  CALL FUNCTION 'T093B_READ_MULTIPLE'
+    EXPORTING
+      i_bukrs = t093c-bukrs
+    TABLES
+      t_t093b = lt_t093b.
+
+*  Lösche davon die Bereiche, die nicht in der Selektionsbedingung
+*  enthalten sind.
+  DELETE lt_t093b WHERE NOT afabe IN u_r_afabe.
+
+*  gibt es Bereiche die nicht offen sind ?
+  LOOP AT lt_t093b TRANSPORTING NO FIELDS
+     WHERE NOT afabe IN lr_open_afabe.
+  ENDLOOP.
+  IF sy-subrc EQ 0.
+*  wenn ja auf keinen Fall weitermachen.
+    MESSAGE e745 WITH p_gjahr.
+*   Neurechnen der Abschreibung im Jahr & ist nicht vorgesehen
+  ELSE.
+*  Sonst wird mit der ursprünglichen Selektion weitergearbeitet.
+*  R_AFABE ist global definiert und wird später der AfA-Rechnung
+*  übergeben.
+    r_afabe[] = u_r_afabe[].
+  ENDIF.
+*<<<<<<<<<<<<<<<<< end of note 585581 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+ENDFORM.                    "get_open_area
+
+*&---------------------------------------------------------------------*
+*&      Form  OPEN_SCHEDMAN
+*&---------------------------------------------------------------------*
+* Mittels dieser Formroutine wird der Anschluss an den Schedule Monitor
+* durchgeführt. Diese Routine wurde mit Hinweis 546987 ausgeliefert.
+*----------------------------------------------------------------------*
+*      <--P_LS_KEY  text
+*      <--P_G_APLSTAT  text
+*----------------------------------------------------------------------*
+FORM open_schedman CHANGING ls_key
+                            ld_aplstat.
+
+  DATA: ls_detail     TYPE schedman_detail_user.
+  DATA: ls_spec       TYPE schedman_specific_fiaa.
+  DATA: lt_rsparams   TYPE rsparams OCCURS 0 WITH HEADER LINE.
+  DATA: lt_rsscr      TYPE rsscr OCCURS 0 WITH HEADER LINE.
+  DATA: lt_select     TYPE schedman_selkrit OCCURS 0 WITH HEADER LINE.
+  DATA: ls_witem      TYPE scma_witem.
+  DATA: ld_repid      TYPE sy-repid.
+  DATA: subrc         LIKE sy-subrc.
+  DATA: ld_delimiter(1) VALUE '-'.
+
+  ld_repid = sy-repid.
+
+* Auslesen der Selektionsoptionen
+  CLEAR lt_rsparams. REFRESH lt_rsparams[].
+  CLEAR lt_rsscr.    REFRESH lt_rsscr[].
+
+  CALL FUNCTION 'RS_REFRESH_FROM_SELECTOPTIONS'
+    EXPORTING
+      curr_report     = ld_repid
+    TABLES
+      selection_table = lt_rsparams
+    EXCEPTIONS
+      not_found       = 1
+      no_report       = 2
+      OTHERS          = 3.
+
+* Get reference fields for Select-Options and Parameters
+  PERFORM load_sscr(rsdbrunt)   TABLES    lt_rsscr
+                                USING     ld_repid
+                                CHANGING  subrc.
+
+* Bezug auf Referenzfeld herstellen
+  CLEAR lt_select. REFRESH lt_select[].
+  LOOP AT lt_rsparams.
+    CHECK NOT lt_rsparams-low IS INITIAL.
+    MOVE-CORRESPONDING lt_rsparams TO lt_select.
+    MOVE lt_rsparams-selname TO lt_select-field.
+    MOVE lt_rsparams-option TO lt_select-optio.
+    READ TABLE lt_rsscr WITH KEY
+            name = lt_rsparams-selname.
+
+*   referenced DDIC field is stored in one field. For the
+*   Schedman it has to be split into reference structure and
+*   reference field.
+    SPLIT lt_rsscr-dbfield AT ld_delimiter
+          INTO lt_select-structure lt_select-field.
+
+    lt_select-entry = sy-tabix.
+
+*   diese Felder sollen nicht in den Selektionskriterien des
+*   Schedule Monitors angezeigt werden
+    IF ( lt_select-structure IS INITIAL    AND
+         lt_select-field     IS INITIAL )  OR
+*      Workflowangaben
+       lt_rsparams-selname CP 'WF' OR
+*      Servergrupe
+       lt_select-field     EQ 'RFCGR' OR
+*      Werte-Differenz über Limit
+       lt_select-field     EQ 'DLIMIT'.
+      CLEAR lt_rsscr. CONTINUE.
+    ENDIF.
+
+    APPEND lt_select.
+    CLEAR lt_rsscr.
+  ENDLOOP.
+
+  ls_spec-bukrs           = s_bukrs-low.
+  ls_spec-gjahr           = p_gjahr.
+
+  ls_detail-tcode         = 'AFAR'.
+  ls_detail-repid         = ld_repid.
+  ls_detail-activity      = '16'.                   " aus Tabelle TACTT
+  ls_detail-testflag      = p_test.
+
+  ls_witem-wf_witem  = wf_witem.
+  ls_witem-wf_wlist  = wf_wlist.
+  CALL FUNCTION 'KPEP_MONI_INIT_RECORD'
+    EXPORTING
+      ls_detail  = ls_detail
+      ls_witem   = ls_witem
+      ls_appl    = ls_spec
+    IMPORTING
+      ls_key     = ls_key
+    TABLES
+      lt_selkrit = lt_select.
+
+  ld_aplstat = con_ok.
+  COMMIT WORK.
+
+ENDFORM.                    " OPEN_SCHEDMAN
+
+*&---------------------------------------------------------------------*
+*&      Form  CLOSE_SCHEDMAN
+*&---------------------------------------------------------------------*
+* Mittels dieser Formroutine wird der Anschluss an den Schedule Monitor
+* durchgeführt. Diese Routine wurde mit Hinweis 546987 ausgeliefert.
+*----------------------------------------------------------------------*
+*      -->P_LS_KEY  text
+*      -->P_G_APLSTAT  text
+*      -->P_WF_WITEM  text
+*      -->P_WF_OKEY  text
+*----------------------------------------------------------------------*
+FORM close_schedman USING    ls_key
+                             ld_aplstat
+                             ls_wf_witem
+                             ls_wf_okey.
+
+  DATA: l_scma_event LIKE scma_event.
+
+* Meldung an Workflow
+* nur, falls der report auch über workflow eingeplant wurde
+  IF ( NOT ls_wf_witem IS INITIAL ).
+
+* rückgabestatus an workflow
+* status wird auf ok gesetzt, wenn entweder ohne Fehler durchgelaufen
+*                             oder nur Warnungen aufgetreten sind.
+*   -> workflow kann fortgesetzt werden.
+    IF ( ld_aplstat = con_ok  OR ld_aplstat = con_warning ).
+      l_scma_event-wf_event = cs_wf_events-finished.
+    ELSE.
+* workflow soll angehalten werden
+      l_scma_event-wf_event = cs_wf_events-error.
+    ENDIF.
+    l_scma_event-wf_witem = ls_wf_witem.
+    l_scma_event-wf_okey  = ls_wf_okey.
+  ENDIF.
+
+  CALL FUNCTION 'KPEP_MONI_CLOSE_RECORD'
+    EXPORTING
+      ls_key        = ls_key
+      ls_scma_event = l_scma_event
+    CHANGING
+      ld_aplstat    = ld_aplstat
+    EXCEPTIONS
+      no_id_given   = 1
+      OTHERS        = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+  COMMIT WORK.
+ENDFORM.                    " CLOSE_SCHEDMAN
+*<<<<<<<<<<<<<<<<<<<<< start of note 646691 >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+*&---------------------------------------------------------------------*
+*&      Form  check_selected_afabe
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+*      -->U_R_AFABE  Selektierte Bewertungsbereiche
+*----------------------------------------------------------------------*
+FORM check_selected_afabe TABLES u_r_afabe STRUCTURE r_afabe.
+
+  DATA:
+    ld_afaber TYPE afaber,
+    lt_t093 TYPE TABLE OF t093,
+    lt_parea TYPE TABLE OF parea.
+  DATA:
+    wa_t093 LIKE LINE OF lt_t093.
+
+* Lese alle Bereiche des aktuellen Bewertungsplan
+  CALL FUNCTION 'T093_READ_MULTIPLE'
+    EXPORTING
+      i_afapl = t093c-afapl
+    TABLES
+      t_t093  = lt_t093
+    EXCEPTIONS
+      OTHERS  = 3.
+* Lese alle Parallelwährungsbereiche im aktuellen Bewertungsplan
+  CALL FUNCTION 'AMFI_PARALLEL_AREAS'
+    EXPORTING
+      i_t093c = t093c
+    TABLES
+      t_parea = lt_parea
+    EXCEPTIONS
+      OTHERS  = 2.
+  LOOP AT lt_t093 INTO wa_t093 WHERE afaber IN r_afabe.
+*   Der Bereich darf keine Werte ins Hauptbuch buchen
+    IF wa_t093-buhbkt NE '0'.
+*      WRITE: text-z03. commented by C5053255
+* start of note 1666093
+      CONCATENATE text-022 ' ' x093c-bukrs ' - ' text-z03
+                  INTO ld_err_out  RESPECTING BLANKS.
+      list_status = 'FEHLER'.
+      PERFORM create_error_list CHANGING gt_err_out.
+      CLEAR list_status.
+* end of note 1666093
+      STOP.
+    ELSE.
+*     Der Bereich darf nicht Teil eines abgeleiteten Bereichs sein, der
+*     ins Hauptbuch bucht.
+      LOOP AT lt_t093 TRANSPORTING NO FIELDS
+                      WHERE xstore IS INITIAL AND
+                            buhbkt NE '0'     AND
+                          ( afabe1 EQ wa_t093-afaber OR
+                            afabe2 EQ wa_t093-afaber OR
+                            afabe3 EQ wa_t093-afaber OR
+                            afabe4 EQ wa_t093-afaber ).
+*        WRITE: text-z03. commented by C5053255
+* start of note 1666093
+        CONCATENATE text-022 ' ' x093c-bukrs ' - ' text-z03
+                    INTO ld_err_out  RESPECTING BLANKS.
+        list_status = 'FEHLER'.
+        PERFORM create_error_list CHANGING gt_err_out.
+        CLEAR list_status.
+* end of note 1666093
+        STOP.
+      ENDLOOP.
+*     Der Bereich darf kein Parallelwährungsbereich sein.
+      LOOP AT lt_parea TRANSPORTING NO FIELDS
+                       WHERE pafabe1 EQ wa_t093-afaber OR
+                             pafabe2 EQ wa_t093-afaber.
+*        WRITE: text-z03. commented by C5053255
+* start of note 1666093
+        CONCATENATE text-022 ' ' x093c-bukrs ' - ' text-z03
+                   INTO ld_err_out  RESPECTING BLANKS.
+        list_status = 'FEHLER'.
+        PERFORM create_error_list CHANGING gt_err_out.
+        CLEAR list_status.
+* end of note 1666093
+        STOP.
+      ENDLOOP.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.               "check_selected_afabe
+*<<<<<<<<<<<<<<<<<<<<< end of note 646691 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+*----------------------------------------------------------------------*
+
+
+* Code insertion by C5053255 begins here
+
+*&---------------------------------------------------------------------*
+*&      Form  VARIANT_INIT
+*&---------------------------------------------------------------------*
+*       Initialization of structure used for operations on variant(s)
+*----------------------------------------------------------------------*
+*      <--XS_VARIIANT    Variant structure
+*----------------------------------------------------------------------*
+FORM variant_init CHANGING xs_variant TYPE disvariant.
+
+  CLEAR xs_variant.
+  xs_variant-report = gv_repid.
+
+ENDFORM.                               " VARIANT_INIT
+
+
+*&---------------------------------------------------------------------*
+*&      Form  get_default_variant
+*&---------------------------------------------------------------------*
+*       Get the Default Variant for the report
+*----------------------------------------------------------------------*
+*      <--XS_VARIANT  Structure for Variants
+*      <--P_VARI      Variant Name (selection parameter)
+*----------------------------------------------------------------------*
+FORM get_default_variant CHANGING  xs_variant TYPE disvariant
+                                   p_vari     TYPE disvariant-variant.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_DEFAULT_GET'
+    EXPORTING
+      i_save        = gc_save
+    CHANGING
+      cs_variant    = xs_variant
+    EXCEPTIONS
+      wrong_input   = 1
+      not_found     = 2
+      program_error = 3.
+  IF sy-subrc = 0.
+    p_vari = xs_variant-variant.
+  ENDIF.
+
+ENDFORM.                    " get_default_variant
+
+
+*&---------------------------------------------------------------------*
+*&      Form  reuse_alv_get_variant
+*&---------------------------------------------------------------------*
+*       To get the list of variants in popup when F4 help is requested
+*----------------------------------------------------------------------*
+*      -->IV_REPID  Report Name
+*      <--P_VARI    Variant Name (selection parameter)
+*----------------------------------------------------------------------*
+FORM reuse_alv_get_variant  USING    value(iv_repid) TYPE sy-repid
+                            CHANGING p_vari TYPE disvariant-variant.
+
+  DATA: ls_variant TYPE disvariant.
+
+  MOVE p_vari   TO ls_variant-variant.
+  MOVE iv_repid TO ls_variant-report.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant    = ls_variant
+      i_save        = gc_save
+    IMPORTING
+      es_variant    = ls_variant
+    EXCEPTIONS
+      not_found     = 1
+      program_error = 2
+      OTHERS        = 3.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  MOVE ls_variant-variant TO p_vari.
+
+ENDFORM.                    " reuse_alv_get_variant
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  variant_existence_check
+*&---------------------------------------------------------------------*
+*       Check for the existence of the variant as entered in the
+*       parameter for layout variant selection
+*----------------------------------------------------------------------*
+*      -->P_VARI      Variant Name (selection parameter)
+*      <--XS_VARIANT  Variant Structure
+*----------------------------------------------------------------------*
+FORM variant_existence_check USING    p_vari     TYPE disvariant-variant
+                             CHANGING xs_variant TYPE disvariant.
+
+* In case if any value is entered in the parameter for layout variant
+* then check whether the variant exists
+  IF NOT p_vari IS INITIAL.
+
+    MOVE p_vari   TO xs_variant-variant.
+
+    CALL FUNCTION 'REUSE_ALV_VARIANT_EXISTENCE'
+      EXPORTING
+        i_save        = gc_save
+      CHANGING
+        cs_variant    = xs_variant
+      EXCEPTIONS
+        wrong_input   = 1
+        not_found     = 2
+        program_error = 3
+        OTHERS        = 4.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " variant_existence_check
+
+
+*&---------------------------------------------------------------------*
+*&      Form  create_error_list
+*&---------------------------------------------------------------------*
+*       Create the Error List in an internal table with a single field
+*       which will be displayed in the application log (error list)
+*----------------------------------------------------------------------*
+*  <--  XT_ERR_OUT    Internal Table for Error List of Application Log
+*----------------------------------------------------------------------*
+FORM create_error_list CHANGING xt_err_out TYPE yt_msg_log_output.
+
+  DATA: ls_err_out    TYPE  ys_message.  " Structure for log messages
+
+* Start of note 1666093
+* output general error
+  CLEAR ls_err_out.
+  IF NOT ld_err_out IS INITIAL.
+    MOVE ld_err_out TO ls_err_out.
+    APPEND ls_err_out TO xt_err_out.
+    CLEAR ls_err_out.
+    MOVE text-031    TO ls_err_out-message.
+    APPEND ls_err_out TO xt_err_out.
+  ENDIF.
+  CLEAR ld_err_out.
+  CLEAR ls_err_out.
+* End of note 1666093
+
+* output error per asset
+  IF NOT fehl[] IS INITIAL.                                ">1666093
+  MOVE text-030    TO ls_err_out-message.
+  MOVE x093c-bukrs TO ls_err_out-message+40.
+  APPEND ls_err_out TO xt_err_out.
+
+  CLEAR ls_err_out.
+  MOVE text-031    TO ls_err_out-message.
+  APPEND ls_err_out TO xt_err_out.
+  ENDIF.                                                   ">1666093
+  CLEAR ls_err_out.
+
+  LOOP AT fehl.
+    AT NEW anln2.
+      WRITE fehl-anln1 TO ls_err_out-message.
+      WRITE fehl-anln2 TO ls_err_out-message+13.
+      MOVE  fehl-txt50 TO ls_err_out-message+18.
+    ENDAT.
+
+    WRITE fehl-gjahr TO ls_err_out+65 NO-ZERO.
+
+    CASE fehl-kz.
+      WHEN '1'. MOVE text-f01 TO ls_err_out-message+70.
+      WHEN '2'. MOVE text-f02 TO ls_err_out-message+70.
+      WHEN '3'. MOVE text-f03 TO ls_err_out-message+70.
+      WHEN '4'. MOVE text-f04 TO ls_err_out-message+70.
+      WHEN '5'. MOVE text-f05 TO ls_err_out-message+70.
+      WHEN '6'. MOVE text-f06 TO ls_err_out-message+70.
+      WHEN '7'. MOVE text-f07 TO ls_err_out-message+70.
+    ENDCASE.
+
+    APPEND ls_err_out TO xt_err_out.
+    CLEAR ls_err_out.
+
+  ENDLOOP.
+
+  REFRESH fehl.
+
+ENDFORM.                    " create_error_list
+
+* Code insertion by C5053255 ends here
+
+*---------------------------------------------------------------------*
+*       FORM RFC_FEHLERMELDUNGEN                                      *
+*---------------------------------------------------------------------*
+* this routine was implemented with note 774314
+*---------------------------------------------------------------------*
+FORM RFC_FEHLERMELDUNGEN CHANGING xt_err_out TYPE yt_msg_log_output.
+
+  DATA: ls_err_out    TYPE  ys_message.
+  DATA: LD_ERR  TYPE TT_XRFC.
+
+  CHECK NOT TASK_ERR[] IS INITIAL.
+
+  IF NOT xt_err_out[] IS INITIAL.
+    CLEAR ls_err_out.
+    APPEND ls_err_out TO xt_err_out. " For Blank Line
+  ENDIF.
+
+  ls_err_out-message = text-r01.
+  APPEND ls_err_out TO xt_err_out.
+
+  CLEAR ls_err_out.
+  ls_err_out-message = text-r02.
+  APPEND ls_err_out TO xt_err_out.
+
+  LOOP AT TASK_ERR.
+    LD_ERR = TASK_ERR-XRFC.
+    CLEAR ls_err_out.
+    ls_err_out-message(1) = SY-VLINE.
+    ls_err_out-message+2(4) = TASK_ERR-BUKRS.
+    ls_err_out-message+6(1) = SY-VLINE.
+    ls_err_out-message+7(10) = LD_ERR-TASKNR.
+    ls_err_out-message+17(1) = SY-VLINE.
+    ls_err_out-message+18(10) = LD_ERR-SUBRC_SND.
+    ls_err_out-message+28(1) = SY-VLINE.
+    ls_err_out-message+29(10) = LD_ERR-SUBRC_RCV.
+    ls_err_out-message+39(1) = SY-VLINE.
+    APPEND ls_err_out TO xt_err_out.
+*    WRITE: /001(001)  SY-VLINE NO-GAP,
+*            002(004)  TASK_ERR-BUKRS NO-GAP
+*                      COLOR COL_NORMAL INTENSIFIED OFF,
+*            006(001)  SY-VLINE NO-GAP,
+*            007(010)  LD_ERR-TASKNR
+*                      COLOR COL_NORMAL INTENSIFIED OFF,
+*            017(001)  SY-VLINE NO-GAP.
+*    IF LD_ERR-SUBRC_SND IS INITIAL.
+*      WRITE:018(010)  LD_ERR-SUBRC_SND
+*                      COLOR COL_POSITIVE INTENSIFIED OFF.
+*    ELSE.
+*      WRITE:018(010)  LD_ERR-SUBRC_SND
+*                      COLOR COL_NEGATIVE INTENSIFIED OFF.
+*    ENDIF.
+*    WRITE:  028(001)  SY-VLINE NO-GAP.
+*    IF LD_ERR-SUBRC_RCV IS INITIAL.
+*      WRITE:029(010)  LD_ERR-SUBRC_RCV
+*                      COLOR COL_POSITIVE INTENSIFIED OFF.
+*    ELSE.
+*      WRITE:029(010)  LD_ERR-SUBRC_RCV
+*                      COLOR COL_NEGATIVE INTENSIFIED OFF.
+*    ENDIF.
+*    WRITE:  039(001)  SY-VLINE NO-GAP.
+*    NEW-LINE.
+*    ULINE AT 001(040).
+  ENDLOOP.
+
+*  IF NOT SY-BATCH IS INITIAL.
+*    MESSAGE E765.
+*  ELSE.
+*    MESSAGE S765.
+*  ENDIF.
+*  STOP.
+ENDFORM.                    "RFC_FEHLERMELDUNGEN
+
+
+************************************************************************
+*   Includes mit Unterroutinen
+************************************************************************
+
+INCLUDE raafarf1.
+
+INCLUDE raafarf3.                          " commented by C5053255
+*INCLUDE raafarf3_alv.                        " inserted  by C5053255
+
+*Text elements
+*----------------------------------------------------------
+* 001 Total
+* 002 T E S T  R U N
+* 009 CoCd:
+* 010 Fyear:
+* 020 Statistics
+* 021 =========
+* 022 Company code
+* 023 Processed assets
+* 024 Assets with errors
+* 025 Changed assets
+* 026 Changed year segments
+* 027 From selected dep.area/acct grp
+* 028 With value difference over limit
+* 029 From selctd dp.area/acct grp over limit
+* 030 Assets with errors in company code   :
+* 031 =============================================
+* 032 Top asset
+* 033 Totaling
+* 034 No asset found
+* 035 Recalculate Depreciation
+* 036 Contains errors - see error log
+* 037 PRODUCTION RUN
+* F01 Error in dep. calculation
+* F02 Warning in Dep. Calculation
+* F03 Yr.segmt. found without master record
+* F04 Yr.segmt. found without area master record
+* F05 Yr.segmt. found without time-depend. data
+* F06 Proportional vals. without assigned yr.segmt.
+* F07 Transaction without assigned yr.segmt.
+* F08 No authorization for company code
+* U01 Asset number      Description                                  Depreciation type              Old             New       Difference
+* U02 AcGr.    Description                                           Depreciation type              Old             New       Difference
+* Z01 In online, processing is limited to approx. & assets.
+* Z02 Do you want to carry out processing anyway
+* Z03 Selection not allowed in production run - program termination
+
+
+*Selection texts
+*----------------------------------------------------------
+* P_EINZEL         List assets
+* P_GJAHR         FROM fiscal year
+* P_LIMIT         Value difference over limit
+* P_RFCGR         Server group
+* P_TEST         Test run
+* P_VARI D       .
+* S_AFABE         Depreciation area
+* S_ANLN1         Main asset number
+* S_ANLN2         Asset Subnumber
+* S_BUKRS         Company code
+* S_KTOGR         Account group (w/leading 0's)
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: AA
+*745   No provision for recalculating depreciation in year &.
+*768   Task &1 started with return code &2: Assets &3-&4
+*769   Task &1 with return code &2 received
+*775   Limiting by asset number and server group is not allowed
+*
+* Message class: AC
+*899   &
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

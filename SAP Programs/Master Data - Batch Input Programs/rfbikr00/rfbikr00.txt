@@ -1,0 +1,3006 @@
+report rfbikr00 message-id fb.
+DATA  gc_switch_paymadv type boolean.
+************************************************************************
+*        Der Generierungsreport RFBIKRG0
+*            benutzt den Rahmen RFBIKR01
+*            und schreibt das darin enthaltene Coding
+*            plus das neu generierte Coding in RFBIKR00.
+************************************************************************
+
+*-----------------------------------------------------------------------
+*        Datenstrukturen
+*-----------------------------------------------------------------------
+include rfbikdat.
+
+
+************************************************************************
+*        Falls 'Call Transaction ... Using ...' gewünscht bitte die
+*        drei folgenden Datenfelder aussternen und die
+*        drei gleichlautenden Parameter einsternen.
+*        Vor der Benutzung des 'Call Transaction ... Using ...'
+*        bitte die Datei prüfen.
+************************************************************************
+data:    xcall(1)       type c.        " X=Call transaction ..using
+data:    anz_mode(1)    type c.        " A=alles N=nichts E=Error
+data:    update(1)      type c.        " S=Synchron A=Asynchron
+
+*------- Aufbau des Selektionsbildes -----------------------------------
+selection-screen skip 1.
+
+parameters: ds_name     like rfpdo-rfbifile.  " Dateiname
+
+parameters: lds_name    like filename-fileintern no-display.
+" Log. Dateiname
+parameters: param1(6) no-display.                   " Dateiname-Suffix
+
+
+selection-screen skip 1.
+*selection-screen uline.
+*selection-screen skip 1.
+
+selection-screen begin of block bl2 with frame title text-bl2.
+parameters:
+  os_xon       like  rfpdo-rfbioldstr.           " Alte Strukturen ?
+selection-screen end of block bl2.
+
+selection-screen begin of block bl3 with frame title text-bl3.
+parameters: fl_check like rfpdo-rfbichck,        " Datei nur pruefen?
+            xnonunic like rfpdo1-rfbinonunicode. " Non-Unicode File?
+selection-screen end of block bl3.
+
+* info message as popup, log or no info
+selection-screen begin of block bl4 with frame title text-bl4.
+parameters: xpop type c radiobutton group info,
+          xlog type c radiobutton group info,
+          xinf type c radiobutton group info.
+selection-screen end of block bl4.
+
+
+*PARAMETERS: XCALL       LIKE RFPDO-RFBICALL. " X=Call trans...using ..
+*PARAMETERS: ANZ_MODE    LIKE RFPDO-ALLGAZMD  " A=alles N=nichts E=Error
+*                             DEFAULT 'N'.
+*PARAMETERS: UPDATE      LIKE RFPDO-ALLGVBMD  " S=Synchron A=Asynchron
+*                             DEFAULT 'S'.
+
+initialization.                                              "\SG 910857
+ if CL_ABAP_CHAR_UTILITIES=>charsize = 1.                    "\SG 910857
+   XNONUNIC = 'X'.                                           "\SG 910857
+ endif.                                                      "\SG 910857
+
+
+
+*eject
+************************************************************************
+*        Hauptablauf
+************************************************************************
+start-of-selection.
+
+clear: xeof, xnewg,
+       group_count, trans_count, satz2_count,
+       commit_count.
+
+*------- Batch-Input-Verarbeitung --------------------------------------
+clear xale.
+verarb_art = 'X'.
+
+*------- initialize log
+call function 'FI_MESSAGE_INIT'.
+
+if not ( lds_name is initial  or  ds_name is initial ).
+  perform log_msg using '29' 'I' '814' space space space space.
+  perform log_abort using c_msgid '013'.
+endif.
+
+perform addon_init_global_variables using 'K'.        " ADD_ON-Aenderung
+
+* \LA XML Advices begin
+* Switch abfragen und globlae Var. setzen
+   g_switch_paymadv =  CL_FIN_APAR_SWITCH_CHECK=>FIN_APAR_PAYMT_ADV( ).
+* \LA XML Advices begin
+
+*------- Datei nur prüfen ? --------------------------------------------
+if fl_check ne space.
+  perform log_msg using c_msgid 'I' '018'
+   ds_name space space space .
+endif.
+
+*------- Call Transaction .. Using ..? ---------------------------------
+if xcall ne space.
+  if fl_check ne space.
+    perform log_msg using c_msgid 'I' '022'
+     space space space space .
+  else.
+    perform log_msg using c_msgid 'I' '021'
+     space space space space .
+  endif.
+endif.
+
+*\BE Beginn
+* Feststellen ob Standard- oder Retail-System
+* IS2ERP Retailswitch -> Switchframework
+* PERFORM RETAIL_OR_STANDARD.
+*\BE Ende
+
+if not lds_name is initial.
+  call function 'FILE_GET_NAME'
+    exporting
+      logical_filename = lds_name
+      parameter_1      = param1
+    importing
+      file_name        = ds_name
+    exceptions
+      file_not_found   = 01.
+
+  if sy-subrc ne 0.
+    perform log_msg using c_msgid 'I' '016'
+            space space space space.
+    perform log_abort using c_msgid '013'.
+  endif.
+endif.
+
+*------- Datei oeffnen / lesen ---------------------------------------
+
+if xnonunic = space.
+  open dataset ds_name for input
+       in text mode encoding UTF-8
+       skipping byte-order mark                             " \TP 855495
+       ignoring conversion errors
+       message MSG.
+else.
+  open dataset ds_name for input
+       in text mode encoding non-unicode
+       ignoring conversion errors
+       message msg.
+endif. " xnonunic = space
+
+if sy-subrc ne 0.
+  perform log_msg using c_msgid 'I' '899' msg     '' '' ''.
+  perform log_msg using c_msgid 'I' '002' ds_name '' '' ''.
+  perform log_abort using c_msgid '013'.
+endif.
+
+clear wa.
+read dataset ds_name into wa.
+if sy-subrc ne 0.
+  perform log_msg using c_msgid 'I' '003'
+   ds_name space space space .
+  perform log_abort using c_msgid '013'.
+endif.
+
+*------- erster Satz muss Mappensatz sein ------------------------------
+if wa(1) ne '0'.
+  perform log_msg using c_msgid 'I' '004'
+   ds_name space space space .
+  perform log_abort using c_msgid '013'.
+endif.
+
+*------- Mappedaten prüfen und Mappe öffnen ----------------------------
+perform mappe_pruefen_oeffnen.
+
+*------- 1. Kopfsatz lesen / bearbeiten --------------------------------
+perform kopfsatz_lesen.
+
+*-- Falls nur der Mappenvorsatz BGR00 übergeben worden ist, so wird ----
+*-- eine leere Mappe erzeugt (notwendig wegen der Programmiertechnik ---
+*-- des HR-Programmes RPRAPA00).
+if xeof = 'X'.
+  perform log_msg using c_msgid 'I' '070'
+   ds_name space space space .
+  perform log_msg using c_msgid 'I' '071'
+   bgr00-group space space space .
+  perform mappe_schliessen.
+  exit.
+endif.
+
+perform kopfsatz_bearbeiten.
+
+
+while xeof ne 'X'.
+  perform init_kred_strukturen.
+
+*-----------------------------------------------------------------------
+*        Batch-Input-Datensätzen für die Transaktion lesen
+*-----------------------------------------------------------------------
+  do.
+    clear wa.
+    read dataset ds_name into wa.
+
+*------- End of File erreicht ? --> Exit Do-Schleife -------------------
+    if sy-subrc ne 0.
+      xeof = 'X'.
+      exit.
+    endif.
+
+*------- Nächste Mappe ? --> Exit Do-Schleife --------------------
+    if wa(1) = '0'.
+      xnewg = 'X'.
+      exit.
+    endif.
+
+*------- Nächste Transaktion ? --> Exit Do-Schleife --------------------
+    if wa(1) = '1'.
+      exit.
+    endif.
+
+*------- Kennzeichen für Datensatz (Typ 2) gesetzt ? -------------------
+    satz2_count = satz2_count + 1.
+    if wa(1) ne '2'.
+      perform log_msg using c_msgid 'I' '102'
+       trans_count satz2_count space space .
+      perform dump_blf00.
+      perform log_abort using c_msgid '013'.
+    endif.
+
+* Daten werden wegen der Feldlänge-Erweiterung des Feldes TBNAM
+* von 10B (<4.0) auf 30B verschoben
+    if os_xon = xon and xale = space.
+      shift wa by 20 places right.
+      wa(31) = wa+20(11).
+    endif.
+*------- Tabellenname angegeben ? --------------------------------------
+    if wa+1(1)  = nodata
+    or wa+1(30) = space.
+      perform log_msg using c_msgid 'I' '103'
+       trans_count satz2_count space space .
+      perform dump_blf00.
+      perform log_abort using c_msgid '013'.
+    endif.
+
+*------- Daten aus Workarea in Strukturen übertragen--------------------
+    perform wa_uebertragen.
+  enddo.
+
+* Anhängen der Default-WYT3-Sätze an die Tabelle XBWYT3.
+* Siehe auch Kommentar in Form PARTNERART_UNGL_LIEF_AUFBAU
+  append lines of bwyt3_default_pfl to xbwyt3.
+
+*-----------------------------------------------------------------------
+*        Transaktion erzeugen.
+*-----------------------------------------------------------------------
+
+*------- Daten in Dynpros übertragen -----------------------------------
+  perform daten_uebertragung.
+  if xeof ne 'X'.
+
+*------- Neue Mappe ? --------------------------------------------------
+    if xnewg = 'X'.
+      perform mappen_wechsel.
+
+*------- nächsten Kopfsatz lesen ---------------------------------------
+      perform kopfsatz_lesen.
+    endif.
+
+*------- nächsten Kopfsatz bearbeiten ----------------------------------
+    perform kopfsatz_bearbeiten.
+  endif.
+
+endwhile.
+
+*------- Mappe schliessen ----------------------------------------------
+perform mappe_schliessen.
+
+* Nachrichten in das Protokoll ausgeben
+perform log_print.
+
+include rfbikf00.      "allgemeine Form-Routinen ALE / Batch-Input
+*eject.
+************************************************************************
+*        Interne Perform-Routinen
+************************************************************************
+
+*-----------------------------------------------------------------------
+*        Form  KOPFSATZ_BEARBEITEN
+*-----------------------------------------------------------------------
+*        Bearbeiten der eingelesenen Kopfdaten
+*-----------------------------------------------------------------------
+form kopfsatz_bearbeiten.
+* Daten werden wegen der Feldlänge-Erweiterung des Feldes TCODE
+* von 4B (<4.0) auf 20B verschoben
+  if os_xon = xon and xale = space.
+    shift wa by 16 places right.
+    wa(21) = wa+16(5).
+  endif.
+  blf00 = wa.
+  trans_count = trans_count + 1.
+  perform dyntab_aufbauen.
+
+*------ Place to set a soft break-point -------------------------------
+  if trans_count = trans_break.
+    trans_break = trans_count.
+  endif.
+
+*\BE 24.09.99  Realisierung Hinweis 175032
+  perform init_kred_variablen.
+*\BE 24.09.99  Ende
+
+  refresh gt_wa.                                      " ADD_ON-Aenderung
+
+endform.                    "KOPFSATZ_BEARBEITEN
+
+*eject
+*-----------------------------------------------------------------------
+*        Form  KOPFSATZ_LESEN
+*-----------------------------------------------------------------------
+*        Kopfdaten in Workarea lesen
+*-----------------------------------------------------------------------
+form kopfsatz_lesen.
+  clear wa.
+  read dataset ds_name into wa.
+
+*------- End of File erreicht ? --> Exit -------------------------------
+  if sy-subrc ne 0.
+    xeof = 'X'.
+    exit.
+  endif.
+
+  if wa(1) ne '1'.
+    perform log_msg using c_msgid 'I' '101'
+     group_count space space space .
+    perform log_msg using c_msgid 'I' '015'
+     space space space space .
+    perform dump_wa using 'BGR00'.
+    perform log_abort using c_msgid '013'.
+  endif.
+
+endform.                    "KOPFSATZ_LESEN
+
+*eject
+*-----------------------------------------------------------------------
+*        Form  MAPPE_SCHLIESSEN
+*-----------------------------------------------------------------------
+form mappe_schliessen.
+  if fl_check = space.
+    if group_open = 'X'.
+      call function 'BDC_CLOSE_GROUP'.
+      perform log_msg using c_msgid 'I' '008'
+       group_count bgr00-group space space .
+      clear group_open.
+    endif.
+  else.
+    perform log_msg using c_msgid 'I' '019'
+     group_count bgr00-group space space .
+  endif.
+* Delete the transfer file, which was created internal by RFBIKR20
+  if xeof = 'X' and
+     lds_name = 'FI_COPY_COMPANY_CODE_DATA_FOR_VENDORS'.
+    delete dataset ds_name.
+  endif.
+endform.                    "MAPPE_SCHLIESSEN
+
+*eject
+*-----------------------------------------------------------------------
+*        Form  MAPPEN_WECHSEL
+*-----------------------------------------------------------------------
+*        Neuer Mappenvorsatz wurde gesendet.
+*        Aktuelle Mappe wird geschlosssen, neue Mappe geöffnet.
+*-----------------------------------------------------------------------
+form mappen_wechsel.
+  perform mappe_schliessen.
+  perform mappe_pruefen_oeffnen.
+endform.                    "MAPPEN_WECHSEL
+
+*\BE 24.09.99  Realisierung Hinweis 175032
+*&---------------------------------------------------------------------*
+*&      Form  INIT_KRED_VARIABLEN
+*&---------------------------------------------------------------------*
+*       Initialisierung von Variablen pro Kopfsatz (d.h. pro Lieferant
+*----------------------------------------------------------------------*
+form init_kred_variablen.
+
+  clear: lfa1_relevanz_ok,
+         lts_relevant,
+         werk_relevant,
+         t077k_gelesen,
+         wyt1_gelesen.
+
+endform.                    " INIT_KRED_VARIABLEN
+*\BE 24.09.99  Ende
+
+*eject
+************************************************************************
+*        Generiertes Coding ......
+*-----------------------------------------------------------
+*        Gererated  DATE 20120227.
+*                   TIME 094155.
+*                   USER AYAT        .
+*-----------------------------------------------------------
+
+*eject
+*----------------------------------------------------------
+*        Form DYNPRO_FUELLEN
+*----------------------------------------------------------
+FORM DYNPRO_FUELLEN USING DYNNR.
+  CHECK FL_CHECK = SPACE.
+  CASE DYNNR.
+    WHEN '0110'.
+      PERFORM D0110_FUELLEN.
+    WHEN '0120'.
+      PERFORM D0120_FUELLEN.
+    WHEN '0130'.
+      PERFORM D0130_FUELLEN.
+    WHEN '0380'.
+      PERFORM D0380_FUELLEN.
+    WHEN '0210'.
+      PERFORM D0210_FUELLEN.
+    WHEN '0215'.
+      PERFORM D0215_FUELLEN.
+    WHEN '0220'.
+      PERFORM D0220_FUELLEN.
+    WHEN '0610'.
+      PERFORM D0610_FUELLEN.
+    WHEN '0310'.
+      PERFORM D0310_FUELLEN.
+    WHEN '0320'.
+      PERFORM D0320_FUELLEN.
+    WHEN '0510'.
+      PERFORM D0510_FUELLEN.
+    WHEN '0520'.
+      PERFORM D0520_FUELLEN.
+    WHEN 'B100'.
+      PERFORM DB100_FUELLEN.
+    WHEN '0330'.
+      PERFORM D0330_FUELLEN.
+    WHEN '0350'.
+      PERFORM D0350_FUELLEN.
+    WHEN '0370'.
+      PERFORM D0370_FUELLEN.
+    WHEN '0360'.
+      PERFORM D0360_FUELLEN.
+    WHEN '0660'.
+      PERFORM D0660_FUELLEN.
+    WHEN '1380'.
+      PERFORM D1380_FUELLEN.
+    WHEN '1385'.
+      PERFORM D1385_FUELLEN.
+    WHEN '0111'.
+      PERFORM D0111_FUELLEN.
+    WHEN '1361'.
+      PERFORM D1361_FUELLEN.
+    WHEN '1130'.
+      PERFORM D1130_FUELLEN.
+  ENDCASE.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0110_FUELLEN
+*----------------------------------------------------------
+FORM D0110_FUELLEN.
+  IF SUPPRESSED_COMPL-D0110 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0110'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFA1-ANRED(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-ANRED                    '.
+    FT-FVAL = BLFA1-ANRED                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-NAME1(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-NAME1                    '.
+    FT-FVAL = BLFA1-NAME1                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SORTL(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SORTL                    '.
+    FT-FVAL = BLFA1-SORTL                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-NAME2(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-NAME2                    '.
+    FT-FVAL = BLFA1-NAME2                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-NAME3(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-NAME3                    '.
+    FT-FVAL = BLFA1-NAME3                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-NAME4(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-NAME4                    '.
+    FT-FVAL = BLFA1-NAME4                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STRAS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STRAS                    '.
+    FT-FVAL = BLFA1-STRAS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-PFACH(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-PFACH                    '.
+    FT-FVAL = BLFA1-PFACH                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-ORT01(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-ORT01                    '.
+    FT-FVAL = BLFA1-ORT01                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-PSTLZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-PSTLZ                    '.
+    FT-FVAL = BLFA1-PSTLZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-ORT02(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-ORT02                    '.
+    FT-FVAL = BLFA1-ORT02                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-PFORT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-PFORT                    '.
+    FT-FVAL = BLFA1-PFORT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-PSTL2(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-PSTL2                    '.
+    FT-FVAL = BLFA1-PSTL2                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-LAND1(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-LAND1                    '.
+    FT-FVAL = BLFA1-LAND1                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-REGIO(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-REGIO                    '.
+    FT-FVAL = BLFA1-REGIO                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SPRAS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SPRAS                    '.
+    FT-FVAL = BLFA1-SPRAS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-TELX1(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TELX1                    '.
+    FT-FVAL = BLFA1-TELX1                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-TELF1(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TELF1                    '.
+    FT-FVAL = BLFA1-TELF1                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-TELFX(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TELFX                    '.
+    FT-FVAL = BLFA1-TELFX                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-TELF2(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TELF2                    '.
+    FT-FVAL = BLFA1-TELF2                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-TELTX(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TELTX                    '.
+    FT-FVAL = BLFA1-TELTX                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-TELBX(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TELBX                    '.
+    FT-FVAL = BLFA1-TELBX                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-DATLT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-DATLT                    '.
+    FT-FVAL = BLFA1-DATLT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-LFURL(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-LFURL                    '.
+    FT-FVAL = BLFA1-LFURL                   .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0120_FUELLEN
+*----------------------------------------------------------
+FORM D0120_FUELLEN.
+  IF SUPPRESSED_COMPL-D0120 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0120'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFA1-KUNNR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-KUNNR                    '.
+    FT-FVAL = BLFA1-KUNNR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-BEGRU(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-BEGRU                    '.
+    FT-FVAL = BLFA1-BEGRU                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-KTOCK(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-KTOCK                    '.
+    FT-FVAL = BLFA1-KTOCK                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-VBUND(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-VBUND                    '.
+    FT-FVAL = BLFA1-VBUND                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-KONZS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-KONZS                    '.
+    FT-FVAL = BLFA1-KONZS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STCD1(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STCD1                    '.
+    FT-FVAL = BLFA1-STCD1                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STCDT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STCDT                    '.
+    FT-FVAL = BLFA1-STCDT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STKZA(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STKZA                    '.
+    FT-FVAL = BLFA1-STKZA                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STCD2(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STCD2                    '.
+    FT-FVAL = BLFA1-STCD2                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-FITYP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-FITYP                    '.
+    FT-FVAL = BLFA1-FITYP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STKZN(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STKZN                    '.
+    FT-FVAL = BLFA1-STKZN                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STCD3(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STCD3                    '.
+    FT-FVAL = BLFA1-STCD3                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STKZU(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STKZU                    '.
+    FT-FVAL = BLFA1-STKZU                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STCD4(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STCD4                    '.
+    FT-FVAL = BLFA1-STCD4                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-TAXBS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TAXBS                    '.
+    FT-FVAL = BLFA1-TAXBS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-IPISP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-IPISP                    '.
+    FT-FVAL = BLFA1-IPISP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-FISKN(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-FISKN                    '.
+    FT-FVAL = BLFA1-FISKN                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-ACTSS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-ACTSS                    '.
+    FT-FVAL = BLFA1-ACTSS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-REGSS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-REGSS                    '.
+    FT-FVAL = BLFA1-REGSS                   .
+    APPEND FT.
+  ENDIF.
+  IF ZAV_FLAG IS INITIAL.
+  IF BLFA1-TXJCD(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TXJCD                    '.
+    FT-FVAL = BLFA1-TXJCD                   .
+    APPEND FT.
+  ENDIF.
+  ENDIF.
+  IF BLFA1-STCEG(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STCEG                    '.
+    FT-FVAL = BLFA1-STCEG                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-J_1KFREPRE(1)               NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-J_1KFREPRE               '.
+    FT-FVAL = BLFA1-J_1KFREPRE              .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-J_1KFTBUS(1)                NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-J_1KFTBUS                '.
+    FT-FVAL = BLFA1-J_1KFTBUS               .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-FISKU(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-FISKU                    '.
+    FT-FVAL = BLFA1-FISKU                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-J_1KFTIND(1)                NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-J_1KFTIND                '.
+    FT-FVAL = BLFA1-J_1KFTIND               .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STENR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STENR                    '.
+    FT-FVAL = BLFA1-STENR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-BBBNR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-BBBNR                    '.
+    FT-FVAL = BLFA1-BBBNR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-BBSNR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-BBSNR                    '.
+    FT-FVAL = BLFA1-BBSNR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-BUBKZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-BUBKZ                    '.
+    FT-FVAL = BLFA1-BUBKZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-KRAUS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-KRAUS                    '.
+    FT-FVAL = BLFA1-KRAUS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-REVDB(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-REVDB                    '.
+    FT-FVAL = BLFA1-REVDB                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-BRSCH(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-BRSCH                    '.
+    FT-FVAL = BLFA1-BRSCH                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-BAHNS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-BAHNS                    '.
+    FT-FVAL = BLFA1-BAHNS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SCACD(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SCACD                    '.
+    FT-FVAL = BLFA1-SCACD                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SFRGR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SFRGR                    '.
+    FT-FVAL = BLFA1-SFRGR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-DLGRP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-DLGRP                    '.
+    FT-FVAL = BLFA1-DLGRP                   .
+    APPEND FT.
+  ENDIF.
+  IF ZAV_FLAG IS INITIAL.
+  IF BLFA1-LZONE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-LZONE                    '.
+    FT-FVAL = BLFA1-LZONE                   .
+    APPEND FT.
+  ENDIF.
+  ENDIF.
+  IF BLFA1-STGDL(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STGDL                    '.
+    FT-FVAL = BLFA1-STGDL                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-PODKZB(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-PODKZB                   '.
+    FT-FVAL = BLFA1-PODKZB                  .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-QSSYS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-QSSYS                    '.
+    FT-FVAL = BLFA1-QSSYS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-QSSYSDAT(1)                 NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-QSSYSDAT                 '.
+    FT-FVAL = BLFA1-QSSYSDAT                .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-EMNFR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-EMNFR                    '.
+    FT-FVAL = BLFA1-EMNFR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-GBDAT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-GBDAT                    '.
+    FT-FVAL = BLFA1-GBDAT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-GBORT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-GBORT                    '.
+    FT-FVAL = BLFA1-GBORT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SEXKZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SEXKZ                    '.
+    FT-FVAL = BLFA1-SEXKZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-PROFS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-PROFS                    '.
+    FT-FVAL = BLFA1-PROFS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-TRANSPORT_CHAIN(1)          NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-TRANSPORT_CHAIN          '.
+    FT-FVAL = BLFA1-TRANSPORT_CHAIN         .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-PLKAL(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-PLKAL                    '.
+    FT-FVAL = BLFA1-PLKAL                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-STAGING_TIME(1)             NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-STAGING_TIME             '.
+    FT-FVAL = BLFA1-STAGING_TIME            .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SUBMI_RELEVANT(1)           NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SUBMI_RELEVANT           '.
+    FT-FVAL = BLFA1-SUBMI_RELEVANT          .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SCHEDULING_TYPE(1)          NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SCHEDULING_TYPE          '.
+    FT-FVAL = BLFA1-SCHEDULING_TYPE         .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0130_FUELLEN
+*----------------------------------------------------------
+FORM D0130_FUELLEN.
+* \TP 957820 - Begin
+  data: l_xtech type xfeld.  " X = Kontonr. ist technisch
+  call function 'FI_TECH_ACCNO_CHECK_TRY'
+    exporting i_bankn = xblfbk-bankn
+    importing e_xtech = l_xtech.
+* \TP 957820 - End
+
+  IF SUPPRESSED_COMPL-D0130 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0130'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBLFBK-BANKS(1)                   NE NODATA.
+   if l_xtech is initial.      " \TP 957820
+    CLEAR FT.
+    FT-FNAM = 'LFBK-BANKS                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBK-BANKS                  .
+    APPEND FT.
+   endif.                      " \TP 957820
+  ENDIF.
+  IF XBLFBK-BANKL(1)                   NE NODATA.
+   if l_xtech is initial.      " \TP 957820
+    CLEAR FT.
+    FT-FNAM = 'LFBK-BANKL                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBK-BANKL                  .
+    APPEND FT.
+   endif.                      " \TP 957820
+  ENDIF.
+  IF XBLFBK-BANKN(1)                   NE NODATA.
+   if l_xtech is initial.      " \TP 957820
+    CLEAR FT.
+    FT-FNAM = 'LFBK-BANKN                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBK-BANKN                  .
+    APPEND FT.
+   endif.                      " \TP 957820
+  ENDIF.
+  IF XBLFBK-KOINH(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBK-KOINH                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBK-KOINH                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-BKONT(1)                   NE NODATA.
+   if l_xtech is initial.      " \TP 957820
+    CLEAR FT.
+    FT-FNAM = 'LFBK-BKONT                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBK-BKONT                  .
+    APPEND FT.
+   endif.                      " \TP 957820
+  ENDIF.
+  IF XBLFBK-BVTYP(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBK-BVTYP                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBK-BVTYP                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-BKREF(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBK-BKREF                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBK-BKREF                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-XEZER(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBK-XEZER                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBK-XEZER                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0130_FUELLEN_EINZELFELDER
+*----------------------------------------------------------
+FORM D0130_FUELLEN_EINZELFELDER.
+  CHECK FL_CHECK = SPACE.
+  IF SUPPRESSED_COMPL-D0130 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0130'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFA1-LNRZA(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-LNRZA                    '.
+    FT-FVAL = BLFA1-LNRZA                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-XZEMP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-XZEMP                    '.
+    FT-FVAL = BLFA1-XZEMP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-DTAMS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-DTAMS                    '.
+    FT-FVAL = BLFA1-DTAMS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-DTAWS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-DTAWS                    '.
+    FT-FVAL = BLFA1-DTAWS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-ESRNR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-ESRNR                    '.
+    FT-FVAL = BLFA1-ESRNR                   .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0380_FUELLEN
+*----------------------------------------------------------
+FORM D0380_FUELLEN.
+  IF SUPPRESSED_COMPL-D0380 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0380'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF ZAV_FLAG IS INITIAL.
+  IF XBKNVK-ANRED(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-ANRED                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBKNVK-ANRED                  .
+    APPEND FT.
+  ENDIF.
+  ENDIF.
+  IF XBKNVK-NAMEV(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-NAMEV                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBKNVK-NAMEV                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-NAME1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-NAME1                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBKNVK-NAME1                  .
+    APPEND FT.
+  ENDIF.
+  IF ZAV_FLAG IS INITIAL.
+  IF XBKNVK-TELF1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-TELF1                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBKNVK-TELF1                  .
+    APPEND FT.
+  ENDIF.
+  ENDIF.
+  IF XBKNVK-ABTNR(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-ABTNR                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBKNVK-ABTNR                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PAFKT(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PAFKT                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBKNVK-PAFKT                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0210_FUELLEN
+*----------------------------------------------------------
+FORM D0210_FUELLEN.
+  IF SUPPRESSED_COMPL-D0210 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0210'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFB1-AKONT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-AKONT                    '.
+    FT-FVAL = BLFB1-AKONT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ZUAWA(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ZUAWA                    '.
+    FT-FVAL = BLFB1-ZUAWA                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-LNRZE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-LNRZE                    '.
+    FT-FVAL = BLFB1-LNRZE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-BLNKZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-BLNKZ                    '.
+    FT-FVAL = BLFB1-BLNKZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-BEGRU(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-BEGRU                    '.
+    FT-FVAL = BLFB1-BEGRU                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-FDGRV(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-FDGRV                    '.
+    FT-FVAL = BLFB1-FDGRV                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-FRGRP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-FRGRP                    '.
+    FT-FVAL = BLFB1-FRGRP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-MINDK(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-MINDK                    '.
+    FT-FVAL = BLFB1-MINDK                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-CERDT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-CERDT                    '.
+    FT-FVAL = BLFB1-CERDT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-VZSKZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-VZSKZ                    '.
+    FT-FVAL = BLFB1-VZSKZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ZINDT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ZINDT                    '.
+    FT-FVAL = BLFB1-ZINDT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ZINRT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ZINRT                    '.
+    FT-FVAL = BLFB1-ZINRT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-DATLZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-DATLZ                    '.
+    FT-FVAL = BLFB1-DATLZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-QSSKZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-QSSKZ                    '.
+    FT-FVAL = BLFB1-QSSKZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-QSZNR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-QSZNR                    '.
+    FT-FVAL = BLFB1-QSZNR                   .
+    APPEND FT.
+  ENDIF.
+  IF T001-WT_NEWWT NE 'X'.
+  IF BLFB1-QLAND(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-QLAND                    '.
+    FT-FVAL = BLFB1-QLAND                   .
+    APPEND FT.
+  ENDIF.
+  ENDIF.
+  IF BLFB1-QSZDT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-QSZDT                    '.
+    FT-FVAL = BLFB1-QSZDT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-QSREC(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-QSREC                    '.
+    FT-FVAL = BLFB1-QSREC                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-QSBGR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-QSBGR                    '.
+    FT-FVAL = BLFB1-QSBGR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ALTKN(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ALTKN                    '.
+    FT-FVAL = BLFB1-ALTKN                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-PERNR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-PERNR                    '.
+    FT-FVAL = BLFB1-PERNR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-GRICD(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-GRICD                    '.
+    FT-FVAL = BLFB1-GRICD                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-GRIDT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-GRIDT                    '.
+    FT-FVAL = BLFB1-GRIDT                   .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0215_FUELLEN
+*----------------------------------------------------------
+FORM D0215_FUELLEN.
+  IF SUPPRESSED_COMPL-D0215 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0215'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFB1-ZTERM(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ZTERM                    '.
+    FT-FVAL = BLFB1-ZTERM                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-TOGRU(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-TOGRU                    '.
+    FT-FVAL = BLFB1-TOGRU                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-GUZTE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-GUZTE                    '.
+    FT-FVAL = BLFB1-GUZTE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-REPRF(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-REPRF                    '.
+    FT-FVAL = BLFB1-REPRF                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-KULTG(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-KULTG                    '.
+    FT-FVAL = BLFB1-KULTG                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ZWELS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ZWELS                    '.
+    FT-FVAL = BLFB1-ZWELS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ZAHLS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ZAHLS                    '.
+    FT-FVAL = BLFB1-ZAHLS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-LNRZB(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-LNRZB                    '.
+    FT-FVAL = BLFB1-LNRZB                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-HBKID(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-HBKID                    '.
+    FT-FVAL = BLFB1-HBKID                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-XPORE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-XPORE                    '.
+    FT-FVAL = BLFB1-XPORE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ZGRUP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ZGRUP                    '.
+    FT-FVAL = BLFB1-ZGRUP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-XVERR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-XVERR                    '.
+    FT-FVAL = BLFB1-XVERR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-UZAWE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-UZAWE                    '.
+    FT-FVAL = BLFB1-UZAWE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-WEBTR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-WEBTR                    '.
+    FT-FVAL = BLFB1-WEBTR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-XEDIP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-XEDIP                    '.
+    FT-FVAL = BLFB1-XEDIP                   .
+    APPEND FT.
+  ENDIF.
+* \LA EhP5 - Begin
+  DATA:    l_switch_paymadv type xfeld.
+  l_switch_paymadv =  CL_FIN_APAR_SWITCH_CHECK=>FIN_APAR_PAYMT_ADV( ).
+  IF BLFB1-AVSND(1) NE NODATA AND L_SWITCH_PAYMADV = 'X'.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-AVSND                    '.
+    FT-FVAL = BLFB1-AVSND                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-SMTP_ADDR(1) NE NODATA AND L_SWITCH_PAYMADV = 'X'.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-SMTP_ADDR                '.
+    FT-FVAL = BLFB1-SMTP_ADDR               .
+    APPEND FT.
+  ENDIF.
+* \LA EhP5 - End
+  IF BLFB1-TOGRR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-TOGRR                    '.
+    FT-FVAL = BLFB1-TOGRR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ASSIGN_TEST(1)              NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ASSIGN_TEST              '.
+    FT-FVAL = BLFB1-ASSIGN_TEST             .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-PREPAY_RELEVANT(1)          NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-PREPAY_RELEVANT          '.
+    FT-FVAL = BLFB1-PREPAY_RELEVANT         .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0220_FUELLEN
+*----------------------------------------------------------
+FORM D0220_FUELLEN.
+  IF SUPPRESSED_COMPL-D0220 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0220'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFB5-MAHNA(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB5-MAHNA                    '.
+    FT-FVAL = BLFB5-MAHNA                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB5-MANSP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB5-MANSP                    '.
+    FT-FVAL = BLFB5-MANSP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB5-LFRMA(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB5-LFRMA                    '.
+    FT-FVAL = BLFB5-LFRMA                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB5-GMVDT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB5-GMVDT                    '.
+    FT-FVAL = BLFB5-GMVDT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB5-MADAT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB5-MADAT                    '.
+    FT-FVAL = BLFB5-MADAT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB5-MAHNS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB5-MAHNS                    '.
+    FT-FVAL = BLFB5-MAHNS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB5-BUSAB(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB5-BUSAB                    '.
+    FT-FVAL = BLFB5-BUSAB                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-MGRUP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-MGRUP                    '.
+    FT-FVAL = BLFB1-MGRUP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-XDEZV(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-XDEZV                    '.
+    FT-FVAL = BLFB1-XDEZV                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-XAUSZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-XAUSZ                    '.
+    FT-FVAL = BLFB1-XAUSZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-BUSAB(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-BUSAB                    '.
+    FT-FVAL = BLFB1-BUSAB                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-EIKTO(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-EIKTO                    '.
+    FT-FVAL = BLFB1-EIKTO                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-ZSABE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-ZSABE                    '.
+    FT-FVAL = BLFB1-ZSABE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-TLFNS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-TLFNS                    '.
+    FT-FVAL = BLFB1-TLFNS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-TLFXS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-TLFXS                    '.
+    FT-FVAL = BLFB1-TLFXS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-INTAD(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-INTAD                    '.
+    FT-FVAL = BLFB1-INTAD                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-KVERM(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-KVERM                    '.
+    FT-FVAL = BLFB1-KVERM                   .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0610_FUELLEN
+*----------------------------------------------------------
+FORM D0610_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0610'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFB1-QLAND(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-QLAND                    '.
+    FT-FVAL = BLFB1-QLAND                   .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WITHT(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WITHT                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WITHT                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WT_WITHCD(1)               NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WT_WITHCD                '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WT_WITHCD              .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WT_SUBJCT(1)               NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WT_SUBJCT                '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WT_SUBJCT              .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-QSREC(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-QSREC                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-QSREC                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WT_WTSTCD(1)               NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WT_WTSTCD                '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WT_WTSTCD              .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WT_EXNR(1)                 NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WT_EXNR                  '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WT_EXNR                .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WT_EXRT(1)                 NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WT_EXRT                  '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WT_EXRT                .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WT_WTEXRS(1)               NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WT_WTEXRS                '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WT_WTEXRS              .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WT_EXDF(1)                 NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WT_EXDF                  '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WT_EXDF                .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBW-WT_EXDT(1)                 NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFBW-WT_EXDT                  '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFBW-WT_EXDT                .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0310_FUELLEN
+*----------------------------------------------------------
+FORM D0310_FUELLEN.
+  IF SUPPRESSED_COMPL-D0310 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0310'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFM1-WAERS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-WAERS                    '.
+    FT-FVAL = BLFM1-WAERS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-ZTERM(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-ZTERM                    '.
+    FT-FVAL = BLFM1-ZTERM                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-INCO1(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-INCO1                    '.
+    FT-FVAL = BLFM1-INCO1                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-INCO2(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-INCO2                    '.
+    FT-FVAL = BLFM1-INCO2                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-MINBW(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-MINBW                    '.
+    FT-FVAL = BLFM1-MINBW                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-KALSK(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-KALSK                    '.
+    FT-FVAL = BLFM1-KALSK                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-MEPRF(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-MEPRF                    '.
+    FT-FVAL = BLFM1-MEPRF                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-BOPNR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-BOPNR                    '.
+    FT-FVAL = BLFM1-BOPNR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-VERKF(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-VERKF                    '.
+    FT-FVAL = BLFM1-VERKF                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-TELF1(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-TELF1                    '.
+    FT-FVAL = BLFM1-TELF1                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-EIKTO(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-EIKTO                    '.
+    FT-FVAL = BLFM1-EIKTO                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-WEBRE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-WEBRE                    '.
+    FT-FVAL = BLFM1-WEBRE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-LFABC(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-LFABC                    '.
+    FT-FVAL = BLFM1-LFABC                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-VENDOR_RMA_REQ(1)           NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-VENDOR_RMA_REQ           '.
+    FT-FVAL = BLFM1-VENDOR_RMA_REQ          .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-XERSY(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-XERSY                    '.
+    FT-FVAL = BLFM1-XERSY                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-EXPVZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-EXPVZ                    '.
+    FT-FVAL = BLFM1-EXPVZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-XERSR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-XERSR                    '.
+    FT-FVAL = BLFM1-XERSR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-ZOLLA(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-ZOLLA                    '.
+    FT-FVAL = BLFM1-ZOLLA                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-KZABS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-KZABS                    '.
+    FT-FVAL = BLFM1-KZABS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-SKRIT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-SKRIT                    '.
+    FT-FVAL = BLFM1-SKRIT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-KZAUT(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-KZAUT                    '.
+    FT-FVAL = BLFM1-KZAUT                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-PAPRF(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-PAPRF                    '.
+    FT-FVAL = BLFM1-PAPRF                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-BOLRE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-BOLRE                    '.
+    FT-FVAL = BLFM1-BOLRE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-XNBWY(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-XNBWY                    '.
+    FT-FVAL = BLFM1-XNBWY                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-BOIND(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-BOIND                    '.
+    FT-FVAL = BLFM1-BOIND                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-NRGEW(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-NRGEW                    '.
+    FT-FVAL = BLFM1-NRGEW                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-UMSAE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-UMSAE                    '.
+    FT-FVAL = BLFM1-UMSAE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-PRFRE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-PRFRE                    '.
+    FT-FVAL = BLFM1-PRFRE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-BLIND(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-BLIND                    '.
+    FT-FVAL = BLFM1-BLIND                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-AGREL(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-AGREL                    '.
+    FT-FVAL = BLFM1-AGREL                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-KZRET(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-KZRET                    '.
+    FT-FVAL = BLFM1-KZRET                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-LEBRE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-LEBRE                    '.
+    FT-FVAL = BLFM1-LEBRE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-VSBED(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-VSBED                    '.
+    FT-FVAL = BLFM1-VSBED                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-EKGRP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-EKGRP                    '.
+    FT-FVAL = BLFM1-EKGRP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-PLIFZ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-PLIFZ                    '.
+    FT-FVAL = BLFM1-PLIFZ                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-MRPPP(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-MRPPP                    '.
+    FT-FVAL = BLFM1-MRPPP                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-LFRHY(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-LFRHY                    '.
+    FT-FVAL = BLFM1-LFRHY                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-BSTAE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-BSTAE                    '.
+    FT-FVAL = BLFM1-BSTAE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-MEGRU(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-MEGRU                    '.
+    FT-FVAL = BLFM1-MEGRU                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-RDPRF(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-RDPRF                    '.
+    FT-FVAL = BLFM1-RDPRF                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-ABUEB(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-ABUEB                    '.
+    FT-FVAL = BLFM1-ABUEB                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-LIPRE(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-LIPRE                    '.
+    FT-FVAL = BLFM1-LIPRE                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-LISER(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-LISER                    '.
+    FT-FVAL = BLFM1-LISER                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-LIBES(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-LIBES                    '.
+    FT-FVAL = BLFM1-LIBES                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-VENSL(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-VENSL                    '.
+    FT-FVAL = BLFM1-VENSL                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-ACTIVITY_PROFIL(1)          NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-ACTIVITY_PROFIL          '.
+    FT-FVAL = BLFM1-ACTIVITY_PROFIL         .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-TRANSPORT_CHAIN(1)          NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-TRANSPORT_CHAIN          '.
+    FT-FVAL = BLFM1-TRANSPORT_CHAIN         .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-STAGING_TIME(1)             NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-STAGING_TIME             '.
+    FT-FVAL = BLFM1-STAGING_TIME            .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0320_FUELLEN
+*----------------------------------------------------------
+FORM D0320_FUELLEN.
+  IF SUPPRESSED_COMPL-D0320 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0320'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBWYT3-PARVW(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'WYT3-PARVW                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBWYT3-PARVW                  .
+    APPEND FT.
+  ENDIF.
+  IF XBWYT3-LIFN2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'WRF02K-GPARN                  '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBWYT3-LIFN2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBWYT3-DEFPA(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'WYT3-DEFPA                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBWYT3-DEFPA                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0510_FUELLEN
+*----------------------------------------------------------
+FORM D0510_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0510'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFA1-SPERR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SPERR                    '.
+    FT-FVAL = BLFA1-SPERR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-SPERR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-SPERR                    '.
+    FT-FVAL = BLFB1-SPERR                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SPERM(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SPERM                    '.
+    FT-FVAL = BLFA1-SPERM                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-SPERM(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-SPERM                    '.
+    FT-FVAL = BLFM1-SPERM                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-SPERQ(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-SPERQ                    '.
+    FT-FVAL = BLFA1-SPERQ                   .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0520_FUELLEN
+*----------------------------------------------------------
+FORM D0520_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0520'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFA1-LOEVM(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-LOEVM                    '.
+    FT-FVAL = BLFA1-LOEVM                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-LOEVM(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-LOEVM                    '.
+    FT-FVAL = BLFB1-LOEVM                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFM1-LOEVM(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM1-LOEVM                    '.
+    FT-FVAL = BLFM1-LOEVM                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-NODEL(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-NODEL                    '.
+    FT-FVAL = BLFA1-NODEL                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFB1-NODEL(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFB1-NODEL                    '.
+    FT-FVAL = BLFB1-NODEL                   .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form DB100_FUELLEN
+*----------------------------------------------------------
+FORM DB100_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPLBANK'.
+  FT-DYNPRO   = '0100'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBLFBK-BANKA(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-BANKA                    '.
+    FT-FVAL = XBLFBK-BANKA                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-PROVZ(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-PROVZ                    '.
+    FT-FVAL = XBLFBK-PROVZ                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-STRAS(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-STRAS                    '.
+    FT-FVAL = XBLFBK-STRAS                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-ORT01(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-ORT01                    '.
+    FT-FVAL = XBLFBK-ORT01                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-BRNCH(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-BRNCH                    '.
+    FT-FVAL = XBLFBK-BRNCH                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-SWIFT(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-SWIFT                    '.
+    FT-FVAL = XBLFBK-SWIFT                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-BGRUP(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-BGRUP                    '.
+    FT-FVAL = XBLFBK-BGRUP                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-XPGRO(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-XPGRO                    '.
+    FT-FVAL = XBLFBK-XPGRO                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-BNKLZ(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-BNKLZ                    '.
+    FT-FVAL = XBLFBK-BNKLZ                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFBK-PSKTO(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'BNKA-PSKTO                    '.
+    FT-FVAL = XBLFBK-PSKTO                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0330_FUELLEN
+*----------------------------------------------------------
+FORM D0330_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0330'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBLFM2-WAERS(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-WAERS                    '.
+    FT-FVAL = XBLFM2-WAERS                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-ZTERM(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-ZTERM                    '.
+    FT-FVAL = XBLFM2-ZTERM                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-INCO1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-INCO1                    '.
+    FT-FVAL = XBLFM2-INCO1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-INCO2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-INCO2                    '.
+    FT-FVAL = XBLFM2-INCO2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-MINBW(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-MINBW                    '.
+    FT-FVAL = XBLFM2-MINBW                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-KALSK(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-KALSK                    '.
+    FT-FVAL = XBLFM2-KALSK                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-MEPRF(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-MEPRF                    '.
+    FT-FVAL = XBLFM2-MEPRF                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-BOPNR(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-BOPNR                    '.
+    FT-FVAL = XBLFM2-BOPNR                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-VERKF(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-VERKF                    '.
+    FT-FVAL = XBLFM2-VERKF                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-TELF1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-TELF1                    '.
+    FT-FVAL = XBLFM2-TELF1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-WEBRE(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-WEBRE                    '.
+    FT-FVAL = XBLFM2-WEBRE                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-LFABC(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-LFABC                    '.
+    FT-FVAL = XBLFM2-LFABC                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-XERSY(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-XERSY                    '.
+    FT-FVAL = XBLFM2-XERSY                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-EXPVZ(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-EXPVZ                    '.
+    FT-FVAL = XBLFM2-EXPVZ                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-XERSR(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-XERSR                    '.
+    FT-FVAL = XBLFM2-XERSR                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-ZOLLA(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-ZOLLA                    '.
+    FT-FVAL = XBLFM2-ZOLLA                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-KZABS(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-KZABS                    '.
+    FT-FVAL = XBLFM2-KZABS                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-PAPRF(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-PAPRF                    '.
+    FT-FVAL = XBLFM2-PAPRF                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-KZAUT(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-KZAUT                    '.
+    FT-FVAL = XBLFM2-KZAUT                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-XNBWY(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-XNBWY                    '.
+    FT-FVAL = XBLFM2-XNBWY                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-BOLRE(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-BOLRE                    '.
+    FT-FVAL = XBLFM2-BOLRE                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-BOIND(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-BOIND                    '.
+    FT-FVAL = XBLFM2-BOIND                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-UMSAE(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-UMSAE                    '.
+    FT-FVAL = XBLFM2-UMSAE                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-LEBRE(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-LEBRE                    '.
+    FT-FVAL = XBLFM2-LEBRE                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-EKGRP(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-EKGRP                    '.
+    FT-FVAL = XBLFM2-EKGRP                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-DISPO(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-DISPO                    '.
+    FT-FVAL = XBLFM2-DISPO                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-PLIFZ(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-PLIFZ                    '.
+    FT-FVAL = XBLFM2-PLIFZ                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-MRPPP(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-MRPPP                    '.
+    FT-FVAL = XBLFM2-MRPPP                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-LFRHY(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-LFRHY                    '.
+    FT-FVAL = XBLFM2-LFRHY                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-BSTAE(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-BSTAE                    '.
+    FT-FVAL = XBLFM2-BSTAE                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-MEGRU(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-MEGRU                    '.
+    FT-FVAL = XBLFM2-MEGRU                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-RDPRF(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-RDPRF                    '.
+    FT-FVAL = XBLFM2-RDPRF                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-ABUEB(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-ABUEB                    '.
+    FT-FVAL = XBLFM2-ABUEB                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-LIPRE(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-LIPRE                    '.
+    FT-FVAL = XBLFM2-LIPRE                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-LISER(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-LISER                    '.
+    FT-FVAL = XBLFM2-LISER                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-LIBES(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-LIBES                    '.
+    FT-FVAL = XBLFM2-LIBES                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-TRANSPORT_CHAIN(1)         NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-TRANSPORT_CHAIN          '.
+    FT-FVAL = XBLFM2-TRANSPORT_CHAIN        .
+    APPEND FT.
+  ENDIF.
+  IF XBLFM2-STAGING_TIME(1)            NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFM2-STAGING_TIME             '.
+    FT-FVAL = XBLFM2-STAGING_TIME           .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0350_FUELLEN
+*----------------------------------------------------------
+FORM D0350_FUELLEN.
+  IF SUPPRESSED_COMPL-D0350 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0350'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF BLFA1-WERKS(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-WERKS                    '.
+    FT-FVAL = BLFA1-WERKS                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-LTSNA(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-LTSNA                    '.
+    FT-FVAL = BLFA1-LTSNA                   .
+    APPEND FT.
+  ENDIF.
+  IF BLFA1-WERKR(1)                    NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFA1-WERKR                    '.
+    FT-FVAL = BLFA1-WERKR                   .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0370_FUELLEN
+*----------------------------------------------------------
+FORM D0370_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0370'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBLFLR-LAND1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFLR-LAND1                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFLR-LAND1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBLFLR-LFREG(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFLR-LFREG                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFLR-LFREG                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0360_FUELLEN
+*----------------------------------------------------------
+FORM D0360_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0360'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBWYT1-LTSNR(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'WYT1-LTSNR                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBWYT1-LTSNR                  .
+    APPEND FT.
+  ENDIF.
+  IF XBWYT1-LTSBZ(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'WYT1T-LTSBZ                   '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBWYT1-LTSBZ                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0660_FUELLEN
+*----------------------------------------------------------
+FORM D0660_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0660'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBWYT1-SPRAS(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'WYT1T-SPRAS                   '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBWYT1-SPRAS                  .
+    APPEND FT.
+  ENDIF.
+  IF XBWYT1-LTSBZ(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'WYT1T-LTSBZ                   '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBWYT1-LTSBZ                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D1380_FUELLEN
+*----------------------------------------------------------
+FORM D1380_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '1380'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBKNVK-SORTL(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-SORTL                    '.
+    FT-FVAL = XBKNVK-SORTL                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-NAME1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-NAME1                    '.
+    FT-FVAL = XBKNVK-NAME1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-NAMEV(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-NAMEV                    '.
+    FT-FVAL = XBKNVK-NAMEV                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-TITEL_AP(1)                NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-TITEL_AP                 '.
+    FT-FVAL = XBKNVK-TITEL_AP               .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-ANRED(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-ANRED                    '.
+    FT-FVAL = XBKNVK-ANRED                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SPNAM(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-SPNAM                    '.
+    FT-FVAL = XBKNVK-SPNAM                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PAVIP(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PAVIP                    '.
+    FT-FVAL = XBKNVK-PAVIP                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-TELF1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-TELF1                    '.
+    FT-FVAL = XBKNVK-TELF1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PARLA(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PARLA                    '.
+    FT-FVAL = XBKNVK-PARLA                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PARGE(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PARGE                    '.
+    FT-FVAL = XBKNVK-PARGE                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-FAMST(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-FAMST                    '.
+    FT-FVAL = XBKNVK-FAMST                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-GBDAT(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-GBDAT                    '.
+    FT-FVAL = XBKNVK-GBDAT                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-ABTNR(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-ABTNR                    '.
+    FT-FVAL = XBKNVK-ABTNR                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-ABTPA(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-ABTPA                    '.
+    FT-FVAL = XBKNVK-ABTPA                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PAFKT(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PAFKT                    '.
+    FT-FVAL = XBKNVK-PAFKT                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PARVO(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PARVO                    '.
+    FT-FVAL = XBKNVK-PARVO                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-VRTNR(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-VRTNR                    '.
+    FT-FVAL = XBKNVK-VRTNR                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-BRYTH(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-BRYTH                    '.
+    FT-FVAL = XBKNVK-BRYTH                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-AKVER(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-AKVER                    '.
+    FT-FVAL = XBKNVK-AKVER                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PARAU(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PARAU                    '.
+    FT-FVAL = XBKNVK-PARAU                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D1385_FUELLEN
+*----------------------------------------------------------
+FORM D1385_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '1385'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBKNVK-MOAB1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-MOAB1                   '.
+    FT-FVAL = XBKNVK-MOAB1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-MOBI1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-MOBI1                   '.
+    FT-FVAL = XBKNVK-MOBI1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-MOAB2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-MOAB2                   '.
+    FT-FVAL = XBKNVK-MOAB2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-MOBI2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-MOBI2                   '.
+    FT-FVAL = XBKNVK-MOBI2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-DIAB1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-DIAB1                   '.
+    FT-FVAL = XBKNVK-DIAB1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-DIBI1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-DIBI1                   '.
+    FT-FVAL = XBKNVK-DIBI1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-DIAB2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-DIAB2                   '.
+    FT-FVAL = XBKNVK-DIAB2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-DIBI2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-DIBI2                   '.
+    FT-FVAL = XBKNVK-DIBI2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-MIAB1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-MIAB1                   '.
+    FT-FVAL = XBKNVK-MIAB1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-MIBI1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-MIBI1                   '.
+    FT-FVAL = XBKNVK-MIBI1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-MIAB2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-MIAB2                   '.
+    FT-FVAL = XBKNVK-MIAB2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-MIBI2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-MIBI2                   '.
+    FT-FVAL = XBKNVK-MIBI2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-DOAB1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-DOAB1                   '.
+    FT-FVAL = XBKNVK-DOAB1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-DOBI1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-DOBI1                   '.
+    FT-FVAL = XBKNVK-DOBI1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-DOAB2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-DOAB2                   '.
+    FT-FVAL = XBKNVK-DOAB2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-DOBI2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-DOBI2                   '.
+    FT-FVAL = XBKNVK-DOBI2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-FRAB1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-FRAB1                   '.
+    FT-FVAL = XBKNVK-FRAB1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-FRBI1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-FRBI1                   '.
+    FT-FVAL = XBKNVK-FRBI1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-FRAB2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-FRAB2                   '.
+    FT-FVAL = XBKNVK-FRAB2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-FRBI2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-FRBI2                   '.
+    FT-FVAL = XBKNVK-FRBI2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SAAB1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-SAAB1                   '.
+    FT-FVAL = XBKNVK-SAAB1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SABI1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-SABI1                   '.
+    FT-FVAL = XBKNVK-SABI1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SAAB2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-SAAB2                   '.
+    FT-FVAL = XBKNVK-SAAB2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SABI2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-SABI2                   '.
+    FT-FVAL = XBKNVK-SABI2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SOAB1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-SOAB1                   '.
+    FT-FVAL = XBKNVK-SOAB1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SOBI1(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-SOBI1                   '.
+    FT-FVAL = XBKNVK-SOBI1                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SOAB2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-SOAB2                   '.
+    FT-FVAL = XBKNVK-SOAB2                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-SOBI2(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = '*KNVK-SOBI2                   '.
+    FT-FVAL = XBKNVK-SOBI2                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D0111_FUELLEN
+*----------------------------------------------------------
+FORM D0111_FUELLEN.
+  IF SUPPRESSED_COMPL-D0111 = 'X' .
+     EXIT.
+  ENDIF.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '0111'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  TRAEGER_DYNP_ZAV = REP_NAME_K.
+  PERFORM D0111_FUELLEN_ZAV USING 'LFA1'.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D1361_FUELLEN
+*----------------------------------------------------------
+FORM D1361_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '1361'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBKNVK-PAVIP(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PAVIP                    '.
+    FT-FVAL = XBKNVK-PAVIP                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PARGE(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PARGE                    '.
+    FT-FVAL = XBKNVK-PARGE                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-FAMST(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-FAMST                    '.
+    FT-FVAL = XBKNVK-FAMST                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-GBDAT(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-GBDAT                    '.
+    FT-FVAL = XBKNVK-GBDAT                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-ABTNR(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-ABTNR                    '.
+    FT-FVAL = XBKNVK-ABTNR                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PAFKT(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PAFKT                    '.
+    FT-FVAL = XBKNVK-PAFKT                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PARVO(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PARVO                    '.
+    FT-FVAL = XBKNVK-PARVO                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-VRTNR(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-VRTNR                    '.
+    FT-FVAL = XBKNVK-VRTNR                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-BRYTH(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-BRYTH                    '.
+    FT-FVAL = XBKNVK-BRYTH                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-AKVER(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-AKVER                    '.
+    FT-FVAL = XBKNVK-AKVER                  .
+    APPEND FT.
+  ENDIF.
+  IF XBKNVK-PARAU(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'KNVK-PARAU                    '.
+    FT-FVAL = XBKNVK-PARAU                  .
+    APPEND FT.
+  ENDIF.
+  TRAEGER_DYNP_ZAV = REP_NAME_K.
+  PERFORM D1361_FUELLEN_ZAV.
+ENDFORM.
+
+*eject
+*----------------------------------------------------------
+*        Form D1130_FUELLEN
+*----------------------------------------------------------
+FORM D1130_FUELLEN.
+  CLEAR FT.
+  FT-PROGRAM  = 'SAPMF02K'.
+  FT-DYNPRO   = '1130'.
+  FT-DYNBEGIN = 'X'.
+  APPEND FT.
+  IF XBLFZA-EMPFK(1)                   NE NODATA.
+    CLEAR FT.
+    FT-FNAM = 'LFZA-EMPFK                    '.
+    FT-FNAM+30(4) =  '(01)'.
+    CONDENSE FT-FNAM NO-GAPS.
+    FT-FVAL = XBLFZA-EMPFK                  .
+    APPEND FT.
+  ENDIF.
+ENDFORM.
+
+*Text elements
+*----------------------------------------------------------
+* BL2 Selection of structures that are used
+* BL3 Program control
+* BL4 Info Messages
+* MSG Message FB$ issued with variables $ $ $ $
+
+
+*Selection texts
+*----------------------------------------------------------
+* DS_NAME         File path name
+* FL_CHECK         Check file only
+* OS_XON         Structures from Release < 4.0
+* XINF         No Information Message
+* XINFORM         File in Unicode Format
+* XLOG         Log
+* XNONUNIC         File has Non-Unicode Format
+* XPOP         Dialog Box
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 8A
+*051   Trans. & Tax category & ...
+*
+* Message class: F2
+*046   Account group & is not defined in table &
+*282   Fill all required fields &1 &2 &3
+*
+* Message class: FB
+*010   Session &: Character & not a permitted character for 'empty field'
+*104   Trans. & &: Acct already exists; general area not being processed
+*105   Trans. & &: CoCde not entered; company code area not being edited
+*106   Trans. & &: Purch.org.not entered; purchasing area not being edited
+*107   Trans. & record &: Table & was transfered more than once
+*108   Trans. &: Transaction code & is not defined in table T020
+*109   Trans. &: Transaction & is not supported
+*110   Trans. &: Data for table & cannot be processed
+*112   Trans. &: No transaction code was transferred
+*120   Trans. & bank details & & &: ...
+*221   Country & has not been created
+*626   Trans. &1: "IBAN without Bank Account Number" function is not available
+*627   Trans. &1: Invalid value &2 in &3
+*628   Trans. &1: Bank details &2 with IBAN &3 to be deleted do not exist
+*629   Trans. &1: Termination due to unexpected situation
+*631   Country key setting in country &1 does not permit processing
+*640   Internal error in form PS_SET_NODATA: Structure & has no PS fields
+*641   Internal error in function module DDIF_NAMETAB_GET
+*642   Internal program error: Structure & does not exist
+*643   Old data & cannot be processed; ADD-ON exists
+*
+* Message class: WY
+*043   TA &, vendor no. &, POrg &: & not proc.; LTSNR, WERKS do not exist
+*045   Vendor $: data retention at sub-range level not allowed
+*046   Vendor $: data retention at plant level not allowed
+
+----------------------------------------------------------------------
+Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740

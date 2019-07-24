@@ -1,0 +1,578 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- SKB1</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: SKB1</h2>
+  <h3>Description: G/L account master (company code)</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>ALTKT</td>
+  <td>32</td>
+  <td>&nbsp;</td>
+  <td>ALTKT_SKB1</td>
+  <td>SAKNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Alternative account number in company code</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>BEGRU</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>BRGRU</td>
+  <td>BRGRU</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Authorization Group</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>BEWGP</td>
+  <td>38</td>
+  <td>&nbsp;</td>
+  <td>BEWGP</td>
+  <td>CHAR10</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Valuation Group</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>BUKRS</td>
+  <td>2</td>
+  <td>X</td>
+  <td>BUKRS</td>
+  <td>BUKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Company Code</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>BUSAB</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>BUSAB</td>
+  <td>BUSAB</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Accounting clerk</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>DATLZ</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>DATLZ</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date of the last interest calculation run</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>ERDAT</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>ERDAT_RF</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date on which the Record Was Created</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>ERNAM</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>ERNAM_RF</td>
+  <td>USNAM</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>Name of Person who Created the Object</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>FDGRV</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>FDGRV</td>
+  <td>FDGRP</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Planning group</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>FDLEV</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>FDLEV</td>
+  <td>FDLEV</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Planning level</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>FIPLS</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>FIPLS</td>
+  <td>FIPLS</td>
+  <td>NUMC</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Financial Budget Item</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>FIPOS</td>
+  <td>35</td>
+  <td>&nbsp;</td>
+  <td>FIPOS</td>
+  <td>FIPOS</td>
+  <td>CHAR</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>Commitment Item</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>FSTAG</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>FSTAG</td>
+  <td>FSTAG</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Field status group</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>HBKID</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>HBKID</td>
+  <td>HBKID</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Short Key for a House Bank</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>HKTID</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>HKTID</td>
+  <td>HKTID</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>ID for account details</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>INFKY</td>
+  <td>39</td>
+  <td>&nbsp;</td>
+  <td>J_1AIFSKS</td>
+  <td>J_1AIFSKS</td>
+  <td>CHAR</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Inflation Key</td>
+</tr>
+<tr class="cell">
+  <td>17</td>
+  <td>KDFSL</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>KDFSL</td>
+  <td>KDFSL</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Key for Exchange Rate Differences in Foreign Currency Accts</td>
+</tr>
+<tr class="cell">
+  <td>18</td>
+  <td>MANDT</td>
+  <td>1</td>
+  <td>X</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td>19</td>
+  <td>MCAKEY</td>
+  <td>42</td>
+  <td>&nbsp;</td>
+  <td>GLE_DTE_MCA_MCAKEY</td>
+  <td>GLE_MCA_MCAKEY</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>MCA Key</td>
+</tr>
+<tr class="cell">
+  <td>20</td>
+  <td>MITKZ</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>MITKZ</td>
+  <td>MITKZ</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Account is reconciliation account</td>
+</tr>
+<tr class="cell">
+  <td>21</td>
+  <td>MWSKZ</td>
+  <td>17</td>
+  <td>&nbsp;</td>
+  <td>SMWSK</td>
+  <td>SMWSK</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Tax Category in Account Master Record</td>
+</tr>
+<tr class="cell">
+  <td>22</td>
+  <td>RECID</td>
+  <td>34</td>
+  <td>&nbsp;</td>
+  <td>JV_RECIND</td>
+  <td>JV_RECIND</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Recovery Indicator</td>
+</tr>
+<tr class="cell">
+  <td>23</td>
+  <td>SAKNR</td>
+  <td>3</td>
+  <td>X</td>
+  <td>SAKNR</td>
+  <td>SAKNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>G/L Account Number</td>
+</tr>
+<tr class="cell">
+  <td>24</td>
+  <td>STEXT</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>STEXT_SKB1</td>
+  <td>TEXT50</td>
+  <td>CHAR</td>
+  <td>50</td>
+  <td>X</td>
+  <td>G/L account additional text</td>
+</tr>
+<tr class="cell">
+  <td>25</td>
+  <td>TOGRU</td>
+  <td>40</td>
+  <td>&nbsp;</td>
+  <td>TOGRU_S</td>
+  <td>TOGRU</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Tolerance Group for G/L Accounts</td>
+</tr>
+<tr class="cell">
+  <td>26</td>
+  <td>VZSKZ</td>
+  <td>19</td>
+  <td>&nbsp;</td>
+  <td>VZSKZ</td>
+  <td>VZSKZ</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Interest calculation indicator</td>
+</tr>
+<tr class="cell">
+  <td>27</td>
+  <td>WAERS</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>WAERS_SKB1</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Account currency</td>
+</tr>
+<tr class="cell">
+  <td>28</td>
+  <td>WMETH</td>
+  <td>21</td>
+  <td>&nbsp;</td>
+  <td>WMETH</td>
+  <td>WMETH</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Indicator: account managed in external system</td>
+</tr>
+<tr class="cell">
+  <td>29</td>
+  <td>XGKON</td>
+  <td>22</td>
+  <td>&nbsp;</td>
+  <td>XGKON</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Cash receipt account / cash disbursement account</td>
+</tr>
+<tr class="cell">
+  <td>30</td>
+  <td>XINTB</td>
+  <td>23</td>
+  <td>&nbsp;</td>
+  <td>XINTB</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Is account only posted to automatically?</td>
+</tr>
+<tr class="cell">
+  <td>31</td>
+  <td>XKRES</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>XKRES</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Can Line Items Be Displayed by Account?</td>
+</tr>
+<tr class="cell">
+  <td>32</td>
+  <td>XLGCLR</td>
+  <td>41</td>
+  <td>&nbsp;</td>
+  <td>XLGCLR</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Clearing Specific to Ledger Groups</td>
+</tr>
+<tr class="cell">
+  <td>33</td>
+  <td>XLOEB</td>
+  <td>25</td>
+  <td>&nbsp;</td>
+  <td>XLOEV</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Account marked for deletion?</td>
+</tr>
+<tr class="cell">
+  <td>34</td>
+  <td>XMITK</td>
+  <td>33</td>
+  <td>&nbsp;</td>
+  <td>XMITK</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Reconcil.acct ready for input at time of posting?</td>
+</tr>
+<tr class="cell">
+  <td>35</td>
+  <td>XMWNO</td>
+  <td>36</td>
+  <td>&nbsp;</td>
+  <td>XMWNO</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Tax code is not a required field</td>
+</tr>
+<tr class="cell">
+  <td>36</td>
+  <td>XNKON</td>
+  <td>26</td>
+  <td>&nbsp;</td>
+  <td>XNKON</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Supplement for automatic postings ?</td>
+</tr>
+<tr class="cell">
+  <td>37</td>
+  <td>XOPVW</td>
+  <td>27</td>
+  <td>&nbsp;</td>
+  <td>XOPVW</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Open Item Management?</td>
+</tr>
+<tr class="cell">
+  <td>38</td>
+  <td>XSALH</td>
+  <td>37</td>
+  <td>&nbsp;</td>
+  <td>XSALH</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Only Manage Balances in Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>39</td>
+  <td>XSPEB</td>
+  <td>28</td>
+  <td>&nbsp;</td>
+  <td>XSPEB</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Is Account Blocked for Posting?</td>
+</tr>
+<tr class="cell">
+  <td>40</td>
+  <td>ZINDT</td>
+  <td>29</td>
+  <td>&nbsp;</td>
+  <td>DZINDT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Key date of the last interest calculation</td>
+</tr>
+<tr class="cell">
+  <td>41</td>
+  <td>ZINRT</td>
+  <td>30</td>
+  <td>&nbsp;</td>
+  <td>DZINRT</td>
+  <td>ZINRT</td>
+  <td>NUMC</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Interest calculation frequency in months</td>
+</tr>
+<tr class="cell">
+  <td>42</td>
+  <td>ZUAWA</td>
+  <td>31</td>
+  <td>&nbsp;</td>
+  <td>DZUAWA</td>
+  <td>ZUAWA</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Key for sorting according to assignment numbers</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

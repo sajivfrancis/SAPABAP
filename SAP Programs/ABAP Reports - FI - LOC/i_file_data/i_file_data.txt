@@ -1,0 +1,39 @@
+*&---------------------------------------------------------------------*
+*&  Include           DMEE_DATA
+*&---------------------------------------------------------------------*
+
+DATA: type LIKE wa_output-itsr_doctype,
+*      seq(3) TYPE n,
+*     suffix(4) TYPE c,
+*      suffix(14) TYPE c,
+*     prefix(14) TYPE c.
+seq(8) TYPE n,
+* CBR S03CCR
+*prefix(20) TYPE c,
+*suffix(20) TYPE c.
+prefix(38) TYPE c,
+suffix(38) TYPE c.
+* CBR S03CCR
+
+DATA: itab_dmee TYPE iditsr_dme, "Interface to DME Engine for items
+      itab_output TYPE TABLE OF iditsr_output, "Internal table for items
+      itab_output_line LIKE LINE OF itab_output.
+
+DATA: itab_dmee_head TYPE iditsr_dme,"Interface to DME Engine for header
+      itab_header TYPE TABLE OF iditsr_output,"Internal table for header
+      itab_header_line LIKE LINE OF itab_output.
+
+DATA: f_output TYPE STANDARD TABLE OF dmee_output_file,
+      wa_f_output LIKE LINE OF f_output.
+
+DATA: it_custom TYPE TABLE OF iditsr_dmee,
+*"Internal table for getting customize data
+      wa_custom LIKE LINE OF it_custom.
+
+DATA: tree_id LIKE dmee_tree_head-tree_id.
+
+DATA: it_dmee TYPE TABLE OF iditsr_dmee,  "Internal table for header
+      wa_dmee LIKE LINE OF it_dmee.
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

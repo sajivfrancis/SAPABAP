@@ -1,0 +1,1549 @@
+************************************************************************
+*  This program retrieves credit card settlement data to be sent to    *
+*  a credit card processor for fund settlement. Posting and clearing   *
+*  of the credit card account can be done if desired.                 *
+************************************************************************
+REPORT rfccsstt
+  LINE-SIZE 79
+  MESSAGE-ID fy
+  NO STANDARD PAGE HEADING.
+
+
+* Database Tables ******************************************************
+TABLES:
+  bkpf,
+  bhdgd,
+  bsegc,
+  bsad,
+  bsid,
+  bsis,
+  ccenq,
+  ccseth,
+  skb1,
+  t041a,
+  t100,
+  tccaa,
+  tccfi,
+  tcclg,
+  tcclgt.
+
+TYPES:
+  BEGIN OF lys_msg,
+    msgid TYPE symsgid,
+    msgty TYPE symsgty,
+    msgno TYPE symsgno,
+    msgv1 TYPE symsgv,
+    msgv2 TYPE symsgv,
+    msgv3 TYPE symsgv,
+    msgv4 TYPE symsgv,
+  END OF lys_msg.
+
+
+CONSTANTS:
+  c_very_important TYPE balprobcl VALUE '1',                "#EC *
+  c_important      TYPE balprobcl VALUE '2',
+  c_middel         TYPE balprobcl VALUE '3',                "#EC *
+  c_information    TYPE balprobcl VALUE '4',
+  c_misc           TYPE balprobcl VALUE ' '.                "#EC *
+
+* Internal Tables ******************************************************
+DATA:
+* Currencies
+  BEGIN OF curtab OCCURS 5,
+    waers        LIKE bsis-waers,
+  END OF curtab,
+* Tables for FB05-Posting
+  ftclear        LIKE ftclear OCCURS 20 WITH HEADER LINE,
+  ftpost         LIKE ftpost OCCURS 100 WITH HEADER LINE,
+  fttax          LIKE fttax OCCURS 0 WITH HEADER LINE,
+* Credit Card Institutes in one batch
+  BEGIN OF instab OCCURS 2,
+    ccins        LIKE bsegc-ccins,
+    vcard        LIKE tvcin-vcard,
+  END OF instab,
+* Selected GL Accounts to settle
+  BEGIN OF kontab OCCURS 3,
+    merch        LIKE tccaa-merch,
+    cardaccount  LIKE bsis-hkont,      "Credit Card account
+    cashaccount  LIKE bsis-hkont,      "Cash account
+  END   OF kontab,
+* Open Items
+  postab         LIKE bsis OCCURS 500 WITH HEADER LINE,
+* Items to settle
+  settab         LIKE ccset_internal OCCURS 200 WITH HEADER LINE,
+* ... additional data of billing document header (purch.card)
+  setexd_h       LIKE ccsetexd_h OCCURS 200 WITH HEADER LINE,
+* ... additional data of billing document position (purch.card)
+  setexd_i       LIKE ccsetexd_i OCCURS 200 WITH HEADER LINE,
+  setexd_i_all   LIKE ccsetexd_i OCCURS 200 WITH HEADER LINE,
+* Error messages for SET settlements
+* Numbers of posted documents
+  xblntab        LIKE blntab OCCURS 2 WITH HEADER LINE,
+
+
+* Structures ***********************************************************
+* Enqueue
+  BEGIN OF enq,
+    ccdig        LIKE ccenq-ccdig,
+    bukrs        LIKE ccenq-bukrs,
+    hkont        LIKE ccenq-hkont,
+    digits(11)   TYPE c,
+    sdigits(11)  TYPE c,
+  END OF enq,
+* Clearing (initialized for every FB05-Call)
+  BEGIN OF fb05,
+    subrc        LIKE sy-subrc,
+  END OF fb05,
+* Posting Interface
+  BEGIN OF fipi,
+    auglv        LIKE t041a-auglv,
+    function(1)  TYPE c,
+    group        LIKE apqi-groupid,
+    holddate     LIKE sy-datum,
+    mode(1)      TYPE c,
+    tcode        LIKE tstc-tcode,
+    update(1)    TYPE c,
+    user         LIKE sy-uname,
+  END OF fipi,
+* Time/Date
+  BEGIN OF times,
+    bdate        LIKE sy-datum,
+    btime        LIKE sy-uzeit,
+    edate        LIKE sy-datum,
+    etime        LIKE sy-uzeit,
+  END OF times,
+* Company data
+  gs_t001        LIKE t001,
+
+
+* Single fields ********************************************************
+  chr30(40)      TYPE c,
+  chr60(60)      TYPE c,
+  fvalue         LIKE ftpost-fval,
+  hlp_ccbtc      LIKE bsegc-ccbtc,     "Batch number (10 digits)
+  hlp_ccbtc8     LIKE febkey-kukey,    "Batch number ( 8 digits)
+  hlp_xblnr      LIKE bkpf-xblnr,      "Reference Number
+  i              TYPE i,
+  mode(1)        TYPE c,
+  msgid          LIKE sy-msgid,
+  msgty          LIKE sy-msgty,
+  msgno          LIKE sy-msgno,
+  msgv1          LIKE sy-msgv1,
+  msgv2          LIKE sy-msgv2,
+  msgv3          LIKE sy-msgv3,
+  msgv4          LIKE sy-msgv4,
+  msgtx          LIKE sy-lisel,
+  subrc          LIKE sy-subrc,
+  amount         LIKE bsis-wrbtr,      "Amount for clearing posting
+  toclear        LIKE bseg-wrbtr,
+  wrbtr          LIKE bsis-wrbtr,
+  xtodo(1)       TYPE c.               "Something to do?
+
+* Application Log ******************************************************
+DATA:
+  gt_loghdl         TYPE bal_t_logh,
+  gt_loghdl_s       TYPE balloghndl OCCURS 3 WITH HEADER LINE,
+  g_loghdl          TYPE balloghndl,
+  gs_msg            TYPE lys_msg,
+  g_stop_settlement TYPE boolean.
+
+* Field-Symbols ********************************************************
+FIELD-SYMBOLS:
+  <f1>.
+
+
+* Selection screen *****************************************************
+* General selection parameter
+SELECTION-SCREEN BEGIN OF BLOCK 1 WITH FRAME TITLE text-001.
+PARAMETERS:
+  pr_bukrs   LIKE skb1-bukrs OBLIGATORY MEMORY ID buk.
+SELECT-OPTIONS:
+  sl_hkont   FOR  tccaa-hkont_v OBLIGATORY.
+SELECTION-SCREEN END OF BLOCK 1.
+* Further selection parameter
+SELECTION-SCREEN BEGIN OF BLOCK 2 WITH FRAME TITLE text-002.
+SELECT-OPTIONS:
+  sl_ccins   FOR  bsegc-ccins,
+  sl_merch   FOR  bsegc-merch,
+  sl_currc   FOR  bsis-waers,
+  sl_locid   FOR  bsegc-locid,
+  sl_cctyp   FOR  bsegc-cctyp.
+SELECTION-SCREEN SKIP 1.
+PARAMETERS:
+  pr_belnr   LIKE bsis-belnr,
+  pr_gjahr   LIKE bsis-gjahr.
+SELECTION-SCREEN END OF BLOCK 2.
+* Clearing parameter
+SELECTION-SCREEN BEGIN OF BLOCK 3 WITH FRAME TITLE text-003.
+PARAMETERS:
+  pr_blart   LIKE bkpf-blart OBLIGATORY,
+  pr_bldat   LIKE bkpf-bldat OBLIGATORY DEFAULT sy-datum,
+  pr_budat   LIKE bkpf-budat OBLIGATORY DEFAULT sy-datum.
+SELECTION-SCREEN END OF BLOCK 3.
+* Processing parameter
+SELECTION-SCREEN BEGIN OF BLOCK 4 WITH FRAME TITLE text-004.
+SELECT-OPTIONS:
+  sl_digit   FOR  ccenq-ccdig.
+PARAMETER:
+  pr_xaddr   LIKE rfccd-xaddr,
+  pr_xdeta   LIKE rfccr-xdeta,
+  pr_xecht   LIKE rfpdo-allgecht DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK 4.
+
+
+* Initialization *******************************************************
+INITIALIZATION.
+
+* Set document type for clearing posting
+  SELECT SINGLE * FROM tccfi.
+  IF sy-subrc EQ 0.
+    pr_blart = tccfi-blrts.
+  ENDIF.
+
+
+* At selection screen **************************************************
+AT SELECTION-SCREEN.
+
+* Get company code data
+  CALL FUNCTION 'FI_COMPANY_CODE_DATA'
+    EXPORTING
+      i_bukrs      = pr_bukrs
+    IMPORTING
+      e_t001       = gs_t001
+    EXCEPTIONS
+      system_error = 1
+                  OTHERS       = 2.
+  IF sy-subrc NE 0.
+    MESSAGE e350(f4) WITH pr_bukrs.
+  ENDIF.
+
+* Fill internal table of accounts
+  CLEAR: kontab, kontab[].
+  SELECT * FROM skb1 WHERE bukrs EQ pr_bukrs          "#EC CI_SGLSELECT
+                       AND saknr IN sl_hkont.
+    kontab-cardaccount = skb1-saknr.
+    SELECT SINGLE * FROM tccaa
+                    WHERE ktopl   EQ gs_t001-ktopl
+                      AND hkont_v EQ skb1-saknr.
+    IF sy-subrc EQ 0.
+      kontab-merch       = tccaa-merch.      "Merchant ID for SET
+      kontab-cashaccount = tccaa-hkont_n.
+      APPEND kontab.
+    ELSE.
+      SET CURSOR FIELD 'SL_HKONT-LOW'.
+      MESSAGE e032 WITH gs_t001-ktopl skb1-saknr.
+    ENDIF.
+  ENDSELECT.
+  IF sy-subrc NE 0.
+    SET CURSOR FIELD 'SL_HKONT-LOW'.
+    MESSAGE e005(fh) WITH sl_hkont-low pr_bukrs.
+  ENDIF.
+
+* If PR_BELNR is filled PR_GJAHR must also be filled and vice versa
+  IF ( NOT pr_belnr IS INITIAL AND
+       pr_gjahr IS INITIAL ) OR
+     ( pr_belnr IS INITIAL AND
+        NOT pr_gjahr IS INITIAL ).
+    SET CURSOR FIELD 'PR_BELNR'.
+    MESSAGE e066.
+  ENDIF.
+
+
+* Start of selection ***************************************************
+START-OF-SELECTION.
+
+* Initialize batch header
+  PERFORM batch_heading_init.
+
+* Take time
+  times-bdate = sy-datum.
+  times-btime = sy-uzeit.
+
+* Prepare the FB05 (POSTING_INTERFACE)
+  mode            = 'N'.                         "No dynpro display
+  fipi-tcode      = 'FB05'.
+  fipi-auglv      = 'UMBUCHNG'.
+  fipi-user       = sy-uname.
+  fipi-group(8)   = sy-repid.
+  fipi-group+8(4) = sy-uzeit(4).
+  fipi-function   = 'C'.                         "Call transaction
+  fipi-holddate   = '00000000'.
+  fipi-update     = 'S'.                         "Synchronous
+  fipi-mode       = mode.
+  SELECT SINGLE * FROM t041a
+                  WHERE auglv EQ 'UMBUCHNG'.
+  CHECK sy-subrc EQ 0.
+
+* Determine the digits to enqueue
+  IF pr_belnr IS INITIAL.
+    enq-digits = '0123456789&'.
+    DESCRIBE TABLE sl_digit LINES sy-tfill.
+    IF sy-tfill NE 0.
+      CLEAR: enq-digits.
+      DO 10 TIMES.
+        IF i IN sl_digit.
+          ASSIGN enq-digits+i(1) TO <f1>.
+          <f1> = i.
+        ENDIF.
+        i = i + 1.
+      ENDDO.
+      enq-digits+10(1) = '&'.
+      CONDENSE enq-digits NO-GAPS.
+    ENDIF.
+  ELSE.
+    enq-digits+0(1) = pr_belnr+9(1).
+    enq-digits+1(1) ='&'.
+  ENDIF.
+
+* Retrieve open items for each GL account
+  LOOP AT kontab.
+    PERFORM create_appl_log
+      CHANGING
+        g_loghdl.
+
+*   Initializations for each credit card institute
+    CLEAR: amount, i, fb05,
+           settab, settab[],
+           postab, postab[],
+           curtab, curtab[].
+
+*   Enqueue last digits of document numbers
+    PERFORM enqueue.
+
+    CALL FUNCTION 'CCARDEC_FI_AR_CLEAR_BUFFER'.
+
+*   Select open items / Check selection criteria
+    IF pr_belnr IS INITIAL.
+      SELECT * FROM bsis
+               WHERE bukrs EQ pr_bukrs
+                 AND hkont EQ kontab-cardaccount
+                 AND waers IN sl_currc.
+        PERFORM check_bsis
+          USING
+            g_loghdl.
+      ENDSELECT.
+    ELSE.
+      SELECT * FROM bsis
+               WHERE bukrs EQ pr_bukrs
+                 AND hkont EQ kontab-cardaccount
+                 AND gjahr EQ pr_gjahr
+                 AND belnr EQ pr_belnr
+                 AND waers IN sl_currc.
+        PERFORM check_bsis
+          USING
+            g_loghdl.
+      ENDSELECT.
+    ENDIF.
+
+*   Check, whether open items were selected
+    IF postab[] IS INITIAL.
+     APPEND g_loghdl TO gt_loghdl_s.
+      CONTINUE.
+    ENDIF.
+
+*   Post in document currency packages and settle
+    LOOP AT curtab.
+      CLEAR: amount,
+             settab, settab[],
+             instab, instab[],
+             ftclear, ftclear[],
+             ftpost, ftpost[],
+             fttax, fttax[].
+
+      IF g_loghdl IS INITIAL.
+        PERFORM create_appl_log
+          CHANGING
+            g_loghdl.
+      ENDIF.
+
+      CLEAR gs_msg.
+      gs_msg-msgid = 'FY'.
+      gs_msg-msgty = 'S'.
+      gs_msg-msgno = '300'.
+      gs_msg-msgv1 = kontab-cardaccount.
+      gs_msg-msgv2 = pr_bukrs.
+      IF 1 = 2. MESSAGE s300 WITH '&' '&'. ENDIF.
+      PERFORM add_msg_appl_log
+        USING
+          g_loghdl
+          gs_msg
+          c_important.
+
+*     ... get batch number (each currency is a separate batch)
+      PERFORM get_batch_no.
+
+*     ... FB05
+      PERFORM posting_interface_start.
+      LOOP AT postab
+           WHERE waers EQ curtab-waers.
+        PERFORM fill_ftclear.
+        PERFORM get_ccdata
+          USING
+            g_loghdl
+          CHANGING
+            g_stop_settlement.
+        IF g_stop_settlement IS NOT INITIAL.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      IF g_stop_settlement IS NOT INITIAL.
+        APPEND g_loghdl TO gt_loghdl_s.
+        CLEAR g_loghdl.
+        CONTINUE.
+      ENDIF.
+
+      CLEAR gs_msg.
+      gs_msg-msgid = 'FY'.
+      gs_msg-msgty = 'S'.
+      gs_msg-msgno = '301'.
+      DESCRIBE TABLE settab LINES gs_msg-msgv1.
+      SHIFT gs_msg-msgv1 LEFT DELETING LEADING space.
+      WRITE amount TO gs_msg-msgv2 CURRENCY curtab-waers.
+      SHIFT gs_msg-msgv2 LEFT DELETING LEADING space.
+      CONCATENATE gs_msg-msgv2 curtab-waers INTO gs_msg-msgv2 SEPARATED BY space.
+      IF 1 = 2. MESSAGE s301 WITH '&' '&'. ENDIF.
+      PERFORM add_msg_appl_log
+        USING
+          g_loghdl
+          gs_msg
+          c_important.
+
+*     Detailed Protocol: print document numbers of found items
+      IF pr_xdeta NE space.
+        LOOP AT postab WHERE waers = curtab-waers.
+          IF postab-shkzg = 'S'.
+            wrbtr = postab-wrbtr.
+          ELSE.
+            wrbtr = 0 - postab-wrbtr.
+          ENDIF.
+          CLEAR gs_msg.
+          gs_msg-msgid = 'FY'.
+          gs_msg-msgty = 'S'.
+          gs_msg-msgno = '308'.
+          CONCATENATE postab-bukrs postab-belnr postab-gjahr postab-buzei
+            INTO gs_msg-msgv1 SEPARATED BY space.
+          WRITE wrbtr CURRENCY postab-waers TO gs_msg-msgv2.
+          SHIFT gs_msg-msgv2 LEFT DELETING LEADING space.
+          CONCATENATE gs_msg-msgv2 postab-waers INTO gs_msg-msgv2 SEPARATED BY space.
+          IF 1 = 2. MESSAGE e308 WITH '&' '&'. ENDIF.
+          PERFORM add_msg_appl_log
+            USING
+              g_loghdl
+              gs_msg
+              c_information.
+        ENDLOOP.
+      ENDIF.
+
+
+      PERFORM fb05_posting.
+      PERFORM posting_interface_end.
+
+*     ... and Settlement
+      IF fb05-subrc EQ 0.
+        PERFORM print_fb05_ok
+          USING
+            g_loghdl.
+        DESCRIBE TABLE settab LINES sy-tfill.
+        CHECK sy-tfill GT 0.
+        PERFORM settlement
+          USING
+            g_loghdl.
+      ELSE.
+        PERFORM print_fb05_error
+          USING
+            g_loghdl.
+        PERFORM loginfo USING 'KO' 'KO'.
+      ENDIF.
+      PERFORM set_appl_log_hdr
+        USING
+          g_loghdl
+          tcclg-ccbtc
+          pr_bukrs
+          kontab-cardaccount
+          amount
+          curtab-waers
+          pr_xecht.
+
+      APPEND g_loghdl TO gt_loghdl_s.
+      CLEAR g_loghdl.
+
+*     ... and COMMIT WORK
+      COMMIT WORK.
+    ENDLOOP.
+  ENDLOOP.
+
+* Something to do?
+  IF xtodo IS INITIAL.
+    MESSAGE s033.
+  ELSE.
+  Sort gt_loghdl_s.
+  loop at gt_loghdl_s.
+    append gt_loghdl_s to gt_loghdl.
+  endloop.
+    PERFORM display_appl_logs
+      USING
+        gt_loghdl.
+  ENDIF.
+
+
+* End of selection *****************************************************
+END-OF-SELECTION.
+
+*FORM-Routinen *********************************************************
+
+*----------------------------------------------------------------------*
+* Form BATCH_HEADING_INIT
+*----------------------------------------------------------------------*
+FORM batch_heading_init.
+
+  bhdgd-inifl = '0'.
+  bhdgd-lines = sy-linsz.
+  bhdgd-uname = sy-uname.
+  bhdgd-repid = sy-repid.
+  bhdgd-line1 = sy-title.
+  bhdgd-bukrs = pr_bukrs.
+
+ENDFORM. "BATCH_HEADING_INIT
+
+*----------------------------------------------------------------------*
+* Form CALL_TRANS
+*----------------------------------------------------------------------*
+* Call transaction FB05 via posting interface
+*----------------------------------------------------------------------*
+FORM call_trans.
+
+  CALL FUNCTION 'POSTING_INTERFACE_CLEARING'
+    EXPORTING
+      i_auglv   = fipi-auglv
+      i_tcode   = fipi-tcode
+    IMPORTING
+      e_subrc   = subrc
+                 e_msgid   = msgid
+                 e_msgty   = msgty
+                 e_msgno   = msgno
+                 e_msgv1   = msgv1
+                 e_msgv2   = msgv2
+                 e_msgv3   = msgv3
+                 e_msgv4   = msgv4
+    TABLES
+      t_ftpost  = ftpost
+                 t_ftclear = ftclear
+                 t_fttax   = fttax
+                 t_blntab  = xblntab.
+  fb05-subrc = subrc.
+  DESCRIBE TABLE xblntab LINES sy-tfill.
+  IF sy-tfill EQ 0 AND
+     subrc EQ 0.
+    fb05-subrc = 99.
+    MESSAGE s030.
+  ENDIF.
+  IF fb05-subrc NE 0.
+    MESSAGE ID   msgid TYPE 'S' NUMBER msgno
+            WITH msgv1 msgv2 msgv3 msgv4.
+  ENDIF.
+  CLEAR: ftpost, ftpost[],
+         ftclear, ftclear[].
+
+ENDFORM. "CALL_TRANS
+
+*----------------------------------------------------------------------*
+* Form CHECK_BSIS
+*----------------------------------------------------------------------*
+* Check selection criteria for BSIS
+*----------------------------------------------------------------------*
+FORM check_bsis
+  USING
+    i_loghdl TYPE c.
+
+  DATA: ls_ccardec_bin TYPE ccardec_s_bin.
+
+  DATA:
+    ls_msg TYPE lys_msg.
+
+* Check selection parameter
+  CHECK: NOT bsis-rfzei IS INITIAL,
+         bsis-belnr+9(1) IN sl_digit.
+  IF bsis-budat GT pr_budat.
+    ls_msg-msgid = 'F5'.
+    ls_msg-msgno = '362'.
+    ls_msg-msgty = 'E'.
+    WRITE bsis-budat TO ls_msg-msgv1 DD/MM/YYYY.
+    PERFORM add_msg_appl_log
+      USING
+        i_loghdl
+        ls_msg
+        c_important.
+    EXIT.
+  ENDIF.
+  PERFORM read_bsegc USING bsis-bukrs bsis-belnr bsis-gjahr bsis-rfzei.
+  CHECK: sy-subrc    EQ 0,
+         bsegc-settl EQ space,         "Not settled yet
+         bsegc-ccins IN sl_ccins,
+         bsegc-locid IN sl_locid,
+         bsegc-merch IN sl_merch,
+         bsegc-cctyp IN sl_cctyp.
+
+*        Decryption of the credit card number
+  IF NOT bsegc-ccard_guid IS INITIAL.
+    CALL FUNCTION 'CCARDEC_READ'
+         EXPORTING
+              im_ccard_guid   = bsegc-ccard_guid
+         IMPORTING
+              ex_ccard_bin    = ls_ccardec_bin
+         EXCEPTIONS
+              entry_not_found = 1
+              guid_is_initial = 2
+              OTHERS          = 3.
+    CHECK sy-subrc EQ 0.
+    CALL FUNCTION 'CCARDEC_REFRESH_BUFFER'.
+    CALL FUNCTION 'CCARD_DEVELOPE'
+         EXPORTING
+              im_ccard_bin    = ls_ccardec_bin
+         IMPORTING
+              ex_ccnum        = bsegc-ccnum
+         EXCEPTIONS
+              develope_failed = 1
+              OTHERS          = 2.
+    IF sy-subrc <> 0.
+      MESSAGE i073 WITH bsis-bukrs bsis-belnr bsis-gjahr bsis-rfzei.
+    ENDIF.
+
+    CHECK sy-subrc EQ 0.
+    CALL FUNCTION 'CCARDEC_FI_AR_WRITE_BUFFER'
+      EXPORTING
+        im_guid        = bsegc-ccard_guid
+        im_ccnum       = bsegc-ccnum.
+  ENDIF.
+
+* Fill internal table of open items for settlement
+  postab = bsis.
+  APPEND postab.
+
+* Collect currencies
+  curtab-waers = bsis-waers.
+  COLLECT curtab.
+
+ENDFORM. "CHECK_BSIS
+
+*----------------------------------------------------------------------*
+* Form ENQUEUE
+*----------------------------------------------------------------------*
+* Enqueue the last digits of the document numbers
+*----------------------------------------------------------------------*
+FORM enqueue.
+
+  enq-sdigits = enq-digits.
+  WHILE enq-digits CA '&'.
+    IF enq-digits(1) EQ '&'.
+      EXIT.
+    ENDIF.
+    enq-bukrs = pr_bukrs.
+    enq-hkont = kontab-cardaccount.
+    enq-ccdig = enq-digits(1).
+    CALL FUNCTION 'ENQUEUE_EFCCENQ'
+      EXPORTING
+        bukrs        = enq-bukrs
+        hkont        = enq-hkont
+        ccdig        = enq-ccdig
+      EXCEPTIONS
+        foreign_lock = 1.
+    IF sy-subrc EQ 1.
+      MESSAGE e023 WITH enq-ccdig enq-bukrs enq-hkont.
+    ENDIF.
+    SHIFT enq-digits.
+  ENDWHILE.
+  enq-digits = enq-sdigits.
+
+ENDFORM. "ENQUEUE
+
+*----------------------------------------------------------------------*
+* Form GET_BATCH_NO
+*----------------------------------------------------------------------*
+* Determine a new batch number (internal numbering in FEBKEY)
+*----------------------------------------------------------------------*
+FORM get_batch_no.
+
+  IF pr_xecht IS INITIAL.
+    hlp_ccbtc = '**********'.
+  ENDIF.
+  CHECK pr_xecht NE space.
+
+* Get batch number from FEBKEY
+  CALL FUNCTION 'GET_SHORTKEY_FOR_FEBKO'
+    EXPORTING
+      i_tname             = 'CCARD'
+    IMPORTING
+      e_kukey             = hlp_ccbtc8
+    EXCEPTIONS
+      febkey_update_error = 1.
+
+* No new number available?
+  IF sy-subrc EQ 1.
+    IF sy-batch EQ space.
+      MESSAGE a228.
+    ELSE.
+      MESSAGE e228.
+    ENDIF.
+  ENDIF.
+
+* Get batch number from FEBKEY
+  PERFORM alphaformat(sapfs000) USING hlp_ccbtc8 hlp_ccbtc.
+
+ENDFORM. "GET_BATCH_NO
+
+*----------------------------------------------------------------------*
+* Form GET_CCDATA
+*----------------------------------------------------------------------*
+* Get CCDATA out of BSEGC, use BSIS fields
+*----------------------------------------------------------------------*
+FORM get_ccdata
+  USING
+    i_loghdl   TYPE c
+  CHANGING
+    c_stop     TYPE boolean.
+
+  DATA: ls_tvcin LIKE tvcin,
+        ls_msg   TYPE lys_msg.
+
+  CLEAR c_stop.
+
+  CALL FUNCTION 'CREDIT_CARD_CONVERT_FOR_SETTLE'
+    EXPORTING
+      i_bsis          = postab
+      i_xaddr         = pr_xaddr
+    IMPORTING
+      e_settab        = settab
+      e_ccsetexd_h    = setexd_h
+    TABLES
+      t_ccsetexd_i    = setexd_i
+    EXCEPTIONS
+      already_settled = 1
+                  OTHERS          = 2.
+  CASE sy-subrc.
+    WHEN 0.
+      IF postab-shkzg EQ 'S'.
+        amount = amount + postab-wrbtr.
+      ELSE.
+        amount = amount - postab-wrbtr.
+      ENDIF.
+      settab-ccbtc = hlp_ccbtc.
+      APPEND settab.
+      IF settab-exdfl NE space.
+        APPEND setexd_h.
+        LOOP AT setexd_i.
+          setexd_i_all = setexd_i.
+          APPEND setexd_i_all.
+        ENDLOOP.
+      ENDIF.
+*     Read credit card institution infos for check whether it is SET
+      CALL FUNCTION 'CREDIT_CARD_GET_INSTITUTE'
+        EXPORTING
+          i_ccins = settab-ccins
+        IMPORTING
+          e_tvcin = ls_tvcin.
+      instab-vcard = ls_tvcin-vcard.
+      instab-ccins = settab-ccins.
+      COLLECT instab.
+*     Get merchant ID and check whether it is unique for SET trans.
+      IF NOT ls_tvcin-vcard IS INITIAL.
+        CLEAR ls_msg.
+        ls_msg-msgid = 'FY'.
+        ls_msg-msgty = 'E'.
+        IF kontab-merch IS INITIAL.
+          ls_msg-msgno = '060'.
+          PERFORM add_msg_appl_log
+            USING
+              i_loghdl
+              ls_msg
+              c_important.
+          c_stop = 'X'.
+          IF 1 = 2. MESSAGE e060. ENDIF.
+        ELSEIF settab-merch IS INITIAL.
+          ls_msg-msgno = '061'.
+          ls_msg-msgv1 = kontab-merch.
+          PERFORM add_msg_appl_log
+            USING
+              i_loghdl
+              ls_msg
+              c_important.
+          c_stop = 'X'.
+          IF 1 = 2. MESSAGE e061 WITH kontab-merch. ENDIF.
+        ELSEIF kontab-merch NE settab-merch.
+          ls_msg-msgno = '059'.
+          ls_msg-msgv1 = settab-merch.
+          ls_msg-msgv2 = kontab-merch.
+          ls_msg-msgv3 = settab-ccins.
+          PERFORM add_msg_appl_log
+            USING
+              i_loghdl
+              ls_msg
+              c_important.
+          c_stop = 'X'.
+          IF 1 = 2. MESSAGE e059 WITH settab-merch kontab-merch settab-ccins. ENDIF.
+        ENDIF.
+      ENDIF.
+    WHEN 1.
+    WHEN 2.
+      CLEAR ls_msg.
+      ls_msg-msgid = sy-msgid.
+      ls_msg-msgty = sy-msgty.
+      ls_msg-msgno = sy-msgno.
+      ls_msg-msgv1 = sy-msgv1.
+      ls_msg-msgv2 = sy-msgv2.
+      ls_msg-msgv3 = sy-msgv3.
+      ls_msg-msgv4 = sy-msgv4.
+      PERFORM add_msg_appl_log
+        USING
+          i_loghdl
+          ls_msg
+          c_important.
+      IF ls_msg-msgty EQ 'E' OR
+         ls_msg-msgty EQ 'A'.
+        c_stop = 'X'.
+      ENDIF.
+  ENDCASE.
+
+ENDFORM. "GET_CCDATA
+
+*----------------------------------------------------------------------*
+* Form FB05_POSTING
+*----------------------------------------------------------------------*
+* Fill Interface for FB05
+*----------------------------------------------------------------------*
+FORM fb05_posting.
+
+  CLEAR: xblntab, xblntab[].
+  IF pr_xecht IS INITIAL.
+    fb05-subrc    = 0.
+    xblntab-belnr = '**********'.
+    xblntab-gjahr = '****'.
+    xblntab-bukrs = pr_bukrs.
+    APPEND xblntab.
+  ENDIF.
+  CHECK NOT settab[] IS INITIAL.
+  xtodo = 'X'.
+  CHECK pr_xecht NE space.
+  PERFORM fill_header.
+  PERFORM fill_item.
+  PERFORM call_trans.
+
+ENDFORM. "FB05_POSTING
+
+*----------------------------------------------------------------------*
+* Form FILL_FTCLEAR
+*----------------------------------------------------------------------*
+* Transfer clearing information to FTCLEAR
+*----------------------------------------------------------------------*
+FORM fill_ftclear.
+
+  CLEAR ftclear.
+  ftclear-agkoa     = 'S'.
+  ftclear-agkon     = kontab-cardaccount.
+  ftclear-agbuk     = pr_bukrs.
+  ftclear-xnops     = 'X'.
+  ftclear-agums     = ' '.
+  ftclear-selfd     = 'BELNR'.
+  ftclear-selvon    = postab-belnr.
+  ftclear-selvon+10 = postab-gjahr.
+  ftclear-selvon+14 = postab-buzei.
+  CONDENSE ftclear-selvon NO-GAPS.
+  APPEND ftclear.
+
+ENDFORM. "FILL_FTCLEAR
+
+*----------------------------------------------------------------------*
+* Form FILL_HEADER
+*----------------------------------------------------------------------*
+* Fill document header of settlement document
+*----------------------------------------------------------------------*
+FORM fill_header.
+
+  hlp_xblnr = 'CC-'.                        "Reference Number
+  DESCRIBE TABLE instab LINES sy-tfill.
+  IF sy-tfill EQ 1.
+    hlp_xblnr+3(4) = instab-ccins.          "= 'CC-VISA-12345678'
+  ENDIF.
+  hlp_xblnr+7(1) = '-'.                     " (12345678=batchno)
+  hlp_xblnr+8    = hlp_ccbtc8.
+  ftpost-stype   = 'K'.
+  ftpost-count   = '1'.
+  WRITE pr_bldat TO fvalue DD/MM/YYYY.
+  PERFORM ftpost_field USING 'BKPF-BLDAT' fvalue.
+  PERFORM ftpost_field USING 'BKPF-BLART' pr_blart.
+  PERFORM ftpost_field USING 'BKPF-BUKRS' pr_bukrs.
+  WRITE pr_budat TO fvalue DD/MM/YYYY.
+  PERFORM ftpost_field USING 'BKPF-BUDAT' fvalue.
+  PERFORM ftpost_field USING 'BKPF-WAERS' curtab-waers.
+* PERFORM ftpost_field USING 'BKPF-WAERS' gs_t001-waers.
+  PERFORM ftpost_field USING 'BKPF-XBLNR' hlp_xblnr.
+  ftpost-count = 0.
+
+ENDFORM. "FILL_HEADER
+
+*----------------------------------------------------------------------*
+* Form FILL_ITEM
+*----------------------------------------------------------------------*
+* Fill line item of cash line in settlement document
+*----------------------------------------------------------------------*
+FORM fill_item.
+
+  ftpost-stype = 'P'.
+  ftpost-count = '1'.
+  PERFORM ftpost_field USING 'BSEG-HKONT' kontab-cashaccount.
+* PERFORM FTPOST_FIELD USING 'BSEG-CCBTC' HLP_CCBTC.   "BSEG/BSAS-CCBTC!
+  toclear = ABS( amount ).
+  WRITE toclear TO fvalue CURRENCY curtab-waers.
+  CONDENSE fvalue NO-GAPS.
+  PERFORM ftpost_field USING 'BSEG-WRBTR' fvalue.
+  IF amount > 0.
+    PERFORM ftpost_field USING 'BSEG-BSCHL' t041a-bssso.
+  ELSE.
+    PERFORM ftpost_field USING 'BSEG-BSCHL' t041a-bssha.
+  ENDIF.
+  WRITE sy-datum TO fvalue DD/MM/YYYY.
+  PERFORM ftpost_field USING 'BSEG-VALUT' fvalue.
+* PERFORM ftpost_field USING 'COBL-GSBER' '0001'.
+
+ENDFORM. "FILL_ITEM
+
+*----------------------------------------------------------------------*
+* Form FTPOST_FIELD
+*----------------------------------------------------------------------*
+* Transfer one field to table FTPOST
+*----------------------------------------------------------------------*
+FORM ftpost_field USING fnam TYPE clike
+                        fval TYPE clike.
+
+  CLEAR: ftpost-fnam, ftpost-fval.
+  ftpost-fnam     = fnam.
+  ftpost-fval     = fval.
+  APPEND ftpost.
+
+ENDFORM. "FTPOST_FIELD
+
+*----------------------------------------------------------------------*
+* Form LOGINFO
+*----------------------------------------------------------------------*
+* Insert Log information in TCCLG
+*----------------------------------------------------------------------*
+FORM loginfo USING par_fb05 TYPE clike
+                   par_sett TYPE clike.
+
+  CLEAR: tcclg, tcclgt.
+  tcclg-ccbtc = hlp_ccbtc.
+  tcclg-bukrs = pr_bukrs.
+  tcclg-hkont = kontab-cardaccount.
+  tcclg-fname = sy-uname.
+  tcclg-fdatu = sy-datum.
+  tcclg-fzeit = sy-uzeit.
+  DESCRIBE TABLE settab LINES sy-tfill.
+  IF sy-tfill > 999999.
+    tcclg-nitem = 999999.
+  ELSE.
+    tcclg-nitem = sy-tfill.
+  ENDIF.
+  CASE par_fb05.
+    WHEN 'OK'.
+      tcclg-xpost = 'X'.
+      tcclg-nsent = '1'.
+      READ TABLE xblntab INDEX 1.
+      tcclg-vblnr = xblntab-belnr.
+      tcclg-gjahr = xblntab-gjahr.
+      tcclg-setwr = amount.
+      tcclg-ccwae = curtab-waers.
+      CASE par_sett.
+        WHEN 'OK'.
+          tcclg-xsucc = 'X'.
+        WHEN 'KO'.
+          tcclg-xfail = 'X'.
+      ENDCASE.
+    WHEN 'KO'.
+      tcclg-xpost = ' '.
+  ENDCASE.
+  IF pr_xecht NE space.
+    INSERT tcclg.
+    IF sy-subrc NE 0.
+      MESSAGE a029 WITH tcclg-ccbtc.
+    ENDIF.
+  ENDIF.
+
+* Batch text
+  MOVE-CORRESPONDING tcclg TO tcclgt.                       "#EC ENHOK
+  tcclgt-spras       = sy-langu.
+  tcclgt-txt20(4)    = tcclg-bukrs.
+  tcclgt-txt20+4(1)  = '/'.
+  tcclgt-txt20+5     = tcclg-hkont.
+  tcclgt-txt20+15(1) = '/'.
+  tcclgt-txt20+16    = tcclg-fname(4).
+  tcclgt-txt40       = tcclg-fname.
+  tcclgt-txt40+12(1) = '/'.
+  tcclgt-txt40+13    = tcclg-fdatu.
+  tcclgt-txt40+21(1) = '/'.
+  tcclgt-txt40+22    = tcclg-fzeit.
+  tcclgt-txt40+28(1) = '/'.
+  IF pr_xecht NE space.
+    INSERT tcclgt.
+  ENDIF.
+
+ENDFORM. "LOGINFO
+
+*----------------------------------------------------------------------*
+* Form POSTING_INTERFACE_END
+*----------------------------------------------------------------------*
+* End of POSTING_INTERFACE
+*----------------------------------------------------------------------*
+FORM posting_interface_end.
+
+  CHECK pr_xecht NE space.
+  CALL FUNCTION 'POSTING_INTERFACE_END'.
+
+ENDFORM. "POSTING_INTERFACE_END
+
+*----------------------------------------------------------------------*
+* Form POSTING_INTERFACE_START
+*----------------------------------------------------------------------*
+FORM posting_interface_start.
+
+  CHECK pr_xecht NE space.
+  CALL FUNCTION 'POSTING_INTERFACE_START'
+    EXPORTING
+      i_function = fipi-function
+                 i_group    = fipi-group
+                 i_holddate = fipi-holddate
+                 i_keep     = space
+                 i_mode     = mode
+                 i_update   = fipi-update
+                 i_user     = fipi-user.
+
+ENDFORM. "POSTING_INTERFACE_START
+
+*----------------------------------------------------------------------*
+* Form PRINT_FB05_OK
+*----------------------------------------------------------------------*
+* Uupdate database table BSEGC, print out settled document number and
+* document numbers of settled items
+*----------------------------------------------------------------------*
+FORM print_fb05_ok
+  USING
+    i_loghdl TYPE c.
+
+  DATA:
+    ls_msg TYPE lys_msg.
+
+* Prevent deadlock ORA-00060 (Note 170798)
+  SORT settab BY bukrs belnr gjahr rfzei.
+
+* Update batch number in BSEGC
+  PERFORM update_bsegc_ccbtc.
+
+* Update batch number in BSEG/BSAD
+  PERFORM update_bsad_ccbtc.
+
+* Update batch number in FPLTC
+  PERFORM update_fpltc_ccbtc
+    USING
+      i_loghdl.
+
+* Log settlement document number
+  LOOP AT xblntab.
+    CLEAR ls_msg.
+    IF pr_xecht IS NOT INITIAL.
+      ls_msg-msgid = 'FY'.
+      ls_msg-msgty = 'S'.
+      ls_msg-msgno = '302'.
+      CONCATENATE xblntab-bukrs xblntab-belnr xblntab-gjahr
+        INTO ls_msg-msgv1 SEPARATED BY space.
+      IF 1 = 2. MESSAGE e302 WITH '&'. ENDIF.
+      PERFORM add_msg_appl_log
+        USING
+          i_loghdl
+          ls_msg
+          c_important.
+    ELSE.
+      ls_msg-msgid = 'FY'.
+      ls_msg-msgty = 'S'.
+      ls_msg-msgno = '309'.
+      IF 1 = 2. MESSAGE e309. ENDIF.
+      PERFORM add_msg_appl_log
+        USING
+          i_loghdl
+          ls_msg
+          c_important.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM. "PRINT_FB05_OK
+
+*----------------------------------------------------------------------*
+* Form PRINT_FB05_ERROR
+*----------------------------------------------------------------------*
+* Print out error message text resulting from FB05
+*----------------------------------------------------------------------*
+FORM print_fb05_error
+  USING
+    i_loghdl TYPE c.
+
+  DATA:
+    ls_msg TYPE lys_msg.
+
+  ls_msg-msgid = 'FY'.
+  ls_msg-msgty = 'E'.
+  ls_msg-msgno = '030'.
+  IF 1 = 2. MESSAGE e030. ENDIF.
+  PERFORM add_msg_appl_log
+    USING
+      i_loghdl
+      ls_msg
+      c_important.
+  CLEAR ls_msg.
+
+  ls_msg-msgid = msgid.
+  ls_msg-msgty = 'E'.
+  ls_msg-msgno = msgno.
+  ls_msg-msgv1 = msgv1.
+  ls_msg-msgv2 = msgv2.
+  ls_msg-msgv3 = msgv3.
+  ls_msg-msgv4 = msgv4.
+  PERFORM add_msg_appl_log
+    USING
+      i_loghdl
+      ls_msg
+      c_important.
+
+ENDFORM. "PRINT_FB05_ERROR
+
+*----------------------------------------------------------------------*
+* Form READ_BSEGC
+*----------------------------------------------------------------------*
+* Get CCDATA out of BSEGC, use BSIS fields
+*----------------------------------------------------------------------*
+FORM read_bsegc USING par_bukrs TYPE bsegc-bukrs
+                      par_belnr TYPE bsegc-belnr
+                      par_gjahr TYPE bsegc-gjahr
+                      par_rfzei TYPE bsegc-rfzei.
+
+  SELECT SINGLE * FROM bsegc
+                  WHERE bukrs EQ par_bukrs
+                    AND belnr EQ par_belnr
+                    AND gjahr EQ par_gjahr
+                    AND rfzei EQ par_rfzei.
+
+ENDFORM. "READ_BSEGC
+
+*----------------------------------------------------------------------*
+* Form SETTLEMENT
+*----------------------------------------------------------------------*
+* Call Settlement
+*----------------------------------------------------------------------*
+FORM settlement
+  USING
+    i_loghdl TYPE c.
+
+  DATA:
+    lt_errors LIKE fimsg OCCURS 0 WITH HEADER LINE,
+    l_subrc   LIKE sy-subrc,
+    lt_settab LIKE ccset OCCURS 200 WITH HEADER LINE,
+    ls_msg    TYPE lys_msg.
+
+  loop at settab.
+    move-corresponding settab to lt_settab.
+    append lt_settab.
+  endloop.
+
+  SORT settab BY bukrs hkont merch ccins.
+  ccseth-ccbtc = hlp_ccbtc.
+  ccseth-merch = kontab-merch.
+  IF pr_xecht NE space.
+    CALL FUNCTION 'CREDIT_CARD_SETTLEMENT'
+      EXPORTING
+        i_ccseth      = ccseth
+      TABLES
+        t_settab      = lt_settab
+        t_setexd_h    = setexd_h
+        t_setexd_i    = setexd_i_all
+      EXCEPTIONS
+        error_message = 1.
+    l_subrc = sy-subrc.
+  ENDIF.
+
+* Check batch for SET
+  IF l_subrc EQ 0.
+    CALL FUNCTION 'CCARD_CHECK_BATCH_FOR_SET'
+      EXPORTING
+        i_vcard       = ' '
+        i_read_cctvin = 'X'
+      TABLES
+        t_settab      = settab
+                   t_errors      = lt_errors.
+    IF NOT lt_errors[] IS INITIAL.
+      LOOP AT lt_errors.
+        ls_msg-msgid = sy-msgid.
+        ls_msg-msgty = 'E'.
+        ls_msg-msgno = sy-msgno.
+        ls_msg-msgv1 = sy-msgv1.
+        ls_msg-msgv2 = sy-msgv2.
+        ls_msg-msgv3 = sy-msgv3.
+        ls_msg-msgv4 = sy-msgv4.
+        PERFORM add_msg_appl_log
+          USING
+            i_loghdl
+            ls_msg
+            c_important.
+      ENDLOOP.
+    ENDIF.
+
+*   Print out positive informations
+    IF pr_xecht IS NOT INITIAL.
+      ls_msg-msgid = 'FY'.
+      ls_msg-msgty = 'S'.
+      ls_msg-msgno = '305'.
+      ls_msg-msgv1 = hlp_ccbtc.
+      IF 1 = 2. MESSAGE e305 WITH hlp_ccbtc. ENDIF.
+      PERFORM add_msg_appl_log
+        USING
+          i_loghdl
+          ls_msg
+          c_important.
+    ELSE.
+      ls_msg-msgid = 'FY'.
+      ls_msg-msgty = 'S'.
+      ls_msg-msgno = '304'.
+      IF 1 = 2. MESSAGE e304. ENDIF.
+      PERFORM add_msg_appl_log
+        USING
+          i_loghdl
+          ls_msg
+          c_important.
+    ENDIF.
+    PERFORM loginfo USING 'OK' 'OK'.
+
+* Print out negative informations
+  ELSE.
+    ls_msg-msgid = 'FY'.
+    ls_msg-msgty = 'E'.
+    ls_msg-msgno = '306'.
+    ls_msg-msgv1 = hlp_ccbtc.
+    IF 1 = 2. MESSAGE e306 WITH hlp_ccbtc. ENDIF.
+    PERFORM add_msg_appl_log
+      USING
+        i_loghdl
+        ls_msg
+        c_important.
+    ls_msg-msgid = 'FY'.
+    ls_msg-msgty = 'S'.
+    ls_msg-msgno = '307'.
+    ls_msg-msgv1 = hlp_ccbtc.
+    IF 1 = 2. MESSAGE e307 WITH hlp_ccbtc. ENDIF.
+    PERFORM add_msg_appl_log
+      USING
+        i_loghdl
+        ls_msg
+        c_important.
+    PERFORM loginfo USING 'OK' 'KO'.
+  ENDIF.
+
+ENDFORM. "SETTLEMENT
+
+*----------------------------------------------------------------------*
+* Form UPDATE_BSEGC_CCBTC
+*----------------------------------------------------------------------*
+* Enter batchnumber in all cleared items
+*----------------------------------------------------------------------*
+FORM update_bsegc_ccbtc.
+
+  CHECK pr_xecht NE space.
+  LOOP AT settab.
+    UPDATE bsegc SET   ccbtc = hlp_ccbtc
+                 WHERE bukrs = settab-bukrs
+                 AND   belnr = settab-belnr
+                 AND   gjahr = settab-gjahr
+                 AND   rfzei = settab-rfzei.
+  ENDLOOP.
+
+ENDFORM. "UPDATE_BSEGC_CCBTC
+
+*----------------------------------------------------------------------*
+* Form UPDATE_BSAD_CCBTC
+*----------------------------------------------------------------------*
+* Enter batchnumber in all cleared customer items
+*----------------------------------------------------------------------*
+FORM update_bsad_ccbtc.
+
+  CHECK: pr_xecht NE space,
+         tccfi-indxc NE space.
+  LOOP AT settab.
+    CHECK: settab-kunnr NE space,
+           NOT settab-rfzei IS INITIAL.
+    SELECT * FROM bsad WHERE bukrs = settab-bukrs
+                         AND kunnr = settab-kunnr
+                         AND belnr = settab-belnr
+                         AND gjahr = settab-gjahr
+                         AND rfzei = settab-rfzei.
+      bsad-ccbtc = hlp_ccbtc.
+      UPDATE bsad.
+*<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< start insert note 200576
+      IF sy-subrc EQ 0.
+        CALL FUNCTION 'OPEN_FI_PERFORM_00005010_P'
+          EXPORTING
+            i_chgtype   = 'U'
+            i_origin    = 'RFCCSSTT UPDATE_BSAD_CCBTC'
+            i_tabname   = 'BSAD'
+            i_structure = bsad
+          EXCEPTIONS
+            OTHERS      = 1.
+        IF sy-subrc NE 0.
+          MESSAGE ID sy-msgid TYPE 'A' NUMBER sy-msgno
+                   WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+        ENDIF.
+      ENDIF.
+*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> end insert note 200576
+      UPDATE bseg SET   ccbtc = hlp_ccbtc
+                  WHERE bukrs = settab-bukrs
+                    AND belnr = settab-belnr
+                    AND gjahr = settab-gjahr
+                    AND rfzei = settab-rfzei.
+    ENDSELECT.
+  ENDLOOP.
+
+ENDFORM. "UPDATE_BSAD_CCBTC
+
+*----------------------------------------------------------------------*
+* Form UPDATE_BSAD_CCBTC
+*----------------------------------------------------------------------*
+* Enter batchnumber in billing plan items of the paymentcard
+*----------------------------------------------------------------------*
+FORM update_fpltc_ccbtc
+  USING
+    i_loghdl TYPE c.
+
+  DATA: BEGIN OF ls_bkpf_aw,
+          awtyp       LIKE bkpf-awtyp,
+          awkey       LIKE bkpf-awkey,
+        END OF ls_bkpf_aw,
+        lc_vbeln LIKE vbrk-vbeln.
+
+  DATA: ls_msg TYPE lys_msg.
+
+  CHECK pr_xecht NE space.
+  LOOP AT settab.
+*   Read document header
+    CLEAR ls_bkpf_aw.
+    SELECT SINGLE awtyp awkey FROM bkpf
+                              INTO ls_bkpf_aw
+                              WHERE bukrs EQ settab-bukrs
+                                AND belnr EQ settab-belnr
+                                AND gjahr EQ settab-gjahr.
+*   Set batch number of settlement run, if it is a SD bill
+    IF ls_bkpf_aw-awtyp EQ 'VBRK'.
+      lc_vbeln = ls_bkpf_aw-awkey.
+      clear settab-ccard_guid.        " inserted by note 926692
+      CALL FUNCTION 'SD_CCARD_SET_FPLTC_CCBTC'
+        EXPORTING
+          i_vbeln             = lc_vbeln
+                      i_ccins             = settab-ccins
+                      i_ccnum             = settab-ccnum
+                      i_aunum             = settab-aunum
+                      i_ccbtc             = hlp_ccbtc
+                      I_CCARD_GUID        = settab-ccard_guid
+        EXCEPTIONS
+          no_billing_document = 1
+                      wrong_payment_card  = 2
+                      technical_problem   = 3
+                      OTHERS              = 4.
+      IF sy-subrc NE 0.
+        ls_msg-msgid = 'FY'.
+        ls_msg-msgty = 'E'.
+        ls_msg-msgno = '063'.
+        ls_msg-msgv1 = lc_vbeln.
+        ls_msg-msgv2 = settab-belnr.
+        CONCATENATE settab-bukrs settab-gjahr settab-rfzei hlp_ccbtc
+                    INTO ls_msg-msgv3.
+        ls_msg-msgv4 = sy-subrc.
+        PERFORM add_msg_appl_log
+          USING
+            i_loghdl
+            ls_msg
+            c_important.
+
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+* Refererence of message for where used list
+  IF 1 EQ 2.
+    SET EXTENDED CHECK OFF.
+    MESSAGE s063.
+    SET EXTENDED CHECK ON.
+  ENDIF.
+
+ENDFORM. "UPDATE_FPLTC_CCBTC
+
+*&--------------------------------------------------------------------*
+*&      Form  create_appl_log
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+FORM create_appl_log
+  CHANGING
+    c_loghndl TYPE balloghndl.
+
+  DATA: ls_log TYPE bal_s_log.
+
+  ls_log-aldate    = sy-datum.
+  ls_log-altime    = sy-uzeit.
+  ls_log-aluser    = sy-uname.
+
+  CALL FUNCTION 'BAL_LOG_CREATE'
+    EXPORTING
+      i_s_log      = ls_log
+    IMPORTING
+      e_log_handle = c_loghndl.
+
+ENDFORM.                    "create_appl_log
+
+*&--------------------------------------------------------------------*
+*&      Form  add_msg_appl_log
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+FORM add_msg_appl_log
+  USING
+    i_loghndl TYPE balloghndl
+    i_msg     TYPE lys_msg
+    i_probcl  TYPE balprobcl.
+
+  DATA:
+    ls_message TYPE bal_s_msg.
+
+  CHECK i_msg IS NOT INITIAL.
+
+  ls_message-msgty = i_msg-msgty.
+  ls_message-msgid = i_msg-msgid.
+  ls_message-msgno = i_msg-msgno.
+  ls_message-msgv1 = i_msg-msgv1.
+  ls_message-msgv2 = i_msg-msgv2.
+  ls_message-msgv3 = i_msg-msgv3.
+  ls_message-msgv4 = i_msg-msgv4.
+
+  ls_message-probclass = i_probcl.
+
+  CALL FUNCTION 'BAL_LOG_MSG_ADD'
+    EXPORTING
+      i_log_handle = i_loghndl
+      i_s_msg      = ls_message.
+
+ENDFORM.                    "add_msg_appl_log
+
+*&--------------------------------------------------------------------*
+*&      Form  set_appl_log_hdr
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+FORM set_appl_log_hdr
+  USING
+    i_loghndl TYPE balloghndl
+    i_ccbtc   TYPE ccbtc
+    i_bukrs   TYPE bukrs
+    i_hkont   TYPE hkont
+    i_setwr   TYPE setwr_cc
+    i_ccwae   TYPE waers
+    i_xecht   TYPE allgecht.
+
+  DATA:
+    ls_log TYPE bal_s_log,
+    l_setwr(30) TYPE c.
+
+  CALL FUNCTION 'BAL_LOG_HDR_READ'
+    EXPORTING
+      i_log_handle = i_loghndl
+    IMPORTING
+      e_s_log      = ls_log.
+
+  WRITE i_setwr TO l_setwr CURRENCY i_ccwae.
+  SHIFT l_setwr LEFT DELETING LEADING space.
+  CONCATENATE l_setwr i_ccwae INTO l_setwr
+    SEPARATED BY space.
+
+  IF i_xecht IS INITIAL.
+    CONCATENATE text-023 i_bukrs i_hkont
+                l_setwr
+      INTO ls_log-extnumber
+      SEPARATED BY '/'.
+  ELSE.
+    CONCATENATE i_ccbtc i_bukrs i_hkont
+                l_setwr
+      INTO ls_log-extnumber
+      SEPARATED BY '/'.
+    SHIFT ls_log-extnumber LEFT DELETING LEADING '0'.
+  ENDIF.
+
+  CALL FUNCTION 'BAL_LOG_HDR_CHANGE'
+    EXPORTING
+      i_log_handle = i_loghndl
+      i_s_log      = ls_log.
+
+ENDFORM.                    "set_appl_log_hdr
+
+*&--------------------------------------------------------------------*
+*&      Form  display_appl_logs
+*&--------------------------------------------------------------------*
+*       text
+*---------------------------------------------------------------------*
+FORM display_appl_logs
+  USING
+    i_loghndls TYPE bal_t_logh.
+
+  DATA:
+    ls_display_profile TYPE bal_s_prof.
+
+  CALL FUNCTION 'BAL_DSP_PROFILE_STANDARD_GET'
+    IMPORTING
+      e_s_display_profile = ls_display_profile.
+
+  CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+    EXPORTING
+      i_s_display_profile = ls_display_profile
+      i_t_log_handle      = i_loghndls.
+
+ENDFORM.                    "display_appl_logs
+
+*Text elements
+*----------------------------------------------------------
+* 001 General Selections
+* 002 Further Selections
+* 003 Data for Clearing Entry
+* 004 Processing Parameters
+* 023 Test Run
+
+
+*Selection texts
+*----------------------------------------------------------
+* PR_BELNR D       Document Number
+* PR_BLART D       Document Type
+* PR_BLDAT D       Document Date
+* PR_BUDAT D       Posting Date
+* PR_BUKRS D       Company Code
+* PR_GJAHR D       Fiscal Year
+* PR_XADDR D       Transmit address data
+* PR_XDETA D       Detail Log
+* PR_XECHT D       Update Run
+* SL_CCINS D       Payment Card Type
+* SL_CCTYP D       Payment Card Category
+* SL_CURRC D       Currency
+* SL_DIGIT D       Last Digit
+* SL_HKONT D       Payment card receivables
+* SL_LOCID D       Point of receipt
+* SL_MERCH D       Merchant ID
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: F4
+*350   Company code & is not defined
+*
+* Message class: FH
+*005   Account &1 does not exist in company code &2
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

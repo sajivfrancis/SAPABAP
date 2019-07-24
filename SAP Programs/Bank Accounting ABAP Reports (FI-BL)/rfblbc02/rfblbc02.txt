@@ -1,0 +1,798 @@
+*&---------------------------------------------------------------------*
+*& Report  RFBLBC02                                                    *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  RFBLBC02.
+
+*-- type pools ---------------------------------------------------------
+TYPE-POOLS: SLIS.
+
+TABLES: T001,
+        T012,
+        T012K.
+
+
+* internal tables
+DATA:
+T_KNBK LIKE KNBK OCCURS 5 WITH HEADER LINE,
+T_LFBK LIKE LFBK OCCURS 5 WITH HEADER LINE,
+T_HBK LIKE T012K OCCURS 0 WITH HEADER LINE,
+T_SORT  TYPE SLIS_T_SORTINFO_ALV,
+T_EVENTS TYPE SLIS_T_EVENT,
+T_FIELDCAT TYPE SLIS_T_FIELDCAT_ALV.
+
+DATA: BEGIN OF ti_lfbk OCCURS 0.
+        INCLUDE STRUCTURE lfbk.
+DATA:  iban TYPE tiban-iban,
+      END OF ti_lfbk.
+DATA: BEGIN OF ti_knbk OCCURS 0.
+        INCLUDE STRUCTURE knbk.
+DATA:  iban TYPE tiban-iban,
+      END OF ti_knbk.
+
+
+* further data
+DATA: HLP_FBTCH(2) TYPE C,
+      G_AKTYP(1) TYPE C,
+      G_BANKS_HB LIKE T012-BANKS,
+      G_BANKL_HB LIKE T012-BANKL,
+      G_BANKN_HB LIKE T012K-BANKN,
+      G_BKONT_HB LIKE T012K-BKONT,
+      G_REFZL_HB LIKE T012K-REFZL,
+      G_CHANGED LIKE BOOLE-BOOLE.
+DATA: l_xtech TYPE c.
+
+* selection screen parameters
+SELECTION-SCREEN BEGIN OF BLOCK 1 WITH FRAME TITLE TEXT-021.
+PARAMETERS: lifnr LIKE lfbk-lifnr MEMORY ID lif,
+            kunnr LIKE knbk-kunnr MEMORY ID kun.
+SELECTION-SCREEN END OF BLOCK 1.
+SELECTION-SCREEN BEGIN OF BLOCK 2 WITH FRAME TITLE TEXT-022.
+PARAMETERS: BUKRS_HB LIKE FIBL_HKTID_SEARCH-BUKRS,
+            HBKID_HB LIKE FIBL_HKTID_SEARCH-HBKID,
+            HKTID_HB LIKE FIBL_HKTID_SEARCH-HKTID.
+SELECTION-SCREEN END OF BLOCK 2.
+SELECTION-SCREEN BEGIN OF BLOCK 3 WITH FRAME TITLE TEXT-023.
+PARAMETERS: WAERS LIKE TBCHAIN21-WAERS,
+            UZAWE LIKE TBCHAIN21-UZAWE.
+SELECTION-SCREEN END OF BLOCK 3.
+SELECTION-SCREEN BEGIN OF BLOCK 4 WITH FRAME TITLE TEXT-024.
+SELECTION-SCREEN: BEGIN OF LINE.
+PARAMETERS: PAYM_OUT LIKE BOOLE-BOOLE RADIOBUTTON GROUP PAYM.
+SELECTION-SCREEN:
+  COMMENT (25)        TEXT-016 FOR FIELD PAYM_OUT,
+  END OF LINE,
+  BEGIN OF LINE.
+PARAMETERS: PAYM_IN LIKE BOOLE-BOOLE RADIOBUTTON GROUP PAYM.
+SELECTION-SCREEN:
+  COMMENT (25)        TEXT-015 FOR FIELD PAYM_IN,
+  END OF LINE.
+SELECTION-SCREEN END OF BLOCK 4.
+
+*-------- INITIALIZE ---------------------------------------------------
+INITIALIZATION.
+  if sy-tcode(4) ne 'FIBP'.
+    message e101(fibc).
+  endif.
+  IF SY-TCODE = 'FIBPU'.
+    SY-TITLE = TEXT-100.
+  ELSE.
+    SY-TITLE = TEXT-101.
+  ENDIF.
+  PERFORM BANKCHAIN_ACTIVE.
+
+*-------- AT SELECTION-SCEEN -------------------------------------------
+AT SELECTION-SCREEN.
+  PERFORM CHECK_PARAMETERS.
+  PERFORM CHECK_AUTHORITY.
+
+*-------- TOP-OF-PAGE --------------------------------------------------
+*top-of-page.
+*  perform top_of_page.
+
+*-------- START OF SELECTION -------------------------------------------
+START-OF-SELECTION.
+  PERFORM SELECT_HOUSE_BANK.
+  PERFORM SELECT_PARTNER_BANK.
+
+*-------- END OF SELECTION ---------------------------------------------
+END-OF-SELECTION.
+
+  PERFORM SORT_DATA TABLES T_SORT.
+
+  PERFORM FILL_EVENTS TABLES T_EVENTS.
+
+  PERFORM FILL_FIELDCAT.
+
+* IBAN without bank account
+  ti_lfbk[] = t_lfbk[].
+  ti_knbk[] = t_knbk[].
+
+  IF NOT lifnr IS INITIAL.
+    LOOP AT ti_lfbk.
+      CALL FUNCTION 'READ_IBAN'
+        EXPORTING
+          i_banks        = ti_lfbk-banks
+          i_bankl        = ti_lfbk-bankl
+          i_bankn        = ti_lfbk-bankn
+          i_bkont        = ti_lfbk-bkont
+          i_bkref        = ti_lfbk-bkref
+        IMPORTING
+          e_iban         = ti_lfbk-iban
+        EXCEPTIONS
+          iban_not_found = 1
+          OTHERS         = 2.
+      IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+      CALL FUNCTION 'FI_TECH_ACCNO_CHECK_TRY'
+        EXPORTING
+          i_bankn = ti_lfbk-bankn
+        IMPORTING
+          e_xtech = l_xtech.
+      IF l_xtech EQ 'X'.
+        CLEAR ti_lfbk-bankn.
+      ENDIF.
+      MODIFY ti_lfbk.
+    ENDLOOP.
+  ELSE.
+
+    LOOP AT ti_knbk.
+      CALL FUNCTION 'READ_IBAN'
+        EXPORTING
+          i_banks        = ti_knbk-banks
+          i_bankl        = ti_knbk-bankl
+          i_bankn        = ti_knbk-bankn
+          i_bkont        = ti_knbk-bkont
+          i_bkref        = ti_knbk-bkref
+        IMPORTING
+          e_iban         = ti_knbk-iban
+        EXCEPTIONS
+          iban_not_found = 1
+          OTHERS         = 2.
+      IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+      CALL FUNCTION 'FI_TECH_ACCNO_CHECK_TRY'
+        EXPORTING
+          i_bankn = ti_knbk-bankn
+        IMPORTING
+          e_xtech = l_xtech.
+      IF l_xtech EQ 'X'.
+        CLEAR ti_knbk-bankn.
+      ENDIF.
+      MODIFY ti_knbk.
+    ENDLOOP.
+  ENDIF.
+
+  IF NOT lifnr IS INITIAL.
+    CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+         EXPORTING
+              I_INTERFACE_CHECK        = ' '
+              I_CALLBACK_PROGRAM       = 'RFBLBC02'
+              I_CALLBACK_PF_STATUS_SET = 'PF_STATUS_SET'
+              I_CALLBACK_USER_COMMAND  = 'USER_COMMAND'
+              IT_FIELDCAT              = T_FIELDCAT
+*        it_sort                  = t_sort
+              I_SAVE                   = 'A'
+              IT_EVENTS                = T_EVENTS
+         TABLES
+        t_outtab                 = ti_lfbk
+         EXCEPTIONS
+              PROGRAM_ERROR            = 1
+              OTHERS                   = 2.
+  ELSE.
+    CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+         EXPORTING
+              I_INTERFACE_CHECK        = ' '
+              I_CALLBACK_PROGRAM       = 'RFBLBC02'
+              I_CALLBACK_PF_STATUS_SET = 'PF_STATUS_SET'
+              I_CALLBACK_USER_COMMAND  = 'USER_COMMAND'
+              IT_FIELDCAT              = T_FIELDCAT
+*        it_sort                  = t_sort
+              I_SAVE                   = 'A'
+              IT_EVENTS                = T_EVENTS
+         TABLES
+        t_outtab                 = ti_knbk
+         EXCEPTIONS
+              PROGRAM_ERROR            = 1
+              OTHERS                   = 2.
+  ENDIF.
+  IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_AUTHORITY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM CHECK_AUTHORITY.
+
+  DATA: L_BRGRU LIKE KNB1-BEGRU,
+        L_AUTH_FAILED LIKE BOOLE-BOOLE,
+        L_KTOKK LIKE LFA1-KTOKK.   "Account group
+
+  data: t_bukrs like t001 occurs 0 with header line.
+
+* set aktyp
+  IF SY-TCODE = 'FIBPU'.
+    G_AKTYP = 'U'.
+    HLP_FBTCH = '02'.
+  ELSE.
+    G_AKTYP = 'S'.
+    HLP_FBTCH = '03'.
+  ENDIF.
+
+* house bank
+  IF NOT BUKRS_HB IS INITIAL.
+    AUTHORITY-CHECK OBJECT 'F_BNKA_BUK'
+      ID 'BUKRS' FIELD BUKRS_HB
+      ID 'ACTVT' FIELD HLP_FBTCH.
+    IF SY-SUBRC NE 0.
+      if HLP_FBTCH eq '03'.
+        message e218(F4) with BUKRS_HB.
+      else.
+        message e219(F4) with BUKRS_HB.
+      endif.
+    ENDIF.
+  else.
+* company code was not specified, authority check for all
+    select * from t001 into table t_bukrs.
+    loop at t_bukrs.
+      AUTHORITY-CHECK OBJECT 'F_BNKA_BUK'
+      ID 'BUKRS' FIELD t_bukrs-bukrs
+      ID 'ACTVT' FIELD HLP_FBTCH.
+      IF SY-SUBRC NE 0.
+        if HLP_FBTCH eq '03'.
+          message e218(F4) with BUKRS_HB.
+        else.
+          message e219(F4) with BUKRS_HB.
+        endif.
+      endif.
+    endloop.
+  ENDIF.
+
+* vendor
+  IF NOT LIFNR IS INITIAL.
+    SELECT SINGLE BEGRU KTOKK FROM  LFA1 INTO (L_BRGRU, L_KTOKK)
+           WHERE  LIFNR       = LIFNR.
+    IF SY-SUBRC NE 0.
+      MESSAGE e163(f2) with lifnr.
+    ENDIF.
+
+    AUTHORITY-CHECK OBJECT 'F_LFA1_BEK'
+      ID 'BRGRU' FIELD L_BRGRU
+      ID 'ACTVT' FIELD HLP_FBTCH.
+    if sy-subrc ne 0.
+      MESSAGE e302(f2) with 'F_LFA1_BEK' l_brgru hlp_fbtch.
+    endif.
+
+    IF SY-SUBRC EQ 0.
+      AUTHORITY-CHECK OBJECT 'F_LFA1_APP'
+        ID 'ACTVT' FIELD HLP_FBTCH
+        ID 'APPKZ' FIELD 'F'.
+      if sy-subrc ne 0.
+        MESSAGE e151(f4) with lifnr 'F_LFA1_APP' 'F' hlp_fbtch.
+      endif.
+    ENDIF.
+
+    IF SY-SUBRC EQ 0.
+      AUTHORITY-CHECK OBJECT 'F_LFA1_GEN'
+        ID 'ACTVT' FIELD HLP_FBTCH.
+      if sy-subrc ne 0.
+        MESSAGE e371(f2) with 'F_LFA1_GEN' hlp_fbtch.
+      endif.
+    ENDIF.
+
+    IF SY-SUBRC EQ 0.
+      AUTHORITY-CHECK OBJECT 'F_LFA1_GRP'
+        ID 'KTOKK' FIELD L_KTOKK
+        ID 'ACTVT' FIELD HLP_FBTCH.
+      if sy-subrc ne 0.
+        MESSAGE e382(f2) with l_ktokk 'F_LFA1_GRP' l_ktokk hlp_fbtch.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+* customer
+  IF NOT KUNNR IS INITIAL.
+    SELECT SINGLE BEGRU KTOKD FROM  KNA1 INTO (L_BRGRU, L_KTOKK)
+           WHERE  KUNNR       = KUNNR.
+    IF SY-SUBRC NE 0.
+      MESSAGE E153(F2) with kunnr.
+    ENDIF.
+
+    AUTHORITY-CHECK OBJECT 'F_KNA1_BED'
+      ID 'BRGRU' FIELD L_BRGRU
+      ID 'ACTVT' FIELD HLP_FBTCH.
+    if sy-subrc ne 0.
+      MESSAGE e382(f2) WITH 'F_KNA1_BED' l_brgru hlp_fbtch .
+    endif.
+
+    IF SY-SUBRC EQ 0.
+      AUTHORITY-CHECK OBJECT 'F_KNA1_APP'
+        ID 'ACTVT' FIELD HLP_FBTCH
+        ID 'APPKZ' FIELD 'F'.
+      IF SY-SUBRC NE 0.
+        MESSAGE E476(F4) with kunnr.
+      ENDIF.
+    ENDIF.
+
+    IF SY-SUBRC EQ 0.
+      AUTHORITY-CHECK OBJECT 'F_KNA1_GEN'
+        ID 'ACTVT' FIELD HLP_FBTCH.
+      IF SY-SUBRC NE 0.
+        MESSAGE E476(F4) with kunnr.
+      ENDIF.
+    ENDIF.
+
+    IF SY-SUBRC EQ 0.
+      AUTHORITY-CHECK OBJECT 'F_KNA1_GRP'
+        ID 'KTOKD' FIELD L_KTOKK
+        ID 'ACTVT' FIELD HLP_FBTCH.
+      IF SY-SUBRC NE 0.
+        message e382(F2) with L_BRGRU 'F_KNA1_BED'
+                         HLP_FBTCH L_BRGRU.
+      ENDIF.
+    ENDIF.
+
+  endif.
+ENDFORM.                               " CHECK_AUTHORITY
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_HOUSE_BANK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SELECT_HOUSE_BANK.
+
+* select house bank
+  SELECT SINGLE BANKS BANKL FROM  T012 INTO (G_BANKS_HB,G_BANKL_HB)
+         WHERE  BUKRS       = BUKRS_HB
+         AND    HBKID       = HBKID_HB.
+
+  SELECT SINGLE BANKN BKONT REFZL  FROM  T012K
+         INTO (G_BANKN_HB,G_BKONT_HB,G_REFZL_HB)
+         WHERE  BUKRS       = BUKRS_HB
+         AND    HBKID       = HBKID_HB
+         AND    HKTID       = HKTID_HB.
+
+ENDFORM.                               " SELECT_HOUSE_BANK
+*&---------------------------------------------------------------------*
+*&      Form  SORT_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SORT_DATA TABLES C_T_SORT TYPE SLIS_T_SORTINFO_ALV.
+
+  REFRESH C_T_SORT.
+
+  CLEAR C_T_SORT.
+  C_T_SORT-SPOS       = 1.
+  C_T_SORT-UP         = 'X'.
+  C_T_SORT-FIELDNAME  = 'BANKS'.
+  C_T_SORT-SUBTOT     = ' '.
+  C_T_SORT-COMP       = 'X'.
+  APPEND  C_T_SORT.
+
+  CLEAR C_T_SORT.
+  C_T_SORT-SPOS       = 2.
+  C_T_SORT-UP         = 'X'.
+  C_T_SORT-FIELDNAME  = 'BANKL'.
+  C_T_SORT-SUBTOT     = ' '.
+  C_T_SORT-COMP       = 'X'.
+  APPEND  C_T_SORT.
+
+  CLEAR C_T_SORT.
+  C_T_SORT-SPOS       = 3.
+  C_T_SORT-UP         = 'X'.
+  C_T_SORT-FIELDNAME  = 'BANKN'.
+  C_T_SORT-SUBTOT     = ' '.
+  C_T_SORT-COMP       = 'X'.
+  APPEND  C_T_SORT.
+
+ENDFORM.                               " SORT_DATA
+*&---------------------------------------------------------------------*
+*&      Form  FILL_EVENTS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM FILL_EVENTS TABLES T_EVENT TYPE SLIS_T_EVENT.
+
+  T_EVENT-NAME = 'TOP_OF_PAGE'.
+  T_EVENT-FORM = 'TOP_OF_PAGE'.
+  APPEND T_EVENT.
+
+ENDFORM.                               " FILL_EVENTS
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FIELDCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM FILL_FIELDCAT.
+
+  DATA: L_T_FIELDCAT TYPE SLIS_FIELDCAT_ALV OCCURS 0 WITH HEADER LINE.
+
+  IF NOT LIFNR IS INITIAL.
+
+    CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+         EXPORTING
+             I_PROGRAM_NAME         = 'RFBLBC02'
+             I_INTERNAL_TABNAME     = 'T_LFBK'
+             I_STRUCTURE_NAME       = 'LFBK'
+             I_CLIENT_NEVER_DISPLAY = 'X'
+*         I_INCLNAME             =
+         CHANGING
+              CT_FIELDCAT            = T_FIELDCAT
+         EXCEPTIONS
+              INCONSISTENT_INTERFACE = 1
+              PROGRAM_ERROR          = 2
+              OTHERS                 = 3.
+    IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+
+  ELSE.
+
+    CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+         EXPORTING
+             I_PROGRAM_NAME         = 'RFBLBC02'
+             I_INTERNAL_TABNAME     = 'T_KNBK'
+             I_STRUCTURE_NAME       = 'KNBK'
+             I_CLIENT_NEVER_DISPLAY = 'X'
+*         I_INCLNAME             =
+         CHANGING
+              CT_FIELDCAT            = T_FIELDCAT
+         EXCEPTIONS
+              INCONSISTENT_INTERFACE = 1
+              PROGRAM_ERROR          = 2
+              OTHERS                 = 3.
+    IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+  ENDIF.
+
+  L_T_FIELDCAT[] = T_FIELDCAT[].
+
+  LOOP AT L_T_FIELDCAT.
+    IF L_T_FIELDCAT-FIELDNAME NE 'LIFNR' AND
+       L_T_FIELDCAT-FIELDNAME NE 'KUNNR' AND
+       L_T_FIELDCAT-FIELDNAME NE 'BANKS' AND
+       L_T_FIELDCAT-FIELDNAME NE 'BANKL' AND
+       L_T_FIELDCAT-FIELDNAME NE 'BANKN' AND
+       L_T_FIELDCAT-FIELDNAME NE 'KOINH'.
+
+      L_T_FIELDCAT-NO_OUT = 'X'.
+      MODIFY L_T_FIELDCAT.
+    ELSE.
+      L_T_FIELDCAT-NO_OUT = '0'.
+      MODIFY L_T_FIELDCAT.
+    ENDIF.
+  ENDLOOP.
+
+* define IBAN in t_fieldcat
+  CLEAR l_t_fieldcat.
+  l_t_fieldcat-ref_tabname = 'TIBAN'.
+  l_t_fieldcat-ref_fieldname = 'IBAN'.
+  l_t_fieldcat-fieldname = 'IBAN'.
+  APPEND l_t_fieldcat.
+
+  t_fieldcat[] = l_t_fieldcat[].
+
+ENDFORM.                               " FILL_FIELDCAT
+*&---------------------------------------------------------------------*
+*&      Form  PF_STATUS_SET
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM PF_STATUS_SET USING EXTAB TYPE SLIS_T_EXTAB.
+
+  DATA: L_T_EXTAB TYPE SLIS_T_EXTAB WITH HEADER LINE.
+
+  L_T_EXTAB-FCODE = '&ALL'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&SAL'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&ALL'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&UMC'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&SUM'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&ABC'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&KOM'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&AUF'. APPEND L_T_EXTAB.
+
+  EXTAB[] = L_T_EXTAB[].
+
+  SET PF-STATUS 'RFBLBC02' EXCLUDING EXTAB.
+
+ENDFORM.                               " PF_STATUS_SET
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM USER_COMMAND USING U_UCOMM  LIKE SY-UCOMM
+                        SELFIELD TYPE SLIS_SELFIELD.
+
+  DATA: L_BANKN  LIKE TBCHAIN21-BANKNREC,
+        L_BANKS  LIKE TBCHAIN21-BANKSREC,
+        L_BANKL  LIKE TBCHAIN21-BANKKREC,
+        L_CHANGED   LIKE BOOLE-BOOLE,
+        L_ANSWER(1) TYPE C.
+
+  DATA: l_tech TYPE c.
+
+  IF U_UCOMM EQ '&IC1' OR U_UCOMM EQ 'BCHA'.
+
+    IF NOT LIFNR IS INITIAL.
+      READ TABLE T_LFBK INDEX SELFIELD-TABINDEX.
+      IF SY-SUBRC NE 0.
+        MESSAGE E004(0K).
+      ENDIF.
+
+      L_BANKS = T_LFBK-BANKS.
+      L_BANKL = T_LFBK-BANKL.
+
+      CALL FUNCTION 'FI_TECH_ACCNO_CHECK_TRY'
+        EXPORTING
+          i_bankn = t_lfbk-bankn
+        IMPORTING
+          e_xtech = l_xtech.
+
+      IF l_xtech IS INITIAL.
+        CALL FUNCTION 'CONVERT_BANK_ACCOUNT_NUMBER'
+          EXPORTING
+            i_banks      = t_lfbk-banks
+            i_bankk      = t_lfbk-bankl
+            i_bankn      = t_lfbk-bankn
+            i_bkont      = t_lfbk-bkont
+            i_bkref      = t_lfbk-bkref
+          IMPORTING
+            e_bankn_long = l_bankn.
+      ELSE.
+        l_bankn = t_lfbk-bankn.
+      ENDIF.
+
+    ELSE.
+      READ TABLE T_KNBK INDEX SELFIELD-TABINDEX.
+      IF SY-SUBRC NE 0.
+        MESSAGE E004(0K).
+      ENDIF.
+
+      L_BANKS = T_KNBK-BANKS.
+      L_BANKL = T_KNBK-BANKL.
+
+      CALL FUNCTION 'FI_TECH_ACCNO_CHECK_TRY'
+        EXPORTING
+          i_bankn = t_knbk-bankn
+        IMPORTING
+          e_xtech = l_xtech.
+
+      IF l_xtech IS INITIAL.
+        CALL FUNCTION 'CONVERT_BANK_ACCOUNT_NUMBER'
+          EXPORTING
+            I_BANKS      = T_KNBK-BANKS
+            I_BANKK      = T_KNBK-BANKL
+            I_BANKN      = T_KNBK-BANKN
+            I_BKONT      = T_KNBK-Bkont
+            I_BKREF      = T_KNBK-bkref
+          IMPORTING
+            E_BANKN_LONG = L_BANKN.
+      ELSE.
+        l_bankn = t_knbk-bankn.
+
+      ENDIF.
+    ENDIF.
+
+    IF NOT PAYM_OUT IS INITIAL.
+
+      CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_MAINT'
+        EXPORTING
+          I_BANKS_REC = L_BANKS
+          I_BANKK_REC = L_BANKL
+          I_BANKN_REC = L_BANKN
+          I_BANKS_SND = G_BANKS_HB
+          I_BANKK_SND = G_BANKL_HB
+          I_WAERS     = WAERS
+          I_UZAWE     = UZAWE
+          I_AKTYP     = G_AKTYP
+        IMPORTING
+          E_XCHNG     = L_CHANGED.
+
+    ELSE.
+
+      L_BANKN = G_BANKN_HB.
+
+      CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_MAINT'
+        EXPORTING
+          I_BANKS_REC = G_BANKS_HB
+          I_BANKK_REC = G_BANKL_HB
+          I_BANKN_REC = L_BANKN
+          I_BANKS_SND = L_BANKS
+          I_BANKK_SND = L_BANKL
+          I_WAERS     = WAERS
+          I_UZAWE     = UZAWE
+          I_AKTYP     = G_AKTYP
+        IMPORTING
+          E_XCHNG     = L_CHANGED.
+
+    ENDIF.
+
+    IF NOT L_CHANGED IS INITIAL.
+
+      CALL FUNCTION 'POPUP_TO_CONFIRM_LOSS_OF_DATA'
+        EXPORTING
+          TEXTLINE1     = TEXT-003
+          TITEL         = TEXT-001
+          DEFAULTOPTION = 'J'
+        IMPORTING
+          ANSWER        = L_ANSWER
+        EXCEPTIONS
+          OTHERS        = 1.
+
+
+      IF L_ANSWER EQ 'J'.
+
+        CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_SAVE'
+          EXCEPTIONS
+            OTHERS = 1.
+
+        CLEAR L_ANSWER.
+
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                               " USER_COMMAND
+*&---------------------------------------------------------------------*
+*&      Form  BANKCHAIN_ACTIVE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM BANKCHAIN_ACTIVE.
+
+  CALL FUNCTION 'FI_BL_BANKCHAIN_ACTIVE'
+    EXCEPTIONS
+      BANKCHAIN_NOT_ACTIVE = 1
+      FATAL_ERROR          = 2
+      OTHERS               = 3.
+  IF SY-SUBRC <> 0.
+    MESSAGE E876(PZ).
+  ENDIF.
+
+ENDFORM.                               " BANKCHAIN_ACTIVE
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_PARAMETERS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM CHECK_PARAMETERS.
+
+  IF ( KUNNR IS INITIAL AND LIFNR IS INITIAL ) OR
+     ( NOT KUNNR IS INITIAL AND NOT LIFNR IS INITIAL ).
+    MESSAGE E880(PZ).
+  ENDIF.
+
+  IF    BUKRS_HB IS INITIAL
+    AND ( NOT HBKID_HB IS INITIAL OR NOT HKTID_HB IS INITIAL ).
+    MESSAGE E877(PZ) WITH HBKID_HB HKTID_HB.
+  ENDIF.
+
+  IF  ( HBKID_HB IS INITIAL AND NOT HKTID_HB IS INITIAL ) OR
+      ( NOT HBKID_HB IS INITIAL AND HKTID_HB IS INITIAL ).
+    MESSAGE E878(PZ) WITH HBKID_HB HKTID_HB.
+  ENDIF.
+
+ENDFORM.                               " CHECK_PARAMETERS
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_PARTNER_BANK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SELECT_PARTNER_BANK.
+
+  IF NOT LIFNR IS INITIAL.
+    SELECT * FROM  LFBK INTO CORRESPONDING FIELDS OF TABLE T_LFBK
+           WHERE  LIFNR       = LIFNR.
+    SORT T_LFBK.
+  ELSE.
+    SELECT * FROM  KNBK INTO  CORRESPONDING FIELDS OF TABLE T_KNBK
+           WHERE  KUNNR       = KUNNR.
+    SORT T_KNBK.
+  ENDIF.
+
+ENDFORM.                               " SELECT_PARTNER_BANK
+
+*Text elements
+*----------------------------------------------------------
+* 001 Exit
+* 003 Save your changes first?
+* 015 Incoming payment
+* 016 Outgoing payment
+* 021 Business partner
+* 022 House bk
+* 023 Other limitations
+* 024 Payment direct.
+* 100 Edit bank chains for creditors/debtors
+* 101 Display bank chains for creditors/debtors
+
+
+*Selection texts
+*----------------------------------------------------------
+* BUKRS_HB         Company code
+* HBKID_HB         House bank
+* HKTID_HB         Account
+* KUNNR         Customer
+* LIFNR         Vendor
+* UZAWE         Payment method supplement
+* WAERS         Payment currency
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 0K
+*004   Position the cursor on a line in the list
+*
+* Message class: F2
+*153   Customer & has not been created
+*163   Vendor & has not been created
+*302   No authorization for displaying the general data for this account
+*371   No authorization to display general data
+*382   No authorization to display accounts from account group &4
+*
+* Message class: F4
+*151   You are not authorized to display vendor changes &
+*218   No display authorization for company code &
+*219   No change authorization in company code &
+*476   No authorization for displaying customer &
+*
+* Message class: FIBC
+*101   This program can not be run with this transaction
+*
+* Message class: PZ
+*876   Bank chains are not active
+*877   Enter company code for bank details &1/&2
+*878   Complete entries for bank &1 and account &2
+*880   Enter just one vendor/customer
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

@@ -1,0 +1,242 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- KNBW</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: KNBW</h2>
+  <h3>Description: Customer master record (withholding tax types) X</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>BUKRS</td>
+  <td>3</td>
+  <td>X</td>
+  <td>BUKRS</td>
+  <td>BUKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Company Code</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>KUNNR</td>
+  <td>2</td>
+  <td>X</td>
+  <td>KUNNR</td>
+  <td>KUNNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Customer Number</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>MANDT</td>
+  <td>1</td>
+  <td>X</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>WITHT</td>
+  <td>4</td>
+  <td>X</td>
+  <td>WITHT</td>
+  <td>WITHT</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Indicator for withholding tax type</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>WT_AGENT</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>WT_WTAGT</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Withholding tax agent?</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>WT_AGTDF</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>WT_AGTDF</td>
+  <td>WT_START</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Obligated to withhold tax from</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>WT_AGTDT</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>WT_AGTDT</td>
+  <td>WT_END</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Obligated to withhold tax until</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>WT_EXDF</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>WT_EXDF</td>
+  <td>WT_START</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date on which exemption begins</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>WT_EXDT</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>WT_EXDT</td>
+  <td>WT_END</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Date on which exemption ends</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>WT_EXNR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>WT_EXNR</td>
+  <td>CHAR25</td>
+  <td>CHAR</td>
+  <td>25</td>
+  <td>&nbsp;</td>
+  <td>Exemption certificate number</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>WT_EXRT</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>WT_EXRT</td>
+  <td>PRZ32</td>
+  <td>DEC</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Exemption rate</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>WT_WITHCD</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>WT_WITHCD</td>
+  <td>WT_WITHCD</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Withholding tax code</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>WT_WTEXRS</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>WT_WTEXRS</td>
+  <td>WT_WTEXRS</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Reason for exemption</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>WT_WTSTCD</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>WT_WTSTCD</td>
+  <td>STCD1</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>Withholding tax identification number</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

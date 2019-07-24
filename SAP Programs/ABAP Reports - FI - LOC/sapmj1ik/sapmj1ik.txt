@@ -1,0 +1,38 @@
+*&---------------------------------------------------------------------*
+*& Module pool       SAPMJ1IK                                          *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+
+INCLUDE MJ1IKTOP.                      " global Data
+
+INCLUDE MJ1IKI01.                      " PAI-Modules
+
+INCLUDE MJ1IKO01.                      " PBO-Modules
+
+INCLUDE MJ1IKF01.                      " FORM-Routines
+
+*GUI Texts
+*----------------------------------------------------------
+* 100 --> Customized details
+* 200 --> Excise Invoice list
+
+*Text elements
+*----------------------------------------------------------
+* 001 Company
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 8I
+*152   No data exists for the given conditions
+*153   Only one record should be selected
+*154   Customisation data not maintained for & &
+*908   You can select this line only after selecting original Excise invoice
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

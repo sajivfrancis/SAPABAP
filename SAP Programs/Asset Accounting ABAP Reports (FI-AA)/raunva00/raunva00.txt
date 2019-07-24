@@ -1,0 +1,326 @@
+************************************************************************
+*                                                                      *
+*         !!Dieser Report wurde komplett zu 46C überarbeitet.!!        *
+*                    Hinweis 0436353                                   *
+*          enthält die Korrekturanleitung für diese Änderungen.        *
+*                                                                      *
+************************************************************************
+
+REPORT raunva00 MESSAGE-ID ab
+                LINE-SIZE 131
+                NO STANDARD PAGE HEADING.
+
+*  Variablen, Konstanten, Tabellen
+INCLUDE RAUNVATP.
+
+TYPE-POOLS rsds.
+
+
+************************ Berichtsselektionen ***************************
+SELECT-OPTIONS: s_bukrs FOR gt_anla-bukrs MEMORY ID buk.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF BLOCK bl1
+                  WITH FRAME
+                  TITLE text-bl1.
+SELECT-OPTIONS: s_anlkl FOR gt_anla-anlkl NO-EXTENSION,
+                s_anln1 FOR gt_anla-anln1,
+                s_anln2 FOR gt_anla-anln2.
+SELECTION-SCREEN END   OF BLOCK bl1.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF BLOCK bl2
+                  WITH FRAME
+                  TITLE text-bl2.
+SELECT-OPTIONS: s_aneqs FOR gt_anla-aneqs DEFAULT 1 TO 2 OBLIGATORY
+                                                    NO-EXTENSION.
+SELECTION-SCREEN END   OF BLOCK bl2.
+
+*** begin of changes note 940234
+* Further options
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF BLOCK bl3
+                 WITH FRAME
+                 TITLE text-bl3.
+PARAMETERS: p_vari TYPE disvariant-variant DEFAULT ' '.
+SELECTION-SCREEN END OF BLOCK bl3.
+
+* Process on value request
+*---------------------------------------------------------------------*
+*       FORM UNV_ANL_LISTE_AUFBAUEN                                   *
+*---------------------------------------------------------------------*
+*       Erstellen einer Liste entsprechend den Selektionskriterien    *
+*---------------------------------------------------------------------*
+FORM unv_anl_liste_aufbauen.
+  DATA: ld_goon(1)    VALUE 'X'.
+*                              Hilfsfeld, ob HNr ('1') oder UNr ('2')
+*                              geprüft werden sollen.
+  DATA: ld_xsubno     TYPE xfeld.
+*                              Prüfergebnis, ob Bukrs unvollst. Anl. hat
+*                              1: BuKrs hat unv.Anl.  0: BuKrs hat keine
+  DATA: ld_uvanl      TYPE i.                               "> 940234
+*                                         LT_ABRA
+  DATA: BEGIN OF lt_abra.
+          INCLUDE STRUCTURE  iabra.
+  DATA: END   OF lt_abra.
+
+* Sichtenberechtigungen:
+  DATA:
+    ld_view       TYPE fiaa_view_neu,
+    lt_t082aview1 TYPE STANDARD TABLE OF t082aview1,
+    lt_t082aviewb TYPE STANDARD TABLE OF t082aviewb.
+
+* Zeile der ALV-Ausgabeliste
+  DATA:
+    wa_vollanl LIKE LINE OF gt_alv_list.
+
+*          Selektierte Buchungskreise in interne Tabelle GT_093C stellen
+  SELECT * FROM t093c INTO TABLE gt_t093c WHERE bukrs IN s_bukrs.
+*                                         Select-Anweisung aufbauen
+  PERFORM init_dopt.
+
+* Feldgruppentabelle aufbauen
+  CALL FUNCTION 'T082F_READ_MULTIPLE'
+    TABLES
+      t_t082f   = gt_t082f
+    EXCEPTIONS
+      not_found = 1
+      OTHERS    = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+*                        Tabelle für Stammsatz-Bildaufbauregeln einlesen
+  SELECT * FROM anka INTO CORRESPONDING FIELDS OF TABLE gt_anka.
+
+*********************** Loop über die BuKreise *************************
+  LOOP AT gt_t093c.
+* Tabelle für die Sichten aufbauen
+    CLEAR gt_t082aview1.
+    CLEAR gt_t082aviewb.
+    DO 6 TIMES.
+      ld_view = sy-index. "Views '01' bis '06' abarbeiten
+      CALL FUNCTION 'FIAA_VIEW_READ'
+        EXPORTING
+          id_view                = ld_view
+          id_transgroup          = 'OTHERS'
+          id_langu               = syst-langu
+          id_bukrs               = gt_t093c-bukrs
+        TABLES
+          et_t082aview1          = lt_t082aview1
+          et_t082aviewb          = lt_t082aviewb
+        EXCEPTIONS
+          no_view_found          = 1
+          no_text_found          = 2
+          no_area_found          = 3
+          no_view_assigned       = 4
+          several_views_assigned = 5
+          OTHERS                 = 6.
+      IF sy-subrc <> 0.
+        MESSAGE e000(aisbaufbau)
+                WITH ld_view gt_t093c-bukrs space.          "<595609
+      ENDIF.
+      APPEND LINES OF lt_t082aview1 TO gt_t082aview1.
+      APPEND LINES OF lt_t082aviewb TO gt_t082aviewb.
+    ENDDO.
+
+*                        Tabelle für Bereich-Bildaufbauregeln einlesen.
+    REFRESH gt_ankb.
+    CLEAR gt_ankb.
+    SELECT * FROM ankb INTO CORRESPONDING FIELDS OF TABLE gt_ankb
+                   WHERE afapl EQ gt_t093c-afapl
+                     AND anlkl IN s_anlkl.
+    SORT gt_ankb BY anlkl afabe.
+
+    ld_goon   = 'X'.
+    ld_uvanl  =  0.                                         "> 940234
+    lt_abra-bukrs  = gt_t093c-bukrs.
+
+    WHILE ld_goon EQ con_x.
+      CALL FUNCTION 'ANLA_READ_RANGE_TRIGGER'
+        EXPORTING
+          i_abra           = lt_abra
+        IMPORTING
+          e_goon           = ld_goon
+        TABLES
+          t_dopt           = dopt
+          t_anla           = gt_anla
+          t_r_anln1        = s_anln1
+          t_r_anln2        = s_anln2
+        EXCEPTIONS
+          no_records_found = 1
+          input_false      = 2
+          OTHERS           = 3.
+
+      IF sy-subrc = 0.
+*                                  Anl. ist als unvollst. gekennzeichnet
+        LOOP AT gt_anla.
+*         Flag, daß BuKrs unv.Anlagen hat
+          ld_uvanl = 1.                                     "> 940234
+
+          gd_anl_unvollstaendig = 0.
+*                                       Tabellen nachlesen
+          PERFORM tabellen_fuellen.
+*                                       Anlage: Hauptnr / Unternr. ?
+          IF gt_anla-anln2 EQ gs_anlh-funtn.
+            CLEAR ld_xsubno.
+          ELSE.
+            ld_xsubno = 'X'.
+          ENDIF.
+
+*         ****************** Stammdatenfelder prüfen *******************
+*                                       Bildaufbauregel aus ANKA lesen
+          READ TABLE gt_anka WITH KEY anlkl = gt_anla-anlkl.
+          IF sy-subrc = 0.
+            PERFORM stammdatenfelder_pruefen USING ld_xsubno
+                                                   gt_anka-felei.
+          ENDIF.
+
+*                                    Anlage ist zu Unrecht unvollständig
+          IF gd_anl_unvollstaendig = 0.
+            wa_vollanl-bukrs = gt_anla-bukrs.
+            wa_vollanl-anlkl = gt_anla-anlkl.
+            wa_vollanl-anln1 = gt_anla-anln1.
+            wa_vollanl-anln2 = gt_anla-anln2.
+            wa_vollanl-aneqs = gt_anla-aneqs.
+            wa_vollanl-complete_icon = icon_checked.
+            APPEND wa_vollanl TO gt_alv_list.
+          ENDIF.
+        ENDLOOP.                       "Loop AT GT_ANLA
+      ENDIF.
+    ENDWHILE.            "Ende von solange Anlagen gefunden werden
+*** begin of insertion note 940234
+*   Tabelle für Buchungskreise OHNE unvollständige Anlagen aufbauen
+    IF ld_uvanl EQ 0.                  "BuKrs ohne unvollst. Anlagen
+      gt_vbukrs-bukrs = gt_t093c-bukrs.
+      APPEND gt_vbukrs.
+    ENDIF.
+*** begin of insertion note 940234
+  ENDLOOP.                         "über die selektierten Buchungskreise
+ENDFORM.                    "unv_anl_liste_aufbauen
+
+*&---------------------------------------------------------------------*
+*&      Form  LISTE_AUSGEBEN
+*&---------------------------------------------------------------------*
+*       Ausgabe des Berichtes
+*       FORM Routine completely revised with note 940234
+*----------------------------------------------------------------------*
+FORM liste_ausgeben.
+  DATA:
+    ld_callback_program TYPE  sy-repid,
+    ld_grid_title       TYPE  lvc_title,
+    ls_layout           TYPE  slis_layout_alv,
+    lt_sort             TYPE  slis_t_sortinfo_alv,
+    lt_fieldcat         TYPE  slis_t_fieldcat_alv,
+    ls_variant          TYPE  disvariant,
+    lt_events           TYPE  slis_t_event,
+    ls_event            TYPE  slis_alv_event.
+
+* The current programm contains the exit routines for the ALV list.
+* So set this as call back program for the alV
+  ld_callback_program = sy-repid.
+
+* Build grid title.
+  WRITE sy-datum TO ld_grid_title.
+  CONCATENATE text-eda ld_grid_title INTO ld_grid_title
+              SEPARATED BY space.
+* Set the layout
+* - optimize column with
+  ls_layout-colwidth_optimize = con_x.
+
+* Create field catalog for ALV GRID
+  PERFORM alv_init_fieldcat CHANGING lt_fieldcat
+                                     lt_sort.
+
+  ls_variant-report =  ld_callback_program.
+  ls_variant-variant = p_vari.
+
+  ls_event-name = 'TOP_OF_LIST'.
+  ls_event-form = 'ALV_TOP_OF_LIST'.
+  APPEND ls_event TO lt_events.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program                = ld_callback_program
+      i_callback_pf_status_set          = 'ALV_SET_PF_STATUS'
+      i_callback_user_command           = 'ALV_USER_COMMAND'
+      i_callback_html_top_of_page = 'ALV_TOP_OF_PAGE_HTML'
+      i_grid_title                = ld_grid_title
+      is_layout                         = ls_layout
+      it_fieldcat                       = lt_fieldcat
+      it_sort                           = lt_sort
+      i_save                      = 'A'
+      is_variant                  = ls_variant
+      it_events                   = lt_events
+    TABLES
+      t_outtab                          = gt_alv_list.
+
+ENDFORM.                               " LISTE_AUSGEBEN
+
+
+AT LINE-SELECTION.
+  PERFORM anlage_stammdatenpflege.
+
+INCLUDE RAUNVAF1.
+INCLUDE RAUNVAF2.
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_vari.
+  PERFORM choose_variant CHANGING p_vari.
+
+START-OF-SELECTION.
+*** end of changes note 940234
+
+* Eingabe für den Vollständigkeitsindikator überprüfen
+  IF s_aneqs-low = 0 OR s_aneqs-low > 2.
+    MESSAGE ID 'AB' TYPE 'E' NUMBER '080' WITH s_aneqs-low.
+    EXIT.
+  ENDIF.
+  IF s_aneqs-high = 0 OR s_aneqs-high > 2.
+    MESSAGE ID 'AB' TYPE 'E' NUMBER '080' WITH s_aneqs-high.
+    EXIT.
+  ENDIF.
+
+************************ Begin Hauptprogramm ***************************
+  PERFORM unv_anl_liste_aufbauen.
+
+  PERFORM liste_ausgeben.
+************************ Ende  Hauptprogramm ***************************
+
+END-OF-SELECTION.                                           "> 940234
+
+*Text elements
+*----------------------------------------------------------
+* BL1 Selections
+* BL2 Level of completion
+* BL3 Further options
+* EDA Date created:
+* T01 Correct assets
+* T02 Do you really want to correct the complete assets?
+* VB1 No incomplete assets matching your selection criteria were found
+* VB2 in the following company codes:
+
+
+*Selection texts
+*----------------------------------------------------------
+* S_ANEQS         Completeness indicator
+* S_ANLKL         Asset class
+* S_ANLN1         Asset number
+* S_ANLN2         Subnumber
+* S_BUKRS         Company code
+* P_VARI D       .
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: AB
+*080   The value &1 is invalid for the completeness indicator
+*
+* Message class: AISBAUFBAU
+*000   Data for asset view &1 is missing
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

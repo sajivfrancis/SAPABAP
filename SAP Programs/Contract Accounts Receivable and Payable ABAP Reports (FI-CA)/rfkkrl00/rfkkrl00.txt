@@ -1,0 +1,114 @@
+*&---------------------------------------------------------------------*
+*&  Report  RFKKRL00
+*&  Transfer programm for refusal lot
+*&---------------------------------------------------------------------*
+*&  * checks the datum of include RFKIRL02
+*&    and structures BFKKRGR00, BFKKRK, BFKKRP
+*&  * if the include is older than structures or does not exist,
+*&    generates it
+*&  * submits RFKKRL01
+*&---------------------------------------------------------------------*
+
+REPORT  rfkkrl00  MESSAGE-ID >u NO STANDARD PAGE HEADING.
+
+INCLUDE rfkirl05.          " global data
+INCLUDE rfkize07.          " Schedman
+INCLUDE rfkirl03.          " selection screen
+INCLUDE rfkirl06.                                           " F4-help
+INCLUDE rfkipwie.          "print parameters
+INCLUDE rfkirl04.          "subroutines
+
+*-- Programm -----------------------------------------------------------
+INITIALIZATION.
+* Initialise schedman variables
+  init_schedman ' '.
+* Read parameter for Unicode settings
+  GET PARAMETER ID '80NUNI' FIELD g_sav_nonunicode.  " Note 1312142
+
+START-OF-SELECTION.
+  PERFORM check_versions.
+  IF xgen NE space.
+    PERFORM generate_include.
+  ENDIF.
+  PERFORM export_printparams USING 'RFKKRL00' ucomm.        "pj 495877
+  SUBMIT rfkkrl01 AND RETURN
+          WITH p_runid = p_runid
+          WITH r_norm = r_norm
+          WITH as_fname = as_fname
+          WITH r_err = r_err
+          WITH r_rst = r_rst
+          WITH p_xprot = p_xprot
+          WITH p_xclos = p_xclos
+          WITH p_xbuch = p_xbuch
+          WITH p_xcont = p_xcont
+          WITH p_xsofst = p_xsofst
+          WITH p_strdt = p_strdt
+          WITH p_strtm = p_strtm
+          WITH p_xfltr = p_xfltr
+          WITH p_xlist = p_xlist
+          WITH p_mekey = p_mekey
+          WITH p_uc    = p_uc
+          WITH p_nuc   = p_nuc.
+
+  finish_schedman.
+
+*Text elements
+*----------------------------------------------------------
+* 001 Data Source
+* 002 Application Server
+* 003 File Name
+* 004 Presentation Server
+* 005 File Name
+* 006 Document Incorrect
+* 007 No.
+* 008 Item
+* 009 Status
+* 013 Processing Mode
+* 014 Edit File
+* 015 Process Errors
+* 016 Process File after Terminatn
+* 017 Reconciliation Key & Opened
+* 018 Reconciliation Key & Cannot Be Closed
+* 019 Reconciliation Key & Closed
+* 020 File Tested: OK
+* 021 Incorrect Docmnts:
+* 022 Posted Docs:
+* 023 Docs OK:
+* 024 To
+* 025 Too Many Errors - Deactivate Extended Log
+* 026 Schedule Posting
+* 027 Start Date
+* 028 Start Time
+* 029 Start Immediately
+* 030 Further Processing
+* 060 Unicode
+* PTH Path
+
+
+*Selection texts
+*----------------------------------------------------------
+* AS_FNAME         File Name
+* P_NUC         Non-Unicode
+* P_RUNID         Identification
+* P_STRDT         Start Date
+* P_STRTM         Start Time
+* P_UC         Unicode
+* P_XBUCH         Post Returns Lot
+* P_XCLOS         Close Returns Lot
+* P_XCONT         Leave Open for Other Files
+* P_XFLTR         Check File Later
+* P_XPROT         Extended Log
+* P_XSOFST         Start Immediately
+* R_ERR         Process Errors
+* R_NORM         Edit File
+* R_RST         Process File after Termination
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 29
+*800   Sequential file & could not be opened
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

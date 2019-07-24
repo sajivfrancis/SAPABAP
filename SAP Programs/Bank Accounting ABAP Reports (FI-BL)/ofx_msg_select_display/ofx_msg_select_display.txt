@@ -1,0 +1,228 @@
+*&---------------------------------------------------------------------*
+*& Report  ofx_msg_select_display
+*&                                                                     *
+*& The report displays fi messages that were found according           *
+*& to the selection criteria.                                          *
+*&---------------------------------------------------------------------*
+report  ofx_msg_select_display.
+
+************************************************************************
+* tables
+************************************************************************
+tables: fieb_statusvt.
+************************************************************************
+* data for select options
+************************************************************************
+data: gs_busproc      like  fieb_busprot-business_process,
+      gs_applsearch   like  fimsg_prop-applsearch,
+      gs_destination  like  logadr_phad_fieb-logadr.
+************************************************************************
+* select options
+************************************************************************
+select-options:
+  s_cr_dat for  sy-datum default sy-datum to sy-datum  no-extension,
+  s_cr_tim for  sy-uzeit default '000000' to '235959'  no-extension,
+  s_buspr  for  gs_busproc,
+  s_appl   for  gs_applsearch.
+selection-screen skip 1.
+select-options:
+  s_dest   for  gs_destination.
+selection-screen skip 1.
+select-options:
+  s_applc  for  fieb_statusvt-appl_category,
+  s_stat   for  fieb_statusvt-status.
+selection-screen skip 1.
+select-options:
+  s_ch_dat for  sy-datum,
+  s_ch_tim for  sy-uzeit.
+************************************************************************
+* data
+************************************************************************
+data:
+  go_msg_list            type  ref to cl_list_fieb,
+  go_oid_list            type  ref to cl_list_fieb,
+  go_rqrs_msg            type  ref to cl_rq_rs_message_fieb,
+  go_object              type  ref to object,
+  go_stat_hist           type  ref to cl_status_history_fieb,
+  go_status              type  ref to cl_status_fieb,
+  gt_range               type  tt_attrib_range_fieb,
+  wa_range               type  attrib_range_fieb,
+  wa_selopt              type  rsdsselopt,
+  gt_sort_attributes     type  tt_attribnames_fieb,
+  wa_sort_attributes     type  attribnames_fieb,
+  g_utc_timestamp_high   type  timestamp,
+  g_utc_timestamp_low    type  timestamp,
+  l_date_high            type  sydatum,
+  l_time_high            type  syuzeit,
+  g_number_of_found_msgs type  i.
+************************************************************************
+* CLASS DECLARATIONS
+************************************************************************
+class cl_rq_rs_message_fieb definition load.
+
+************************************************************************
+* MAIN PROGRAM
+************************************************************************
+start-of-selection.
+* --- fill all range tables from select options -----------------------*
+* 1: date and time of creation
+  clear wa_range.
+  wa_range-attribut = 'CREATED_AT'.
+  read table s_cr_dat index 1.
+  if sy-subrc = 0.
+    read table s_cr_tim index 1.
+
+    if not s_cr_dat-high is initial.
+      move s_cr_dat-high to l_date_high.
+    else.
+      move s_cr_dat-low to l_date_high.
+    endif.
+* time
+    if not s_cr_tim-high is initial.
+      move s_cr_tim-high to l_time_high.
+    else.
+      move s_cr_tim-low to l_time_high.
+    endif.
+* convert time stamps to utc
+    convert date s_cr_dat-low time s_cr_tim-low
+            into time stamp g_utc_timestamp_low time zone sy-zonlo.
+    convert date l_date_high time l_time_high
+            into time stamp g_utc_timestamp_high time zone sy-zonlo.
+* fill range
+    move 'I'                  to wa_selopt-sign.
+    move 'BT'                 to wa_selopt-option.
+    move g_utc_timestamp_high to wa_selopt-high.
+    move g_utc_timestamp_low  to wa_selopt-low.
+    shift wa_selopt-high left deleting leading ' '.
+    shift wa_selopt-low  left deleting leading ' '.
+
+    append wa_selopt to wa_range-selopt_t.
+    append wa_range to gt_range.
+  endif.
+* 2: business process
+  clear wa_range.
+  wa_range-attribut = 'BUSINESS_PROCESS'.
+  loop at s_buspr.
+    move-corresponding s_buspr to wa_selopt.
+    shift wa_selopt-high left deleting leading ' '.
+    shift wa_selopt-low  left deleting leading ' '.
+    append wa_selopt to wa_range-selopt_t.
+  endloop.
+  append wa_range to gt_range.
+* 3: application search field
+  clear wa_range.
+  wa_range-attribut = 'APPLSEARCH'.
+  loop at s_appl.
+    move-corresponding s_appl to wa_selopt.
+    shift wa_selopt-high left deleting leading ' '.
+    shift wa_selopt-low  left deleting leading ' '.
+    append wa_selopt to wa_range-selopt_t.
+  endloop.
+  append wa_range to gt_range.
+* 4: destination = logical address
+  clear wa_range.
+  wa_range-attribut = 'DESTINATION'.
+  loop at s_dest.
+    move-corresponding s_dest to wa_selopt.
+    shift wa_selopt-high left deleting leading ' '.
+    shift wa_selopt-low  left deleting leading ' '.
+    append wa_selopt to wa_range-selopt_t.
+  endloop.
+  append wa_range to gt_range.
+* 5: application category
+  clear wa_range.
+  wa_range-attribut = 'APPLICATION_CATEGORY'.
+  loop at s_applc.
+    move-corresponding s_applc to wa_selopt.
+    shift wa_selopt-high left deleting leading ' '.
+    shift wa_selopt-low  left deleting leading ' '.
+    append wa_selopt to wa_range-selopt_t.
+  endloop.
+  append wa_range to gt_range.
+* 6: sap status
+  clear wa_range.
+  wa_range-attribut = 'SAPSTATUS'.
+  loop at s_stat.
+    move-corresponding s_stat to wa_selopt.
+    shift wa_selopt-high left deleting leading ' '.
+    shift wa_selopt-low  left deleting leading ' '.
+    append wa_selopt to wa_range-selopt_t.
+  endloop.
+  append wa_range to gt_range.
+* 7: date and time of last change
+  clear g_utc_timestamp_high.
+  clear  g_utc_timestamp_low.
+  clear wa_range.
+  wa_range-attribut = 'LAST_CHANGED_AT'.
+  read table s_ch_dat index 1.
+  if sy-subrc = 0.
+    read table s_ch_tim index 1.
+
+    if not s_ch_dat-high is initial.
+      move s_ch_dat-high to l_date_high.
+    else.
+      move s_ch_dat-low to l_date_high.
+    endif.
+* time
+    if not s_ch_tim-high is initial.
+      move s_ch_tim-high to l_time_high.
+    else.
+      move s_ch_tim-low to l_time_high.
+    endif.
+* convert time stamps to utc
+    convert date s_ch_dat-low time s_ch_tim-low
+            into time stamp g_utc_timestamp_low time zone sy-zonlo.
+    convert date l_date_high time l_time_high
+            into time stamp g_utc_timestamp_high time zone sy-zonlo.
+* fill range
+    move 'I'                  to wa_selopt-sign.
+    move 'BT'                 to wa_selopt-option.
+    move g_utc_timestamp_high to wa_selopt-high.
+    move g_utc_timestamp_low  to wa_selopt-low.
+    shift wa_selopt-high left deleting leading ' '.
+    shift wa_selopt-low  left deleting leading ' '.
+
+    append wa_selopt to wa_range-selopt_t.
+    append wa_range to gt_range.
+  endif.
+*--- find objects -----------------------------------------------------*
+* create list of OIDs
+  create object go_msg_list.
+* get OIDs of the message objects
+  call method cl_rq_rs_message_fieb=>find_oid_by_attributes
+       exporting  im_range                  = gt_range
+       receiving  re_objectlist             = go_oid_list.
+* display list of found objects
+  call method go_oid_list->get_number_of_elements
+    receiving re_number = g_number_of_found_msgs.
+
+  if g_number_of_found_msgs <> 0.
+    call method cl_rq_rs_message_fieb=>display_messages
+         exporting  im_oidlist = go_oid_list.
+  else.
+* no messages found for these selection criterias
+    message id 'FBZI' type 'S' number 281.
+  endif.
+
+
+*Selection texts
+*----------------------------------------------------------
+* S_APPL         Application search field
+* S_APPLC D       Application name
+* S_BUSPR         Business process
+* S_CH_DAT D       Date
+* S_CH_TIM D       Time
+* S_CR_DAT D       Date
+* S_CR_TIM D       Time
+* S_DEST         Destination
+* S_STAT D       Status of an object
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: FBZI
+*281   No messages found for the selection criteria entered
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

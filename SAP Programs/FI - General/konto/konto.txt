@@ -1,0 +1,18 @@
+INCLUDE <OBJECT>.
+BEGIN_DATA OBJECT. " Do not change.. DATA is generated
+* only private members may be inserted into structure private
+DATA:
+" begin of private,
+"   to declare private attributes remove comments and
+"   insert private attributes here ...
+" end of private,
+      KEY LIKE SWOTOBJID-OBJKEY,
+      ACCOUNTINGDOC TYPE SWC_OBJECT OCCURS 0.
+END_DATA OBJECT. " Do not change.. DATA is generated
+
+GET_PROPERTY ACCOUNTINGDOC CHANGING CONTAINER.
+  SWC_SET_TABLE CONTAINER 'AccountingDoc' OBJECT-ACCOUNTINGDOC.
+END_PROPERTY.
+
+----------------------------------------------------------------------
+Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740

@@ -1,0 +1,1565 @@
+
+INCLUDE iemma_case_top.
+* Additional buttons in application toolbar
+TABLES: sscrfields, emma_case.
+SELECTION-SCREEN FUNCTION KEY 3.
+* Selection screen includes
+INCLUDE iemmacl_clselscreen.                               "#EC SHAREOK
+INCLUDE iemmacl_custselfields.                             "#EC SHAREOK
+INCLUDE iemmacl_orgselscreen.                              "#EC SHAREOK
+INCLUDE iemmacaselistevt.                                  "#EC SHAREOK
+* DB selection based on standard SAP and customer fields
+INCLUDE iemmacl_dbselectioncust.                           "#EC SHAREOK
+
+***********************************************************************
+INITIALIZATION.
+  PERFORM initialize_buttons USING sscrfields.
+
+* ALV catalogue
+  PERFORM alv_fieldcat USING gt_fieldcat[].
+* maximal number of cases to select
+  GET PARAMETER ID 'EMMA_CASE_MAX_SEL' FIELD gs_maxhits.
+  IF sy-subrc = 0 AND NOT gs_maxhits IS INITIAL.
+    gv_maxhits = maxhits.
+    TRY.
+        maxhits = gs_maxhits.
+      CATCH cx_sy_conversion_no_number.
+        maxhits = gv_maxhits.
+    ENDTRY.
+  ENDIF.
+
+* maximal number of cases to select
+  IF maxhits IS INITIAL.
+    maxhits = 0.
+  ENDIF.
+
+* Select the grid or list display, based on user setting
+  gs_variant-report = sy-repid.
+  GET PARAMETER ID 'EMMA_TRX' FIELD gv_save.
+  IF gv_save NE space.
+    REPLACE 'GRID' WITH 'LIST' INTO reuse_alv:,.
+  ENDIF.
+  gv_save = 'A'.
+
+
+  AUTHORITY-CHECK OBJECT 'B_EMMA_CAS'
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_display
+      ID 'BRGRU' DUMMY.                                     "#EC *
+  IF sy-subrc NE 0.
+    MESSAGE e003(emma).
+    LEAVE." to program ." exit.
+  ENDIF.
+
+* get BAdI implementation for case work lists
+  TRY.
+      GET BADI gr_badi_cwl.
+    CATCH cx_badi_not_implemented.
+  ENDTRY.
+
+
+************************************************************************
+* check the input selection criteria
+* search for the OBJID
+************************************************************************
+
+FORM alv_status_set USING rt_extab TYPE slis_t_extab.       "#EC CALLED
+
+  DATA: wa_rt_extab TYPE LINE OF slis_t_extab.
+  DATA: et_fcode TYPE emma_fcode_tab.                       " 1873766
+
+* check authorization before setting up the menu-status
+* Show cases
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+    ID 'ACTVT' FIELD cl_emma_case=>co_auth_display
+    ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'SHOWCASE' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+
+* Change case attributes
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_change
+      ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'CHANGECASE' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+
+* Assign case to yourself.
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_assign
+      ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'ASSIGNCASE' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+
+* Reassign the case to another user
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_reassign
+      ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'REASIGNCAS' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+
+* Drop the case back in que/list
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_backtoqueue
+      ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'BACKTOQUE' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+* complete the case
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_complete
+      ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'COMPLETE' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+* cancel the case
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_cancel
+      ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'CANCELCASE' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+* reopen the case
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_reopen
+      ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'REOPEN' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+* Confirm the case
+  AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+      ID 'ACTVT' FIELD cl_emma_case=>co_auth_confirm
+      ID 'BRGRU' DUMMY.
+  IF sy-subrc NE 0.
+    MOVE 'CONFRMCASE' TO wa_rt_extab-fcode.
+    APPEND wa_rt_extab  TO rt_extab.
+  ENDIF.
+
+*>>>> start of 1873766
+  IF NOT gr_badi_cwl IS INITIAL.
+    TRY.
+        CALL BADI gr_badi_cwl->exclude_fcodes
+          RECEIVING
+            et_fcode = et_fcode
+          EXCEPTIONS
+            OTHERS   = 1.
+      CATCH cx_sy_dyn_call_illegal_method.
+        MESSAGE e199(emma) WITH 'BADI_EMMA_CASE_WORK_LIST' 'EXCLUDE_FCODES'.
+*       Zu BAdI &1 ist Methode &2 noch nicht implementiert
+    ENDTRY.
+    IF sy-subrc = 0. APPEND LINES OF et_fcode TO rt_extab. ENDIF.
+  ENDIF.
+*>>>> end of 1873766
+
+* Set icons in menu bar based on the authorization
+  SET PF-STATUS 'STATUS' EXCLUDING rt_extab.
+
+ENDFORM.                               " status_set
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR objid.
+  PERFORM value_status_objid CHANGING objid
+                                      gv_xflg.
+
+* Check the entries for organizational structure data
+AT SELECTION-SCREEN ON otype.
+  PERFORM check_orgdata CHANGING objid.
+
+************************************************************************
+
+* Check organization structure data
+START-OF-SELECTION.
+
+  IF begda > endda.
+    MESSAGE s650(db).
+    EXIT.
+  ENDIF.
+  IF maxhits < 0.
+    MESSAGE s073(s1).
+    EXIT.
+  ENDIF.
+* Initial Data selection
+  PERFORM emma_case_data_selection USING     maxhits
+                                             yng_orig old_orig
+                                             yng_due
+                                   CHANGING  gt_outtab.
+  DESCRIBE TABLE gt_outtab.
+  IF sy-tfill IS INITIAL.
+    MESSAGE s035(emma).
+*   No entry found
+    EXIT.
+  ELSEIF sy-tfill = maxhits.
+    MESSAGE s016(es) WITH maxhits.
+*   Selection restricted to &1 hits
+  ELSE.
+    MESSAGE s114(emma) WITH sy-tfill.
+*   &1 clarification cases selected
+  ENDIF.
+
+************************************************************************
+
+*-----------------------------------------------------------
+*    Top-of-page
+*  PASS THE header info TO THE SCREEN FOR GRID DISPLAY.
+*------------------------------------------------------------
+FORM top_of_page.                                           "#EC CALLED
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = gt_list_top_of_page.
+ENDFORM.                    "top_of_page
+
+*&---------------------------------------------------------------------*
+*&      Form  alv_inceventtab_build
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM alv_eventtab_build.
+
+  DATA: ls_event TYPE slis_alv_event.
+  IF NOT objid IS INITIAL.
+
+    ls_event-name = ls_event-form = slis_ev_top_of_page.
+    APPEND ls_event TO gt_events.
+  ENDIF.
+
+ENDFORM.                    " alv_eventtab_build
+
+END-OF-SELECTION.
+  PERFORM set_light CHANGING gt_outtab.
+  IF listexp = 'X'.
+    EXPORT gt_outtab TO MEMORY ID 'EMMACL'.
+    LEAVE.
+  ELSEIF sy-batch = 'X'.
+    PERFORM submit_to_spool.
+  ELSE.
+* BUILD THE EVENT TABLE
+    PERFORM alv_eventtab_build.
+    IF gt_outtab[] IS INITIAL.
+      MESSAGE i035(emma).
+      EXIT.
+    ENDIF.
+
+    PERFORM alv_layout USING gs_layout.
+
+
+* List Header for Top-Of-Page
+    REFRESH: gt_list_top_of_page[].
+    IF NOT objid IS INITIAL.
+      PERFORM comment_build_int USING gt_list_top_of_page[].
+    ENDIF.
+
+* function moduel call to display the output (header level)
+    CALL FUNCTION reuse_alv-grid_display
+      EXPORTING
+        i_background_id          = 'ALV_BACKGROUND'
+        i_callback_program       = gs_variant-report
+        i_callback_user_command  = 'ALV_USER_COMMAND'
+        i_callback_pf_status_set = 'ALV_STATUS_SET'
+        is_layout                = gs_layout
+        it_fieldcat              = gt_fieldcat[]
+        it_special_groups        = gt_sp_group[]
+        it_events                = gt_events[]
+        is_variant               = gs_variant
+        i_save                   = gv_save
+      TABLES
+        t_outtab                 = gt_outtab
+      EXCEPTIONS
+        program_error            = 1
+        OTHERS                   = 2.
+
+    IF sy-subrc NE 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  ALV_FIELDCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->ET_FIELDCAT  text
+*----------------------------------------------------------------------*
+FORM alv_fieldcat USING et_fieldcat TYPE slis_t_fieldcat_alv.
+
+  FIELD-SYMBOLS: <ls_fieldcat> TYPE slis_fieldcat_alv.
+
+* Create field catalog by using the strucutre EMMA_CASELIST_OUTPUT
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name = 'EMMA_CASELIST_OUT'
+*     i_bypassing_buffer = cl_emma_case=>co_true
+    CHANGING
+      ct_fieldcat      = et_fieldcat.
+
+* FIELDS ARE SELECTED TO DISPLAY AS HOTSPOTS AND THE ONE WHICH
+* USER ARE NOT ALLOWED TO VIEW
+  LOOP AT et_fieldcat ASSIGNING <ls_fieldcat>.
+
+    CASE <ls_fieldcat>-fieldname.
+* Hot spots
+      WHEN 'CASENR'.
+        <ls_fieldcat>-hotspot = cl_emma_case=>co_true.
+        <ls_fieldcat>-key     = cl_emma_case=>co_true.
+        <ls_fieldcat>-just    = 'R'.
+      WHEN 'BOX'.
+        <ls_fieldcat>-tech    = cl_emma_case=>co_true.
+      WHEN 'CTYPETXT'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'CCATTXT'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'MAINOBJTYPE'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'PRIO'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'PRIOORIG'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'PRIOORIGTXT'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'STATUS'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'STATUSTXT'.
+        <ls_fieldcat>-key     = cl_emma_case=>co_true.
+      WHEN 'REACODE'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'LIGHT'.
+        <ls_fieldcat>-just    = 'C'.
+        <ls_fieldcat>-rollname = 'EMMA_CLS_LIGHT'.
+      WHEN 'CASE_GUID'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'BPGUID'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+      WHEN 'LOGSYS'.
+        <ls_fieldcat>-no_out  = cl_emma_case=>co_true.
+    ENDCASE.
+  ENDLOOP.
+ENDFORM.                    " alv_fieldcat
+
+*&---------------------------------------------------------------------*
+*&      Form  ALV_LAYOUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->LS_LAYOUT  text
+*----------------------------------------------------------------------*
+FORM alv_layout USING es_layout TYPE slis_layout_alv.
+
+  es_layout-colwidth_optimize = cl_emma_case=>co_true.
+  es_layout-box_fieldname     = co_box.
+  IF NOT objid IS INITIAL.
+    es_layout-detail_popup    = cl_emma_case=>co_false.
+  ENDIF.
+
+ENDFORM.                    " alv_layout_hdr
+
+*&---------------------------------------------------------------------*
+*&      Form  alv_user_command
+*&        DRILL DOWN WORK
+*----------------------------------------------------------------------*
+FORM alv_user_command USING iv_ucomm    LIKE sy-ucomm
+                            cs_selfield TYPE slis_selfield. "#EC CALLED
+
+  DATA: lt_rows TYPE lvc_t_row,
+        ls_row TYPE lvc_s_row.
+  DATA: lt_errcase  TYPE emma_case_infoline_t.              "#EC NEEDED
+  DATA: lt_refresh_list TYPE emma_caselist_out_tab,
+        ls_outtab_rows TYPE sy-tabix,
+        lv_refresh_required TYPE boolean.
+
+  DESCRIBE TABLE gt_outtab LINES ls_outtab_rows.
+  LOOP AT gt_outtab INTO gs_outtab WHERE NOT box IS INITIAL.
+    ls_row-index = sy-tabix.
+    APPEND ls_row TO lt_rows.
+    IF ls_outtab_rows LE lstrfrsh.
+      APPEND gs_outtab TO lt_refresh_list.
+    ENDIF.
+  ENDLOOP.
+  ls_row-index = cs_selfield-tabindex.
+  IF ls_row-index GT 0 AND
+     ls_outtab_rows LE lstrfrsh.
+    READ TABLE gt_outtab INTO gs_outtab INDEX ls_row-index.
+    APPEND gs_outtab TO lt_refresh_list.
+  ENDIF.
+
+  CASE iv_ucomm.
+************************************************************************
+    WHEN 'SHOWCASE' .
+      PERFORM maintain_cases USING gt_outtab lt_rows cl_emma_case_txn=>co_wmode_display.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+* Refresh case work list
+    WHEN '&NTE' OR 'REFRESH'.
+      REFRESH: gt_outtab.
+      PERFORM emma_case_data_selection USING    maxhits
+                                                yng_orig old_orig
+                                                yng_due
+                                       CHANGING gt_outtab.
+
+      LOOP AT gt_outtab INTO gs_outtab
+         WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+        gs_outtab-box = space. "co_false."true.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+*     CLEAR lv_casenr.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+      CLEAR: cs_selfield-fieldname.
+      REFRESH lt_refresh_list.
+      PERFORM set_light CHANGING gt_outtab.
+*     send message
+      DESCRIBE TABLE gt_outtab LINES sy-tfill.
+      MESSAGE s114(emma) WITH sy-tfill.
+
+************************************************************************
+    WHEN 'CHANGECASE'.
+      PERFORM maintain_cases USING gt_outtab lt_rows cl_emma_case_txn=>co_wmode_change.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+    WHEN '&IC1'.
+      IF cs_selfield-fieldname NE 'CASENR'.
+        READ TABLE gt_outtab INTO gs_outtab INDEX cs_selfield-tabindex.
+
+* Check the user authorization
+        AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+             ID 'ACTVT' FIELD  cl_emma_case=>co_auth_change
+             ID 'BRGRU' FIELD  gs_outtab-brgru.
+        IF sy-subrc NE 0.
+          MESSAGE e230(emma).
+*   Keine Berechtigung zum Bearbeiten des Falls
+        ENDIF.
+
+* Call transaction EMMAC2 "Display case"
+        CALL BADI cl_emma_case=>gr_badi_case->transaction_start
+          EXPORTING
+            iv_casenr                = gs_outtab-casenr
+            iv_wmode                 = cl_emma_case_txn=>co_wmode_change
+            iv_allow_toggle_dispchan = 'X'
+          EXCEPTIONS
+            case_not_found           = 1
+            incorrect_workmode       = 2
+            OTHERS                   = 3.
+
+        IF sy-subrc NE 0.
+          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                  WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+
+        ENDIF.
+
+        LOOP AT gt_outtab INTO gs_outtab
+           WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+          gs_outtab-box = space. "co_false."true.
+          MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+        ENDLOOP.
+        CLEAR: cs_selfield-fieldname.
+        cs_selfield-refresh = cl_emma_case=>co_true.
+      ENDIF.
+
+************************************************************************
+
+* Assign the case to current user = ACCEPT
+    WHEN 'ASSIGNCASE'.
+
+      CALL METHOD cl_emma_case_functions=>accept_multiple_dialog
+        EXPORTING
+          it_outtab      = gt_outtab
+          it_rows        = lt_rows
+        IMPORTING
+          et_error_line  = lt_errcase
+        EXCEPTIONS
+          user_cancelled = 1.
+
+*     Trigger reread of case list
+      IF sy-subrc = 0.
+        COMMIT WORK.
+      ELSE.
+        ROLLBACK WORK.                                 "#EC CI_ROLLBACK
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDIF.
+
+      LOOP AT gt_outtab INTO gs_outtab
+         WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+        gs_outtab-box = space. "co_false."true.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+************************************************************************
+* Assign the case to "blank" user = BACK TO QUEUE
+    WHEN 'BACKTOQUE'.
+      CALL METHOD cl_emma_case_functions=>back_to_queue_mult_dialog
+        EXPORTING
+          it_outtab      = gt_outtab
+          it_rows        = lt_rows
+        IMPORTING
+          et_error_line  = lt_errcase
+        EXCEPTIONS
+          user_cancelled = 1
+          OTHERS         = 2.
+
+*     Trigger reread of case list
+      IF sy-subrc = 0.
+        COMMIT WORK.
+      ELSE.
+        ROLLBACK WORK.                                 "#EC CI_ROLLBACK
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDIF.
+
+      LOOP AT gt_outtab INTO gs_outtab
+         WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+        gs_outtab-box = space. "co_false."true.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+************************************************************************
+** Forward the case to another user = FORWARD
+
+    WHEN 'REASIGNCAS'.
+
+      CALL METHOD cl_emma_case_functions=>forward_multiple_dialog
+        EXPORTING
+          it_outtab      = gt_outtab
+          it_rows        = lt_rows
+        IMPORTING
+          et_error_line  = lt_errcase
+        EXCEPTIONS
+          user_cancelled = 1
+          OTHERS         = 2.
+
+*     Trigger reread of case list
+      IF sy-subrc = 0.
+        COMMIT WORK.
+      ELSE.
+        ROLLBACK WORK.                                 "#EC CI_ROLLBACK
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDIF.
+
+      LOOP AT gt_outtab INTO gs_outtab
+         WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+        gs_outtab-box = space. "co_false."true.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+************************************************************************
+** Reopen the case = REOPEN
+
+    WHEN 'REOPEN'.
+
+      CALL METHOD cl_emma_case_functions=>reopen_multiple_dialog
+        EXPORTING
+          it_outtab      = gt_outtab
+          it_rows        = lt_rows
+        IMPORTING
+          et_error_line  = lt_errcase
+        EXCEPTIONS
+          user_cancelled = 1
+          OTHERS         = 2.
+
+*     Trigger reread of case list
+      IF sy-subrc = 0.
+        COMMIT WORK.
+      ELSE.
+        ROLLBACK WORK.                                 "#EC CI_ROLLBACK
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDIF.
+
+      LOOP AT gt_outtab INTO gs_outtab
+         WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+        gs_outtab-box = space. "co_false."true.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+************************************************************************
+** Complete the case = COMPLETE
+
+    WHEN 'COMPLETE'.
+
+      CALL METHOD cl_emma_case_functions=>complete_multiple_dialog
+        EXPORTING
+          it_outtab      = gt_outtab
+          it_rows        = lt_rows
+        IMPORTING
+          et_error_line  = lt_errcase
+        EXCEPTIONS
+          user_cancelled = 1
+          OTHERS         = 2.
+
+*     Trigger reread of case list
+      IF sy-subrc = 0.
+        COMMIT WORK.
+      ELSE.
+        ROLLBACK WORK.                                 "#EC CI_ROLLBACK
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDIF.
+
+      LOOP AT gt_outtab INTO gs_outtab
+         WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+        gs_outtab-box = space. "co_false."true.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+************************************************************************
+** Cancel the case = CANCEL
+
+    WHEN 'CANCELCASE'.
+
+      CALL METHOD cl_emma_case_functions=>cancel_multiple_dialog
+        EXPORTING
+          it_outtab      = gt_outtab
+          it_rows        = lt_rows
+        IMPORTING
+          et_error_line  = lt_errcase
+        EXCEPTIONS
+          user_cancelled = 1
+          OTHERS         = 2.
+
+*     Trigger reread of case list
+      IF sy-subrc = 0.
+        COMMIT WORK.
+      ELSE.
+        ROLLBACK WORK.                                 "#EC CI_ROLLBACK
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDIF.
+
+      LOOP AT gt_outtab INTO gs_outtab
+         WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+        gs_outtab-box = space. "co_false."true.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+************************************************************************
+    WHEN 'CONFRMCASE'.
+
+      CALL METHOD cl_emma_case_functions=>confirm_multiple_dialog
+        EXPORTING
+          it_outtab      = gt_outtab
+          it_rows        = lt_rows
+        IMPORTING
+          et_error_line  = lt_errcase
+        EXCEPTIONS
+          user_cancelled = 1
+          OTHERS         = 2.
+
+*     Trigger reread of case list
+      IF sy-subrc = 0.
+        COMMIT WORK.
+      ELSE.
+        ROLLBACK WORK.                                 "#EC CI_ROLLBACK
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDIF.
+
+      LOOP AT gt_outtab INTO gs_outtab WHERE box = cl_emma_case=>co_true.
+        gs_outtab-box = cl_emma_case=>co_false.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+      CLEAR: cs_selfield-fieldname.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+
+************************************************************************
+    WHEN '+EF1' OR '+EF2' OR '+EF3'.  "Enhancement functions
+
+      IF NOT gr_badi_cwl IS INITIAL.
+        TRY.
+            CALL BADI gr_badi_cwl->call_enhancement_function
+              EXPORTING
+                iv_ucomm       = iv_ucomm
+                it_caselist    = gt_outtab
+                it_row_marked  = lt_rows
+                is_row_cursor  = ls_row
+              EXCEPTIONS
+                user_cancelled = 1
+                OTHERS         = 2.
+          CATCH cx_sy_dyn_call_illegal_method.
+            MESSAGE e199(emma) WITH 'BADI_EMMA_CASE_WORK_LIST'
+                                    'CALL_ENHANCEMENT_FUNCTION'.
+*   Zu BAdI &1 ist Methode &2 noch nicht implementiert
+        ENDTRY.
+
+*     Trigger reread of case list
+        IF sy-subrc = 0.
+          COMMIT WORK.
+        ELSE.
+          ROLLBACK WORK.                               "#EC CI_ROLLBACK
+          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                  WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+        ENDIF.
+
+        LOOP AT gt_outtab INTO gs_outtab WHERE box = cl_emma_case=>co_true.
+          gs_outtab-box = cl_emma_case=>co_false.
+          MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+        ENDLOOP.
+        CLEAR: cs_selfield-fieldname.
+        cs_selfield-refresh = cl_emma_case=>co_true.
+      ENDIF.
+
+************************************************************************
+
+  ENDCASE.
+
+  IF cs_selfield-fieldname = 'CASENR'.
+    READ TABLE gt_outtab INTO gs_outtab INDEX cs_selfield-tabindex.
+
+* Check the user authorization
+    AUTHORITY-CHECK OBJECT cl_emma_case=>co_auth_object
+         ID 'ACTVT' FIELD  cl_emma_case=>co_auth_display
+         ID 'BRGRU' FIELD  gs_outtab-brgru.
+    IF sy-subrc NE 0.
+      MESSAGE e234(emma).
+*   Keine Berechtigung zum Anzeigen des Falls
+    ENDIF.
+
+    CALL BADI cl_emma_case=>gr_badi_case->transaction_start
+      EXPORTING
+        iv_casenr                = gs_outtab-casenr
+        iv_wmode                 = cl_emma_case_txn=>co_wmode_display
+        iv_allow_toggle_dispchan = cl_emma_case=>co_true
+      EXCEPTIONS
+        case_not_found           = 1
+        incorrect_workmode       = 2
+        OTHERS                   = 3.
+    IF sy-subrc NE 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ELSE.
+      LOOP AT gt_outtab INTO gs_outtab
+       WHERE box = cl_emma_case=>co_true."casenr = lv_casenr.
+        gs_outtab-box = space."cl_emma_case=>co_true.
+        MODIFY gt_outtab FROM gs_outtab TRANSPORTING box.
+      ENDLOOP.
+
+    ENDIF.
+
+  ENDIF.
+
+* refresh ALV in reselecting processed cases
+  IF NOT lt_refresh_list[] IS INITIAL.
+    PERFORM alv_check_refresh USING gt_outtab lt_refresh_list lv_refresh_required.
+    IF lv_refresh_required = cl_emma_case=>co_true.
+      cs_selfield-refresh = cl_emma_case=>co_true.
+      cs_selfield-col_stable = cl_emma_case=>co_true.
+      cs_selfield-row_stable = cl_emma_case=>co_true.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    "alv_user_command
+
+*&---------------------------------------------------------------------*
+*&      Form  ALV_CHECK_REFRESH
+*&---------------------------------------------------------------------*
+*       refresh case list from database
+*----------------------------------------------------------------------*
+FORM alv_check_refresh USING it_outtab TYPE emma_caselist_out_tab
+                             it_refresh_tab TYPE emma_caselist_out_tab
+                             iv_refresh_required TYPE boolean.
+
+  IF NOT it_refresh_tab[] IS INITIAL.
+
+    " get possibly changed clarification case headers from database
+    SELECT * FROM emma_case INTO CORRESPONDING FIELDS OF TABLE it_refresh_tab
+            FOR ALL ENTRIES IN it_refresh_tab
+            WHERE casenr = it_refresh_tab-casenr.
+
+    " make refreshed entries ready for display
+    PERFORM complete_caselist CHANGING it_refresh_tab.
+    PERFORM set_light CHANGING it_refresh_tab.
+
+    " check for changes and need for refresh
+    iv_refresh_required = cl_emma_case=>co_false.
+    LOOP AT it_refresh_tab ASSIGNING FIELD-SYMBOL(<fs_refresh_outtab>).
+      READ TABLE it_outtab WITH KEY casenr = <fs_refresh_outtab>-casenr ASSIGNING FIELD-SYMBOL(<fs_display_outtab>).
+      IF sy-subrc EQ 0.
+        DO.
+          ASSIGN COMPONENT sy-index OF STRUCTURE <fs_refresh_outtab> TO FIELD-SYMBOL(<fs_refresh_field>).
+          IF sy-subrc <> 0. EXIT. ENDIF.
+          ASSIGN COMPONENT sy-index OF STRUCTURE <fs_display_outtab> TO FIELD-SYMBOL(<fs_display_field>).
+          IF <fs_refresh_field> <> <fs_display_field>.
+            iv_refresh_required = cl_emma_case=>co_true.
+            EXIT.
+          ENDIF.
+        ENDDO.
+        IF iv_refresh_required = cl_emma_case=>co_true.
+          <fs_display_outtab> = <fs_refresh_outtab>.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.                    " ALV_CHECK_REFRESH
+
+*&---------------------------------------------------------------------*
+*&      Form  maintain_cases
+*&---------------------------------------------------------------------*
+*       Display or change the selected cases
+*----------------------------------------------------------------------*
+*      -->IT_OUTTAB  case list
+*      -->IT_ROWS    selected cases
+*      -->IV_WMODE   mode
+*----------------------------------------------------------------------*
+FORM maintain_cases USING it_outtab TYPE emma_caselist_out_tab
+                          it_rows   TYPE lvc_t_row
+                          iv_wmode  TYPE emma_ctxn_wmode.
+
+  DATA: ls_row            TYPE lvc_s_row,
+        ls_outtab         TYPE emma_caselist_out,
+        lv_tfill          TYPE sytfill,
+        lv_tabix          TYPE sytabix VALUE 1,
+        lv_next_prev_case TYPE num1,
+        lv_okcode         TYPE syucomm.
+
+* Check the authorization
+  IF iv_wmode = cl_emma_case_txn=>co_wmode_change.
+    AUTHORITY-CHECK OBJECT 'B_EMMA_CAS'
+        ID 'ACTVT' FIELD '02'
+        ID 'BRGRU' DUMMY.
+    IF sy-subrc <> 0.
+      MESSAGE e230(emma).
+*   Keine Berechtigung zum Bearbeiten des Falls
+    ENDIF.
+  ELSE.
+    AUTHORITY-CHECK OBJECT 'B_EMMA_CAS'
+        ID 'ACTVT' FIELD '03'
+        ID 'BRGRU' DUMMY.
+    IF sy-subrc <> 0.
+      MESSAGE e234(emma).
+*   Keine Berechtigung zum Anzeigen des Falls
+    ENDIF.
+  ENDIF.
+
+* check that at least one case is selected
+  DESCRIBE TABLE it_rows LINES lv_tfill.
+  IF lv_tfill IS INITIAL.
+    MESSAGE s061(emma).
+*   Wählen Sie zuerst einen oder mehrere Klärungsfälle
+    EXIT.
+  ENDIF.
+
+  DO.
+* evaluate which icons to show in case transaction
+    IF lv_tabix = 1.
+      IF lv_tabix < lv_tfill.
+        lv_next_prev_case = '1'.  "next case only
+      ELSE.
+        CLEAR lv_next_prev_case.  "neither one
+      ENDIF.
+    ELSE.
+      IF lv_tabix < lv_tfill.
+        lv_next_prev_case = '3'.  "both icons
+      ELSE.
+        lv_next_prev_case = '2'.  "previous case only
+      ENDIF.
+    ENDIF.
+
+    READ TABLE it_rows   INTO ls_row    INDEX lv_tabix.
+    READ TABLE it_outtab INTO ls_outtab INDEX ls_row-index.
+    IF sy-subrc <> 0. EXIT. ENDIF.
+
+    CALL BADI cl_emma_case=>gr_badi_case->transaction_start
+      EXPORTING
+        iv_casenr                = ls_outtab-casenr
+        iv_wmode                 = iv_wmode
+        iv_allow_toggle_dispchan = cl_emma_case=>co_true
+        iv_next_prev_case        = lv_next_prev_case
+      IMPORTING
+        ev_okcode                = lv_okcode
+      EXCEPTIONS
+        OTHERS                   = 0.
+
+    CASE lv_okcode.
+      WHEN 'NEXT'. ADD 1 TO lv_tabix.
+      WHEN 'PREV'. SUBTRACT 1 FROM lv_tabix.
+      WHEN 'SAVE'.
+        IF lv_tabix < lv_tfill.
+          ADD 1 TO lv_tabix.
+        ELSE.
+          EXIT.
+        ENDIF.
+      WHEN OTHERS.
+        EXIT.
+    ENDCASE.
+  ENDDO.
+ENDFORM.                    "maintain_cases
+
+*&---------------------------------------------------------------------*
+*&      Form  VALUE_STATUS_OBJID
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->CV_OBJID   text
+*      -->EV_XFLG    text
+*----------------------------------------------------------------------*
+FORM value_status_objid CHANGING cv_objid TYPE obname
+                                 ev_xflg  TYPE c.
+
+  DATA: lt_sel_objects    LIKE objec   OCCURS 10 WITH HEADER LINE,
+        lt_marked_objects LIKE hrsobid OCCURS 10 WITH HEADER LINE,
+        ls_sel_objec      TYPE objec,
+        lt_dynpfields     LIKE dynpread OCCURS 0 WITH HEADER LINE,
+        lv_mode           TYPE c.
+
+  lv_mode = 'X'.
+
+  lt_dynpfields-fieldname = 'PLVAR'.
+  APPEND lt_dynpfields.
+
+  CALL FUNCTION 'DYNP_VALUES_READ'
+    EXPORTING
+      dyname             = sy-cprog
+      dynumb             = '1000'
+      translate_to_upper = 'X'
+    TABLES
+      dynpfields         = lt_dynpfields
+    EXCEPTIONS
+      OTHERS             = 1.
+  IF sy-subrc EQ 0.
+    READ TABLE lt_dynpfields INDEX 1.
+    IF lt_dynpfields-fieldvalue NE space.
+      plvar = lt_dynpfields-fieldvalue.
+    ENDIF.
+  ENDIF.
+
+  CLEAR lt_dynpfields[].
+  lt_dynpfields-fieldname = 'OTYPE'.
+  APPEND lt_dynpfields.
+
+  CALL FUNCTION 'DYNP_VALUES_READ'
+    EXPORTING
+      dyname             = sy-cprog
+      dynumb             = '1000'
+      translate_to_upper = 'X'
+    TABLES
+      dynpfields         = lt_dynpfields
+    EXCEPTIONS
+      OTHERS             = 1.
+  IF sy-subrc EQ 0.
+    READ TABLE lt_dynpfields INDEX 1.
+    IF lt_dynpfields-fieldvalue NE space.
+      otype = lt_dynpfields-fieldvalue.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'RH_OBJID_REQUEST'
+    EXPORTING
+      plvar          = plvar
+      otype          = otype
+      seark          = '*'
+      set_mode       = lv_mode
+      orgbeg         = begda
+      orgend         = endda
+    IMPORTING
+      sel_object     = ls_sel_objec
+    TABLES
+      marked_objects = lt_marked_objects
+      sel_objects    = lt_sel_objects
+    EXCEPTIONS
+      OTHERS         = 1.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  LOOP AT SCREEN.
+    CASE screen-name.
+      WHEN 'OTYPE'.
+        IF ls_sel_objec-otype = 'US'.
+          cv_objid = ls_sel_objec-realo(12).
+          ev_xflg = cl_emma_case=>co_true.
+        ENDIF.
+      WHEN 'OBJID'.
+        IF NOT ls_sel_objec-otype = 'US'.
+          cv_objid = ls_sel_objec-objid.
+        ENDIF.
+    ENDCASE.
+  ENDLOOP.
+
+ENDFORM.                    " value_status_otype
+
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_ORGDATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->EV_OBJID   text
+*----------------------------------------------------------------------*
+FORM check_orgdata CHANGING ev_objid.
+
+  DATA: lt_dynpfields LIKE dynpread OCCURS 0 WITH HEADER LINE.
+
+  CLEAR lt_dynpfields[].
+  lt_dynpfields-fieldname = 'OBJID'.
+  APPEND lt_dynpfields.
+
+  CALL FUNCTION 'DYNP_VALUES_READ'
+    EXPORTING
+      dyname             = sy-cprog
+      dynumb             = '1000'
+      translate_to_upper = 'X'
+    TABLES
+      dynpfields         = lt_dynpfields
+    EXCEPTIONS
+      OTHERS             = 1.
+  IF sy-subrc EQ 0.
+    READ TABLE lt_dynpfields INDEX 1.
+    ev_objid = lt_dynpfields-fieldvalue.
+  ENDIF.
+
+ENDFORM.                    " check_orgdata
+
+*&---------------------------------------------------------------------*
+*&      Form  SUBMIT_TO_SPOOL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM submit_to_spool.
+  DATA: ls_params LIKE pri_params,
+        lv_valid  TYPE c.
+
+  CALL FUNCTION 'GET_PRINT_PARAMETERS'
+    EXPORTING
+      list_name      = 'TEST'
+      list_text      = 'SUBMIT CASELIST TO SAP-SPOOL'
+      immediately    = 'X'
+      new_list_id    = 'X'
+      line_size      = 132
+      line_count     = 65
+      layout         = 'X_PAPER'
+      sap_cover_page = 'X'
+      no_dialog      = 'X'
+    IMPORTING
+      out_parameters = ls_params
+      valid          = lv_valid.
+
+  IF lv_valid <> space.
+    SUBMIT remmacaselist TO SAP-SPOOL                    "#EC CI_SUBMIT
+      SPOOL PARAMETERS ls_params
+      WITHOUT SPOOL DYNPRO.
+  ENDIF.
+ENDFORM.                    " submit_to_spool
+
+*&---------------------------------------------------------------------*
+*&      Form  COMPLETE_CASELIST
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->CT_OUTTAB  text
+*----------------------------------------------------------------------*
+FORM complete_caselist CHANGING ct_outtab TYPE emma_caselist_out_tab.
+  DATA: ls_outtab     TYPE emma_caselist_out,
+        lv_domvalue   TYPE dd07v-domvalue_l,
+        ls_creacodet  TYPE emmac_creacodet,
+        ls_ccatt      TYPE emmac_ccat_hdrt.
+
+  STATICS: BEGIN OF st_buf_objtypetxt OCCURS 0,
+             objtype TYPE swotbasdat-objtype,
+             txt     TYPE swotbasdat-shorttext,
+           END OF st_buf_objtypetxt,
+           BEGIN OF st_buf_priotxt OCCURS 0,
+             prio    TYPE emma_cprio,
+             txt     TYPE emma_cptxt,
+           END OF st_buf_priotxt,
+           BEGIN OF st_buf_statustxt OCCURS 0,
+             status  TYPE emma_cstatus,
+             txt     TYPE emma_cstatus_txt,
+           END OF st_buf_statustxt,
+           BEGIN OF st_buf_porigtxt OCCURS 0,
+             prioorig TYPE emma_cporig,
+             txt     TYPE emma_cpotxt,
+           END OF st_buf_porigtxt.
+
+  DATA:    ls_objtypetxt LIKE LINE OF st_buf_objtypetxt,
+           ls_priotxt    LIKE LINE OF st_buf_priotxt,
+           ls_statustxt  LIKE LINE OF st_buf_statustxt,
+           ls_porigtxt   LIKE LINE OF st_buf_porigtxt.
+
+  IF gr_dbl IS INITIAL.
+    gr_dbl = cl_emma_dbl=>create_dblayer( ).
+  ENDIF.
+
+  LOOP AT ct_outtab INTO ls_outtab.
+
+* strip leading zero's from object key
+    IF ls_outtab-mainobjkey(1) = '0'.
+      CALL FUNCTION 'EMMA_CONV_OBJKEY_FVAL_EXTERNAL'
+        EXPORTING
+          iv_refobjtype = ls_outtab-mainobjtype
+        CHANGING
+          cv_id         = ls_outtab-mainobjkey.
+    ENDIF.
+
+*   Read case type text
+    CALL METHOD gr_dbl->readc_casetype_text
+      EXPORTING
+        iv_ctype = ls_outtab-ctype
+      RECEIVING
+        ev_cttxt = ls_outtab-ctypetxt.
+
+*   Read text for case category
+    CALL METHOD gr_dbl->readc_ccat_text
+      EXPORTING
+        iv_ccat        = ls_outtab-ccat
+      IMPORTING
+        ev_cctxt       = ls_ccatt-cctxt                     "#EC ENHOK
+      EXCEPTIONS
+        ccat_not_found = 1
+        OTHERS         = 2.
+    IF sy-subrc = 0.
+      ls_outtab-ccattxt = ls_ccatt-cctxt.
+    ELSE.
+      ls_outtab-ccattxt = text-012.
+    ENDIF.
+
+*   Read case priority (buffered)
+    READ TABLE st_buf_priotxt INTO ls_priotxt
+         WITH KEY prio = ls_outtab-prio.
+    IF sy-subrc = 0.
+      ls_outtab-priotxt = ls_priotxt-txt.
+    ELSE.
+      CLEAR ls_priotxt.
+      ls_priotxt-prio = ls_outtab-prio.
+      lv_domvalue     = ls_outtab-prio.
+      CALL FUNCTION 'AM_READ_TEXT_ON_DOMAIN_VALUE'
+        EXPORTING
+          i_langu = sy-langu
+          i_doval = lv_domvalue
+          i_donam = gc_domname-prio
+        IMPORTING
+          e_dtext = ls_outtab-priotxt.
+      ls_priotxt-txt = ls_outtab-priotxt.
+      APPEND ls_priotxt TO st_buf_priotxt.
+    ENDIF.
+
+*   Read status text (buffered)
+    READ TABLE st_buf_statustxt INTO ls_statustxt
+         WITH KEY status = ls_outtab-status.
+    IF sy-subrc = 0.
+      ls_outtab-statustxt = ls_statustxt-txt.
+    ELSE.
+      CLEAR ls_statustxt.
+      ls_statustxt-status = ls_outtab-status.
+      lv_domvalue         = ls_outtab-status.
+      CALL FUNCTION 'AM_READ_TEXT_ON_DOMAIN_VALUE'
+        EXPORTING
+          i_langu = sy-langu
+          i_doval = lv_domvalue
+          i_donam = gc_domname-status
+        IMPORTING
+          e_dtext = ls_outtab-statustxt.
+      ls_statustxt-txt = ls_outtab-statustxt.
+      APPEND ls_statustxt TO st_buf_statustxt.
+    ENDIF.
+
+*   Read origination priority (buffered)
+    READ TABLE st_buf_porigtxt INTO ls_porigtxt
+         WITH KEY prioorig = ls_outtab-prioorig.
+    IF sy-subrc = 0.
+      ls_outtab-prioorigtxt = ls_porigtxt-txt.
+    ELSE.
+      CLEAR ls_porigtxt.
+      ls_porigtxt-prioorig = ls_outtab-prioorig.
+      lv_domvalue = ls_outtab-prioorig.
+      CALL FUNCTION 'AM_READ_TEXT_ON_DOMAIN_VALUE'
+        EXPORTING
+          i_langu = sy-langu
+          i_doval = lv_domvalue
+          i_donam = gc_domname-prioorig
+        IMPORTING
+          e_dtext = ls_outtab-prioorigtxt.
+      ls_porigtxt-txt = ls_outtab-prioorigtxt.
+      APPEND ls_porigtxt TO st_buf_porigtxt.
+    ENDIF.
+
+*   get obj type description (buffered)
+    IF NOT ls_outtab-mainobjtype IS INITIAL.
+
+      READ TABLE st_buf_objtypetxt INTO ls_objtypetxt
+      WITH KEY objtype = ls_outtab-mainobjtype.
+      IF sy-subrc = 0.
+        ls_outtab-objtypetxt = ls_objtypetxt-txt.
+      ELSE.
+        CLEAR ls_objtypetxt.
+        ls_objtypetxt-objtype = ls_outtab-mainobjtype.
+        CALL FUNCTION 'SWO_TEXT_OBJTYPE'
+          EXPORTING
+            language  = sy-langu
+            objtype   = ls_outtab-mainobjtype
+          IMPORTING
+            shorttext = ls_outtab-objtypetxt.
+        ls_objtypetxt-txt = ls_outtab-objtypetxt.
+        APPEND ls_objtypetxt TO st_buf_objtypetxt.
+      ENDIF.
+
+    ENDIF.
+
+*   read text for reassignment code
+    IF NOT ls_outtab-reacode IS INITIAL.
+      CALL METHOD gr_dbl->readc_creacodet
+        EXPORTING
+          iv_reacode            = ls_outtab-reacode
+        RECEIVING
+          es_reacode            = ls_creacodet
+        EXCEPTIONS
+          no_reacode_text_found = 1
+          OTHERS                = 2.
+      IF sy-subrc = 0.
+        ls_outtab-reacodetxt = ls_creacodet-text.
+      ELSE.
+        ls_outtab-reacodetxt = text-013.
+      ENDIF.
+
+    ENDIF.
+    MODIFY ct_outtab FROM ls_outtab.
+  ENDLOOP.
+ENDFORM.                    " complete_caselist
+
+*&---------------------------------------------------------------------*
+*&      Form  SET_LIGHT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->CT_OUTTAB  text
+*----------------------------------------------------------------------*
+FORM set_light  CHANGING ct_outtab TYPE emma_caselist_out_tab.
+
+  FIELD-SYMBOLS <ls_outtab> TYPE emma_caselist_out.
+
+* set icon for due date light
+  LOOP AT ct_outtab ASSIGNING <ls_outtab>.
+*   if case status is complete or cancelled or confirmed
+*   always set green light => case is not overdue
+    IF <ls_outtab>-status = cl_emma_case=>co_status_compl OR
+       <ls_outtab>-status = cl_emma_case=>co_status_conf OR
+       <ls_outtab>-status = cl_emma_case=>co_status_canc.
+      <ls_outtab>-light = '@5B@'. "icon_led_green
+    ELSE.
+*   if case has different status => check due date/time
+      IF <ls_outtab>-due_date > sy-datum OR
+         ( <ls_outtab>-due_date = sy-datum AND <ls_outtab>-due_time > sy-uzeit ).
+        <ls_outtab>-light = '@5B@'. "icon_led_green
+      ELSE.
+        <ls_outtab>-light = '@5C@'. "icon_led_red
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                    " set_light
+
+*&---------------------------------------------------------------------*
+*&      Form  COMMENT_BUILD_INT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->LT_TOP_OF_PAGE  text
+*----------------------------------------------------------------------*
+FORM comment_build_int USING et_top_of_page  TYPE slis_t_listheader.
+
+  DATA: ls_line TYPE slis_listheader.
+
+* LIST HEADING LINE: TYPE H
+  ls_line-typ  = 'H'.
+  ls_line-info = text-002.
+  APPEND ls_line TO et_top_of_page.
+
+  PERFORM comment_build_common_part USING et_top_of_page.
+
+ENDFORM.                    " comment_build_int
+
+*&---------------------------------------------------------------------*
+*&      Form  COMMENT_BUILD_COMMON_PART
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->LT_TOP_OF_PAGE  text
+*----------------------------------------------------------------------*
+FORM comment_build_common_part USING et_top_of_page TYPE slis_t_listheader.
+  DATA: ls_line     TYPE slis_listheader,
+        lv_ptext    TYPE pltext,
+        lv_otext TYPE otext,
+        lv_wtext TYPE wtext.
+
+* PLAN VERSION
+  IF NOT plvar IS INITIAL.
+    SELECT SINGLE ptext INTO lv_ptext FROM t777p
+          WHERE langu = sy-langu
+            AND plvar = plvar.
+    IF sy-subrc  = 0.
+      ls_line-typ  = co_select.
+      ls_line-key  = text-005.
+      ls_line-info = lv_ptext.
+      APPEND ls_line TO et_top_of_page.
+    ENDIF.
+  ENDIF.
+
+* OBJECT TYPE
+  IF NOT otype IS INITIAL.
+    SELECT SINGLE otext INTO lv_otext FROM t777o
+          WHERE langu = sy-langu
+            AND otype = otype.
+    IF sy-subrc = 0.
+*      ls_line-typ  = co_select.
+      ls_line-key  = text-006.
+      ls_line-info = lv_otext.
+      APPEND ls_line TO et_top_of_page.
+    ENDIF.
+  ENDIF.
+
+* OBJID
+  IF NOT objid IS INITIAL.
+    ls_line-key  = text-007.
+    ls_line-info = objid.
+    APPEND ls_line TO et_top_of_page.
+  ENDIF.
+
+* EVALUATION PATH
+  IF NOT wegid IS INITIAL.
+    SELECT SINGLE wtext INTO lv_wtext FROM t77at
+          WHERE langu = sy-langu
+            AND wegid = wegid.
+    IF sy-subrc = 0.
+      ls_line-typ  = co_select.
+      ls_line-key  = text-008.
+      ls_line-info = lv_wtext.
+      APPEND ls_line TO et_top_of_page.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " comment_build_common_part
+
+AT SELECTION-SCREEN ON BLOCK org.
+  IF ( NOT plvar IS INITIAL AND otype  IS INITIAL
+       AND objid IS INITIAL ) OR
+     ( NOT plvar IS INITIAL AND NOT otype IS INITIAL
+       AND objid IS INITIAL ) OR
+     ( NOT plvar IS INITIAL AND otype IS INITIAL
+       AND NOT objid IS INITIAL ) OR
+     ( plvar IS INITIAL AND NOT otype IS INITIAL AND
+       NOT objid IS INITIAL ) OR
+     ( plvar IS INITIAL AND NOT otype IS INITIAL AND objid IS INITIAL )
+      OR
+     ( plvar IS INITIAL AND otype IS INITIAL AND NOT objid IS INITIAL ).
+    MESSAGE e038(emma).
+*   Specify both object category and ID
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*& Process special application toolbar buttons
+*&---------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+  CASE sscrfields-ucomm.
+    WHEN 'FC03'.
+      PERFORM emma_case_data_selection USING     0 space space space
+                                       CHANGING  gt_outtab.
+      DESCRIBE TABLE gt_outtab.
+      IF sy-tfill IS INITIAL.
+        MESSAGE i035(emma).
+*   No entry found
+      ELSE.
+        MESSAGE i114(emma) WITH sy-tfill.
+*   &1 clarification cases selected
+      ENDIF.
+  ENDCASE.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  INITIALIZE_BUTTONS
+*&---------------------------------------------------------------------*
+*       Assign icons and quickinfo to dynamic function keys in toolbar
+*----------------------------------------------------------------------*
+*      <--ES_SSCRFIELDS  Dynamic function key structure
+*----------------------------------------------------------------------*
+FORM initialize_buttons USING es_sscrfields TYPE sscrfields.
+  DATA ls_dyntxt TYPE smp_dyntxt.
+
+  ls_dyntxt-text           =
+  ls_dyntxt-icon_text      = 'Number of Cases'(QI3).
+  ls_dyntxt-path           = 'N'.
+  es_sscrfields-functxt_03 = ls_dyntxt.
+ENDFORM.                    "INITIALIZE_BUTTONS
+
+AT SELECTION-SCREEN ON BLOCK general.
+* check the input entires for BPCODE
+  READ TABLE bpcode INTO gs_bpcode.
+  IF NOT gs_bpcode-low IS INITIAL.
+    SELECT SINGLE bpcode INTO gv_bpcode FROM emma_bpc
+      WHERE bpcode = gs_bpcode-low.
+    IF sy-subrc <> 0.
+      MESSAGE e091(emma) WITH gs_bpcode-low.
+    ENDIF.
+  ENDIF.
+  IF NOT gs_bpcode-high IS INITIAL.
+    SELECT SINGLE bpcode INTO gv_bpcode FROM emma_bpc
+      WHERE bpcode = gs_bpcode-high.
+    IF sy-subrc <> 0.
+      MESSAGE e091(emma) WITH gs_bpcode-high.
+    ENDIF.
+  ENDIF.
+* check the entries for case priority
+  CLEAR: gv_prio.
+  READ TABLE prio INTO gs_prio.
+  IF NOT gs_prio-high IS INITIAL.
+    SELECT SINGLE valpos INTO gv_prio FROM dd07l
+      WHERE domname = 'EMMA_CPRIO'
+        AND valpos  = gs_prio-low.
+    IF sy-subrc <> 0.
+      MESSAGE e250(emma).
+    ENDIF.
+  ENDIF.
+  CLEAR gv_prio.
+  IF NOT gs_prio-low IS INITIAL.
+    SELECT SINGLE valpos INTO gv_prio FROM dd07l
+      WHERE domname = 'EMMA_CPRIO'
+        AND valpos  = gs_prio-low.
+    IF sy-subrc <> 0.
+      MESSAGE e250(emma).
+    ENDIF.
+  ENDIF.
+
+* check the entries for case origin priority
+  CLEAR gv_prioorig.
+  READ TABLE prioorig INTO gs_prioorig.
+  IF NOT gs_prioorig-high IS INITIAL.
+    SELECT SINGLE valpos INTO gv_prioorig FROM dd07l
+      WHERE domname = 'EMMA_CPORIG'
+        AND valpos  = gs_prioorig-low.
+    IF sy-subrc <> 0.
+      MESSAGE e250(emma).
+    ENDIF.
+  ENDIF.
+  CLEAR gv_prioorig.
+  IF NOT gs_prioorig-low IS INITIAL.
+    SELECT SINGLE valpos INTO gv_prioorig FROM dd07l
+      WHERE domname = 'EMMA_CPORIG'
+        AND valpos  = gs_prioorig-low.
+    IF sy-subrc <> 0.
+      MESSAGE e250(emma).
+    ENDIF.
+  ENDIF.
+
+*GUI Texts
+*----------------------------------------------------------
+* 200 --> Klärungsliste
+
+*Text elements
+*----------------------------------------------------------
+* 001 General Selection Criteria
+* 002 Organizational Structure
+* 003 Structure Parameters
+* 005 Plan Version
+* 006 Object Type
+* 007 Object
+* 008 Evaluation Path
+* 012 Text for Case Category Not Found
+* 013 Text for Forwarding Reason Not Found
+* CHD Time of Change
+* CRT Created At
+* CUS Customer Selection Criteria
+* DUE Due Date/Time
+* ORI Original Date/Time
+* QI3 No. of Cases
+* TO_ To
+
+
+*Selection texts
+*----------------------------------------------------------
+* LSTRFRSH D       .
+* OLD_ORIG         Oldest Cases First
+* UNSORTED         Unsorted
+* YNG_DUE         Next Due Cases First
+* YNG_ORIG         Newest Cases First
+* BEGDA D       .
+* BPCODE D       .
+* CANCODE D       .
+* CASENO D       .
+* CCAT D       .
+* CHGEDBY D       .
+* CRTDBY D       .
+* CTYPE D       .
+* CURRPROC D       .
+* ENDDA D       .
+* INTNR D       .
+* LOGSYS D       .
+* MAXHITS D       .
+* MOBJKEY D       .
+* MOBJTYPE D       .
+* OBJID D       .
+* OTYPE D       .
+* PLVAR D       .
+* PRIO D       .
+* PRIOORIG D       .
+* PV_CHD_F D       .
+* PV_CHD_T D       .
+* PV_CHT_F D       .
+* PV_CHT_T D       .
+* PV_CRD_F D       .
+* PV_CRD_T D       .
+* PV_CRT_F D       .
+* PV_CRT_T D       .
+* PV_DUD_F D       .
+* PV_DUD_T D       .
+* PV_DUT_F D       .
+* PV_DUT_T D       .
+* PV_ORD_F D       .
+* PV_ORD_T D       .
+* PV_ORT_F D       .
+* PV_ORT_T D       .
+* REACODE D       .
+* RUNID D       .
+* STATUS D       .
+* TDEPTH D       .
+* WEGID D       .
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: DB
+*650   Lower limit is greater than upper limit
+*
+* Message class: EMMA
+*003   You do not have authorization for the required action
+*035   No entry found
+*038   Specify both object category and ID
+*061   First select one or more clarification cases
+*091   Business process code &1 is not supported by EMMA
+*114   &1 clarification cases selected
+*199   Method &2 not implemented for BAdI &1
+*230   You are not authorized to process the case
+*234   You are not authorized to display the case
+*250   Priority &1 is invalid
+*
+* Message class: ES
+*016   Selection restricted to &1 hits
+*
+* Message class: S1
+*073   Enter only positive values
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

@@ -1,0 +1,380 @@
+************************************************************************
+*                                                                      *
+*  Internationales Zahlungsträgerprogramm RFFOEDI1 (EDI)               *
+*  International payment medium program RFFOEDI1 (EDI)                 *
+*                                                                      *
+************************************************************************
+
+
+*----------------------------------------------------------------------*
+* Das Programm includiert:                                             *
+*                                                                      *
+* RFFORI0M  Makrodefinition für den Selektionsbildaufbau               *
+* RFFORI00  Deklarationsteil der Zahlungsträger-Druckprogramme         *
+* RFFORI14  Erstellung von IDocs                                       *
+* RFFORI06  Avis                                                       *
+* RFFORI07  Zahlungsbegleitliste                                       *
+* RFFORI99  Allgemeine Unterroutinen der Zahlungsträger-Druckprogramme *
+*----------------------------------------------------------------------*
+* The program includes:                                                *
+*                                                                      *
+* RFFORI0M  Definition of macros                                       *
+* RFFORI00  international data definitions                             *
+* RFFORI14  creation of IDocs                                          *
+* RFFORI06  remittance advice                                          *
+* RFFORI07  payment summary list                                       *
+* RFFORI99  international subroutines                                  *
+*----------------------------------------------------------------------*
+
+
+
+*----------------------------------------------------------------------*
+* Report Header                                                        *
+*----------------------------------------------------------------------*
+REPORT RFFOEDI1
+  LINE-SIZE 132
+  MESSAGE-ID F0
+  NO STANDARD PAGE HEADING.
+
+
+
+*----------------------------------------------------------------------*
+*  Segments                                                            *
+*----------------------------------------------------------------------*
+TABLES:
+  REGUH,
+  REGUP,
+  EDPP1.
+
+
+
+*----------------------------------------------------------------------*
+*  Makrodefinitionen                                                   *
+*----------------------------------------------------------------------*
+INCLUDE RFFORI0M.
+
+INITIALIZATION.
+
+*----------------------------------------------------------------------*
+*  Parameters / Select-Options                                         *
+*----------------------------------------------------------------------*
+  BLOCK 1.
+  SELECT-OPTIONS:
+    SEL_ZAWE FOR  REGUH-RZAWE,         "payment method
+    SEL_UZAW FOR  REGUH-UZAWE,         "payment method supplement
+    SEL_GSBR FOR  REGUH-SRTGB,         "business area
+    SEL_HBKI FOR  REGUH-HBKID,         "house bank short key
+    SEL_HKTI FOR  REGUH-HKTID,         "account data short key
+    SEL_WAER FOR  REGUH-WAERS,         "currency
+    SEL_VBLN FOR  REGUH-VBLNR.         "payment document number
+  SELECTION-SCREEN END OF BLOCK 1.
+
+  BLOCK 2.
+  AUSWAHL: XDTA W, AVIS A, BEGL B.
+  AUSWAHL_ALV_LIST.
+  SPOOL_AUTHORITY.                     "Spoolberechtigung
+  SELECTION-SCREEN END OF BLOCK 2.
+
+  BLOCK 3.
+  PARAMETERS:
+    PAR_ERWE LIKE RFPDO-FORDERWE,      "Anzahl Erweiterungsteile
+    PAR_WFOR LIKE RFPDO1-FORDZFOR,     "different SAPscript form
+    PAR_WPDF LIKE T042B-PDFEF,         "different PDF form
+    PAR_ANZB LIKE RFPDO2-FORDANZB,     "number of accompanying sheets
+    PAR_ANZP LIKE RFPDO-FORDANZP,      "number of test prints
+    PAR_MAXP LIKE RFPDO-FORDMAXP,      "number of items in summary list
+    PAR_IBAN LIKE RFPDO1-FORDIBAN,     "IBAN weiterleiten
+    PAR_BELP LIKE RFPDO-FORDBELP,      "payment doc. validation
+    PAR_ESPR LIKE RFPDO-FORDESPR,      "texts in recipient's lang.
+    PAR_ISOC LIKE RFPDO-FORDISOC.      "currency in ISO code
+  SELECTION-SCREEN END OF BLOCK 3.
+
+  PARAMETERS:
+    PAR_ZDRU LIKE RFPDO-FORDZDRU  NO-DISPLAY,
+    PAR_PRIZ LIKE RFPDO-FORDPRIZ  NO-DISPLAY,
+    PAR_SOFZ LIKE RFPDO1-FORDSOFZ NO-DISPLAY,
+    PAR_DTYP LIKE RFPDO-FORDDTYP  NO-DISPLAY,
+    PAR_UNIX LIKE RFPDO2-FORDNAMD NO-DISPLAY,
+    PAR_VARI(12) TYPE C           NO-DISPLAY,
+    PAR_SOFO(1)  TYPE C           NO-DISPLAY.
+
+
+
+*----------------------------------------------------------------------*
+*  Vorbelegung der Parameter und Select-Options                        *
+*  default values for parameters and select-options                    *
+*----------------------------------------------------------------------*
+  PERFORM INIT.
+  TEXTXDTA = TEXT-104.
+  PAR_BELP = SPACE.
+  PAR_ZDRU = SPACE.
+  PAR_XDTA = 'X'.
+  PAR_AVIS = 'X'.
+  PAR_BEGL = 'X'.
+  PAR_ERWE = 9999.
+  PAR_ANZB = 1.
+  PAR_ANZP = 2.
+  PAR_ESPR = SPACE.
+  PAR_ISOC = SPACE.
+  PAR_MAXP = 9999.
+
+
+
+*----------------------------------------------------------------------*
+*  tables / fields / field-groups / at selection-screen                *
+*----------------------------------------------------------------------*
+  INCLUDE RFFORI00.
+  INSERT T012D-EDIPN INTO HEADER.
+
+
+AT SELECTION-SCREEN ON PAR_WFOR.
+  IF PAR_WFOR NE SPACE.
+    SET CURSOR FIELD 'PAR_WFOR'.
+    CALL FUNCTION 'FORM_CHECK'
+      EXPORTING
+        I_PZFOR = PAR_WFOR.
+  ENDIF.
+
+AT SELECTION-SCREEN  ON PAR_WPDF.
+  IF PAR_WPDF NE SPACE.
+    SET CURSOR FIELD 'PAR_WPDF'.
+    CALL FUNCTION 'PDF_FORM_CHECK'
+      EXPORTING
+        I_FORMNAME = PAR_WPDF.
+  ENDIF.
+  IF  PAR_WFOR NE SPACE
+  AND PAR_WPDF NE SPACE.
+*--- only one form allowed
+    MESSAGE E272(BFIBL02).
+  ENDIF.
+
+  AUSWAHL_ALV_LIST_F4_AND_CHECK.
+
+*----------------------------------------------------------------------*
+*  Kopfzeilen (nur bei der Zahlungsbegleitliste)                       *
+*  batch heading (for the payment summary list)                        *
+*----------------------------------------------------------------------*
+TOP-OF-PAGE.
+
+  IF FLG_BEGLEITL EQ 1.
+    PERFORM KOPF_ZEILEN.                                    "RFFORI07
+  ENDIF.
+
+
+
+*----------------------------------------------------------------------*
+*  Felder vorbelegen                                                   *
+*  preparations                                                        *
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  DO 10 TIMES.
+    CALL FUNCTION 'ENQUEUE_EFREGUH'
+      EXPORTING
+        LAUFD          = ZW_LAUFD
+        LAUFI          = ZW_LAUFI
+        XVORL          = ZW_XVORL
+        _WAIT          = 'X'
+      EXCEPTIONS
+        FOREIGN_LOCK   = 1
+        SYSTEM_FAILURE = 2.
+    IF SY-SUBRC EQ 0.
+      EXIT.
+    ENDIF.
+  ENDDO.
+
+  CASE SY-SUBRC.
+    WHEN 1.
+      MESSAGE A057(F0) WITH SY-MSGV1 ZW_LAUFD ZW_LAUFI.
+    WHEN 2.
+      MESSAGE A058(F0).
+  ENDCASE.
+
+  HLP_AUTH  = PAR_AUTH.                "spool authority
+  PERFORM VORBEREITUNG.
+  IF PAR_IBAN IS INITIAL.
+    CLEAR FLG_IBAN.
+  ENDIF.
+  EXPORT PAR_BEGL TO MEMORY ID 'RFFOEDI1 PAR_BEGL'.
+  PAR_BEGL = 'D'.
+  FLG_ZETTEL = 0. "kein DTA-Begleitzettel notwendig, EDI-Beglz. in T042B
+* set flag if idocs are to be created
+  IF NOT PAR_XDTA IS INITIAL.
+    ZW_EDISL = 'X'.
+  ELSE.
+    ZW_EDISL = '*'.
+  ENDIF.
+
+
+
+*----------------------------------------------------------------------*
+*  Daten prüfen und extrahieren                                        *
+*  check and extract data                                              *
+*----------------------------------------------------------------------*
+GET REGUH.
+
+  CHECK SEL_ZAWE.
+  CHECK SEL_UZAW.
+  CHECK SEL_GSBR.
+  CHECK SEL_HBKI.
+  CHECK SEL_HKTI.
+  CHECK SEL_WAER.
+  CHECK SEL_VBLN.
+  PERFORM PRUEFUNG.
+  IF NOT PAR_XDTA IS INITIAL.
+    PERFORM PRUEFUNG_EDI.                                   "RFFORI14
+  ELSE.
+    CHECK REGUH-EDIBN EQ 'X' OR REGUH-EDIBN EQ 'V'.
+  ENDIF.
+  PERFORM EXTRACT_VORBEREITUNG.
+
+
+GET REGUP.
+
+  PERFORM EXTRACT.
+
+
+
+END-OF-SELECTION.
+*----------------------------------------------------------------------*
+*  Markieren der Belege mit Hausbank ohne EDI-Vereinbarung             *
+*----------------------------------------------------------------------*
+  LOOP AT ERR_EDI.
+    UPDATE REGUH
+        SET EDIBN =  ERR_EDI-EDIBN
+      WHERE LAUFD EQ ERR_EDI-LAUFD
+        AND LAUFI EQ ERR_EDI-LAUFI
+        AND XVORL EQ ERR_EDI-XVORL
+        AND ZBUKR EQ ERR_EDI-ZBUKR
+        AND LIFNR EQ ERR_EDI-LIFNR
+        AND KUNNR EQ ERR_EDI-KUNNR
+        AND EMPFG EQ ERR_EDI-EMPFG
+        AND VBLNR EQ ERR_EDI-VBLNR.
+    AT LAST.
+      REFRESH ERR_EDI.
+      FREE ERR_EDI.
+      CALL FUNCTION 'DB_COMMIT'.
+    ENDAT.
+  ENDLOOP.
+
+
+
+*----------------------------------------------------------------------*
+*  Bearbeitung der extrahierten Daten                                  *
+*  print forms, DME, remittance advices and lists                      *
+*----------------------------------------------------------------------*
+  IF FLG_SELEKTIERT NE 0.
+
+    IF PAR_XDTA EQ 'X'.
+      PERFORM EDI.                                          "RFFORI14
+    ENDIF.
+
+    IF PAR_AVIS EQ 'X'.
+      PERFORM AVIS.                                         "RFFORI06
+    ENDIF.
+
+    IMPORT PAR_BEGL FROM MEMORY ID 'RFFOEDI1 PAR_BEGL'.
+    IF PAR_BEGL EQ 'X' AND PAR_MAXP GT 0.
+      FLG_BANKINFO = 2.
+      TEXT_800     = TEXT-800.
+      PERFORM BEGLEITLISTE.                                 "RFFORI07
+    ENDIF.
+
+  ENDIF.
+
+  PERFORM FEHLERMELDUNGEN.
+
+  PERFORM INFORMATION_2.
+
+*----------------------------------------------------------------------*
+*  Unterprogramm zur Erstellung des IDoc                               *
+*  subroutine for IDoc creation                                        *
+*----------------------------------------------------------------------*
+  INCLUDE RFFORI14.
+
+
+
+*----------------------------------------------------------------------*
+*  Unterprogramm Avis                                                  *
+*  subroutine for remittance advices                                   *
+*----------------------------------------------------------------------*
+  INCLUDE RFFORI06.
+
+
+
+*----------------------------------------------------------------------*
+*  Unterprogramm Begleitliste                                          *
+*  subroutine for the summary list                                     *
+*----------------------------------------------------------------------*
+  INCLUDE RFFORI07.
+
+
+
+*----------------------------------------------------------------------*
+*  Allgemeine Unterprogramme                                           *
+*  international subroutines                                           *
+*----------------------------------------------------------------------*
+  INCLUDE RFFORI99.
+
+*Text elements
+*----------------------------------------------------------
+* 0** *     Summary section and output list
+* 004 EDI accompanying sheet
+* 005 EDI - cus./ven. &
+* 006 SAP IDoc
+* 1** *     Texts for selection parameters
+* 104 Generate SAP IDoc
+* 5** *     Elements in Form
+* 520 (Form summary section)
+* 530 (EDI accompanying sheet, upper section)
+* 531 (EDI accompanying sheet, total per currency)
+* 532 (EDI accompanying sheet, lower section)
+* 8** *     Payment summary
+* 800 Payment summary for EDI payment orders
+
+
+*Selection texts
+*----------------------------------------------------------
+* PAR_ANZB         Number of accompanying sheets
+* PAR_ANZP         Number of sample printouts
+* PAR_BELP         Payment document validation
+* PAR_ERWE         Number of invoice details
+* PAR_ESPR         Texts in recipient's language
+* PAR_ISOC         Currency in ISO code
+* PAR_MAXP         No.of items in payment summary
+* PAR_SOFW         Immed.print for accomp.sheet
+* PAR_WFOR         Altern. SAPscript Accomp.Sheet
+* PAR_WPDF         Altern. PDF Accompanying Sheet
+* SEL_GSBR         Business area
+* SEL_HBKI         House bank
+* SEL_HKTI         Account ID
+* SEL_UZAW         Payment method supplement
+* SEL_VBLN         Payment document number
+* SEL_WAER         Currency key
+* SEL_ZAWE         Payment methods
+* PAR_IBAN D       .
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 00
+*172   You are not authorized to use Transaction &
+*
+* Message class: BFIBL02
+*272   Only enter one form for the accompanying sheet
+*
+* Message class: F0
+*057   Payment run &2 &3 is being processed by user &1
+*058   Blocking is not possible at the moment; try again
+*
+* Message class: FR
+*182   File & cannot be opened
+*
+* Message class: FS
+*549   Processing terminated
+*564   Document & & & does not yet exist in the check file
+*588   Print job was generated
+
+----------------------------------------------------------------------
+Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740

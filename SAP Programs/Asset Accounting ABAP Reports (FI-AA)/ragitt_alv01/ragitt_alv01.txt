@@ -1,0 +1,1932 @@
+*&---------------------------------------------------------------------*
+*& Report  ragitt_ALV01                                                *
+*&         mit ALV Unterstützung                                       *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT ragitt_alv01 MESSAGE-ID ab
+                    LINE-SIZE 132
+                    NO STANDARD PAGE HEADING.
+
+NODES: anla0,
+       anlav,
+       anlb,
+       anek,
+       anepv,
+       anlcv.
+
+TABLES: anlh.
+
+* Abg-Simu: Benoetigte Tabellen fuer FB-Call von ANEP_AFARECHNEN.
+TABLES: ants,
+        anep,
+        anea,
+        anfm,
+        anlz.
+
+TABLES:
+*       Zuordnungen BWA --> BWA-Gruppe, Gittergruppe.
+        tabw,
+*       BWA-Gruppen.
+        tabwg,
+*       Entity-Tabelle fuer Gitterversionen.
+        tabwp,
+*       Zuordnungen BWA-Untergruppe --> Gitterposition.
+        tabwm,
+*       Zuordnungen Gitterposition --> Spaltenueberschrift.
+        tabwn,
+*       Bezeichnug der Gitterversion.
+        tabwo.
+
+* Allgemeine DATA-, TABLES-, ... Anweisungen.
+INCLUDE rasort_alv04.
+
+INCLUDE rasort_alv_data_fieldcat.
+INCLUDE ra_general_declaration.                           ">1496486
+
+* Start of note 1496486
+* Structur for fieldcatalog
+CONSTANTS: gc_salvtab_line  TYPE string VALUE 'FIAA_SALVTAB_RAGITT'.
+CONSTANTS: gc_salvtab_sum   TYPE string VALUE 'FIAA_SALVTAB_SUMB'.
+* End of note 1496486
+
+
+DATA:
+*     Anzahl der im Anforderungsbild erlaubten AfA-Bereiche.
+      sav_anzbe(1) TYPE c VALUE '1',
+*     Flag: Postenausgabe Ja='1'/Nein='0'.
+*     Muss gesetzt sein, da Summen via Summenberichtsgenerator
+*     erzeugt und ausgegeben werden!
+      flg_postx(1) TYPE c VALUE '1',
+*     Summenbericht: Maximale Anzahl Wertfelder/Zeile.
+      con_wrtzl(2) TYPE p VALUE 8.
+
+* Arbeitsversion von TABW.
+DATA: BEGIN OF yabw OCCURS 100,
+        bwasl  LIKE tabw-bwasl,
+        bwagrp LIKE tabw-bwagrp,
+        gittgr LIKE tabw-gittgr,
+      END OF yabw.
+
+* Abg-Simu: Arbeitsversion von TABWG.
+DATA: BEGIN OF yabwg OCCURS 100,
+        bwagrp LIKE tabwg-bwagrp,
+        xzugne LIKE tabwg-xzugne,
+      END OF yabwg.
+
+* Arbeitsversion von TABWM.
+DATA: BEGIN OF xabwm OCCURS 50,
+        bwagrp LIKE tabwm-bwagrp,
+        lfdnr  LIKE tabwm-lfdnr,
+        gitzl0 LIKE tabwm-gitzl0,
+        gitsp0 LIKE tabwm-gitsp0,
+        gitzl1 LIKE tabwm-gitzl0,
+        gitsp1 LIKE tabwm-gitsp0,
+        gitzl2 LIKE tabwm-gitzl0,
+        gitsp2 LIKE tabwm-gitsp0,
+        gitzl3 LIKE tabwm-gitzl0,
+        gitsp3 LIKE tabwm-gitsp0,
+        gitzl4 LIKE tabwm-gitzl0,
+        gitsp4 LIKE tabwm-gitsp0,
+        gitzl5 LIKE tabwm-gitzl0,
+        gitsp5 LIKE tabwm-gitsp0,
+        gitzl6 LIKE tabwm-gitzl0,
+        gitsp6 LIKE tabwm-gitsp0,
+        gitzl7 LIKE tabwm-gitzl0,
+        gitsp7 LIKE tabwm-gitsp0,
+      END OF xabwm.
+
+* Spaltenueberschriften zu Gitterpositionen.
+DATA: BEGIN OF uebs OCCURS 80,
+        gitzl  LIKE tabwn-gitzl,
+        gitsp  LIKE tabwn-gitsp,
+        gitspt LIKE tabwn-gitspt,
+      END OF uebs.
+
+* Key fuer Tabelle UEBS.
+DATA: BEGIN OF key_uebs,
+        gitzl  LIKE tabwn-gitzl,
+        gitsp  LIKE tabwn-gitsp,
+      END OF key_uebs.
+
+DATA:
+*     Zu reservierende Zeilen bei Nicht-Summenbericht.
+      con_resgi TYPE i.
+
+* Gitterposition mit Betrag (je Anlage).
+DATA: BEGIN OF apos OCCURS 80,
+        gitzl  LIKE tabwn-gitzl,
+        gitsp  LIKE tabwn-gitsp,
+        betrag LIKE anlcv-kansw,
+      END OF apos.
+
+* Hilfstabelle: Vorhandene Spalten gemaess vorhandenen Ueberschriften.
+DATA: BEGIN OF splt OCCURS 8,
+        gitsp LIKE tabwn-gitsp,
+      END OF splt.
+
+* Hilfstabelle: Vorhandene Zeilen gemaess vorhandenen Ueberschriften.
+DATA: BEGIN OF zeil OCCURS 10,
+        gitzl LIKE tabwn-gitzl,
+      END OF zeil.
+
+DATA:
+*     Position letztes VLINE der letzten Wertfeldkolonne.
+      con_endsp(2) TYPE p VALUE 0.
+
+* Sammeltabelle fuer ANEPVs je Anlage.
+DATA: BEGIN OF sav_anepv OCCURS 10.
+        INCLUDE STRUCTURE anepv.
+DATA: END OF sav_anepv.
+
+* Hilfsfeld zum Speichern der ANLCV.
+DATA: BEGIN OF sav_anlcv.
+        INCLUDE STRUCTURE anlcv.
+DATA: END OF sav_anlcv.
+
+DATA: p_vari TYPE disvariant-variant.     " Nur DUMMY, da nicht benötigt
+
+DATA: xtabwn    LIKE tabwn OCCURS 0 WITH HEADER LINE,
+      index     TYPE n,
+      indexint  TYPE i,
+      zaehler   TYPE i,
+      ok        TYPE i,
+      fieldname LIKE x_fieldcat-fieldname.
+
+DATA: BEGIN OF xzeile OCCURS 0,
+        zeile LIKE tabwn-gitzl,
+      END OF xzeile.
+
+DATA: BEGIN OF xspalte OCCURS 0,
+        spalte LIKE tabwn-gitsp,
+      END OF xspalte.
+
+DATA: BEGIN OF xzlsp OCCURS 0,
+        zl  LIKE tabwn-gitzl,
+        sp  LIKE tabwn-gitsp,
+      END OF xzlsp.
+
+* Anzeigevarianten werden hier nicht benötigt!
+SELECTION-SCREEN BEGIN OF BLOCK bl0 WITH FRAME TITLE text-bl0.
+*   PARAMETERS: p_vari TYPE disvariant-variant.
+  PARAMETERS: p_grid TYPE xgrid.
+SELECTION-SCREEN END OF BLOCK bl0.
+
+SELECTION-SCREEN BEGIN OF BLOCK bl1                        "AB
+                 WITH FRAME                                "AB
+                 TITLE text-bl1.                           "AB
+
+  SELECT-OPTIONS:
+*               Anlagenbestandskonto.
+                so_ktanw FOR anlav-ktansw NO DATABASE SELECTION,
+*               Aktivierungsdatum.
+                so_aktiv FOR anlav-aktiv,
+*               Abschreibungsschlüssel
+                so_afasl FOR anlb-afasl.
+SELECTION-SCREEN END   OF BLOCK bl1.                       "AB
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF BLOCK bl2                        "AB
+                 WITH FRAME                                "AB
+                 TITLE text-bl2.                           "AB
+  PARAMETERS:
+* Gitterversion.
+            pa_gitvs LIKE tabwo-gitvrs.
+* SELECTION-SCREEN COMMENT  44(36) git_txt
+  SELECTION-SCREEN COMMENT  44(50) git_txt                     "> 711367
+                            FOR FIELD pa_gitvs.
+  PARAMETERS:
+* Gebuchte AfA .
+            pa_xgbaf LIKE anla0-xgbaf.
+SELECTION-SCREEN END   OF BLOCK bl2.                       "AB
+SELECTION-SCREEN SKIP.
+
+* Abg-Simu.
+SELECTION-SCREEN BEGIN OF BLOCK bl3                        "AB
+                 WITH FRAME                                "AB
+                 TITLE text-c04.                           "AB
+*SELECTION-SCREEN SKIP.
+* Klassen von GWGs.
+SELECT-OPTIONS: so_gwgkl FOR rarep-gwgkl.
+ SELECTION-SCREEN BEGIN OF LINE.
+  SELECTION-SCREEN COMMENT 1(31) text-001 for field pa_simdv.
+* Von/Bis-Datum bei GWG-Abgangssimulation.
+  PARAMETERS: pa_simdv LIKE rarep-simdt.
+   SELECTION-SCREEN COMMENT 52(05) text-050 for field pa_simdb.
+  PARAMETERS: pa_simdb LIKE rarep-simdt.
+ SELECTION-SCREEN END OF LINE.
+* Klassen von immateriellen WG.
+SELECT-OPTIONS: so_imwgk FOR rarep-imwgkl.
+
+SELECTION-SCREEN END OF BLOCK bl3.
+* Gebuchtwerte
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN BEGIN OF BLOCK bl4                       "AB
+                 WITH FRAME                                "AB
+                 TITLE text-c03.                           "AB
+  PARAMETERS:
+*           Zusatzueberschrift.
+            pa_titel LIKE rarep-titel DEFAULT space,
+*           Flag: Listseparation gemaess Tabelle TLSEP.
+*            pa_lssep LIKE bhdgd-separ, "no 394136
+*           Flag: Mikrofichezeile ausgeben.
+            pa_mikro LIKE bhdgd-miffl.
+SELECTION-SCREEN END   OF BLOCK bl4.                       "AB
+
+* Flag für SAP-Endmontage (SAP-only).
+PARAMETERS: pa_endm  LIKE rarep-xendmont NO-DISPLAY.
+SELECT-OPTIONS: so_deakt FOR anlav-deakt no-display.
+
+INITIALIZATION.
+
+* Sortiervariante vorschlagen.
+  MOVE: '0001' TO srtvr,
+* Gitterversion vorschlagen.
+        '0001' TO pa_gitvs,
+* Gitterversion vorschlagen.
+        '1'    TO flg_gitter.
+* ALV Grid NICHT als Standard vorschlagen
+*  MOVE: ' '    TO p_grid.
+
+
+  SO_DEAKT-OPTION = 'EQ'.
+  SO_DEAKT-SIGN = 'I'.
+  SO_DEAKT-LOW = '00000000'.
+  APPEND SO_DEAKT.
+  SO_DEAKT-OPTION = 'GE'.
+  SO_DEAKT-SIGN   = 'I'.
+  SO_DEAKT-LOW    = '&FDAY'.
+  APPEND SO_DEAKT.
+
+
+
+  PERFORM gitbez_lesen.
+
+* Report wird nicht von außen aufgerufen. Lesen der PickUp-Informationen
+* aus dem Memory d.h. der ursprünglich eingegebenen Programmabgrenzungen
+IMPORT flg_not_first FROM MEMORY ID 'flg'.
+
+* Allgemeine Verarbeitung der PA/SO-Eingaben.
+INCLUDE rasort_alv08.
+
+* Process on value request
+* Anzeigevariante wird hier nicht benötigt.
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_vari.
+*   PERFORM varianten_auswahl CHANGING p_vari.
+
+* Pruefung, ob Gitterversion in TABWO vorhanden ist.
+AT SELECTION-SCREEN ON pa_gitvs.
+  PERFORM gitbez_lesen.
+
+* Pruefung, Berichtsdatum bei Gebuchtwerten
+AT SELECTION-SCREEN ON pa_xgbaf.
+   IF not pa_xgbaf is initial.
+      *anla0-xgbaf = anla0-xgbaf = pa_xgbaf.
+   ENDIF.
+
+AT SELECTION-SCREEN OUTPUT.
+* Ausblenden des Feldes XUNTNR und des dazugehörigen Textfeldes
+*  PERFORM felder_ausblenden USING 'XUNTNR' '%F301122_1000'. "no 332180
+*
+
+*---------------------------------------------------------------------*
+
+START-OF-SELECTION.
+
+* anderer Title bei Gebuchter AFA
+  IF not pa_xgbaf is initial.
+    SET TITLEBAR '002'.
+  ENDIF.
+
+* Sichern der Selektionsoptionen bzw. Einlesen der Sortierwerte bei
+* PickUp.
+  PERFORM info_pick_up.
+
+* K e i n  automatisches Uline am Ende einer Gruppenstufe.
+flg_enduline = off.
+
+* Gitterstruktur für ALV bestimmen
+  SELECT * FROM tabwn INTO TABLE xtabwn
+    WHERE spras  EQ sy-langu
+    AND   gitvrs EQ pa_gitvs
+    ORDER BY PRIMARY KEY.
+
+  LOOP AT xtabwn.
+   xzeile-zeile = xtabwn-gitzl.
+   COLLECT xzeile.
+  ENDLOOP.
+
+  LOOP AT xtabwn.
+   xspalte-spalte = xtabwn-gitsp.
+   COLLECT xspalte.
+  ENDLOOP.
+
+  SORT: xzeile, xspalte.
+
+
+* Positionen in xtabwn in Tabellenposition umrechnen
+* und in xzlsp stellen
+  LOOP AT xtabwn.
+   LOOP AT xzeile WHERE zeile = xtabwn-gitzl.
+    xzlsp-zl = sy-tabix.
+   ENDLOOP.
+   LOOP AT xspalte WHERE spalte = xtabwn-gitsp.
+    xzlsp-sp = sy-tabix.
+   ENDLOOP.
+   APPEND xzlsp.
+  ENDLOOP.
+
+* Interne Arbeitstabellen initialisieren.
+PERFORM tabellen_init.
+
+* Bestimmung des Sortierfeldes auf unterster Gruppenstufe.
+ASSIGN sav_dummy TO <b>.
+*
+ASSIGN sav_dummy TO <p>.
+ASSIGN sav_dummy TO <q>.
+
+* Allgemeines Coding nach START-OF-SELECTION. Aufbau des HEADERs.
+INCLUDE rasort_alv10.
+
+* Steuerungskennzeichen für LDB setzen
+  *anla0-xgbaf = pa_xgbaf.
+
+* Setzen der UserStrukturen für die log. Datenbank
+* (2 Stück - für Header und Item Tabelle)
+*  *anla0-selfield_structure1 = 'FIAA_SALVTAB_RABEST_U'.
+  *anla0-selfield_structure1 = 'CI_REPRAGITT'.
+  *anla0-selfield_structure2 = ''.
+
+* keine DB-Summierung wenn Abgangssimulation gewünscht
+ IF not so_gwgkl[] is initial or not so_imwgk[] is initial or
+    not pa_simdv   is initial or not pa_simdb   is initial .
+    *anla0-xcalc = con_x.
+ ENDIF.
+ IF not so_afasl[] is initial .
+    *anla0-xnodbs = 'X'.
+ ENDIF.
+
+* Start of note 1946330
+ IF NOT so_gwgkl[] IS INITIAL OR
+    NOT so_imwgk[] IS INITIAL.
+   IF xuntnr = 'X'.
+     MESSAGE E087(AB).
+   ENDIF.
+ ENDIF.
+* End of note 1946330
+
+* Start of note 1496486
+*  Create outfile for ALV - Header-Line and
+*  field catalog for this report
+ IF summb IS INITIAL.
+   gd_linetyp = gc_header.
+   PERFORM init_fieldcat.
+   PERFORM create_outfile_alv USING gd_linetyp
+                                    p_table                ">spc_1751706
+                                    srtvr
+                                    gc_salvtab_line.
+ ELSE.
+   IF p_table = con_x.                                     ">spc_1751706
+     MESSAGE E825(AA).                                     ">spc_1751706
+   ENDIF.                                                  ">spc_1751706
+   gd_linetyp = gc_header.
+   PERFORM init_fieldcat_sum.
+   PERFORM create_outfile_alv USING gd_linetyp
+                                    p_table                ">spc_1751706
+                                    srtvr
+                                    gc_salvtab_sum.
+   CALL FUNCTION 'FIAA_FIELDCAT_READ_VALUE'
+       TABLES  t_fieldcat_value = gt_fieldcat_value.
+ ENDIF.
+* End of note 1496486
+
+GET anla0.
+
+
+GET anlav FIELDS aktiv deakt zugdt txt50 txa50 xanlgr anlkl ktogr.
+
+* Das check select-options ist ab 3.0 nur noch für die Bestandskonten
+* interessant. Bei Gruppensummen darf der CHECK erst erfolgen, wenn
+* die ANEPs auch gelesen worden sind, weil sonst die Datenbank falsch
+* summiert und ANEPs nicht liest.
+
+  IF summb is initial.
+    CHECK SELECT-OPTIONS.
+  ENDIF.
+
+* Nur Anlagen seleketieren, die aktiviert wurden ...
+  CHECK not anlav-zugdt is initial.
+* ... und zwar vor dem Berichtsdatum.
+  CHECK     anlav-zugdt le berdatum.
+
+* Verarbeitungen ON CHANGE OF ANLAV-XXXXX.
+  INCLUDE rasort14.
+
+* Im VJ deaktivierte Anlagen nicht selektieren.
+  IF not anlav-deakt is initial.
+    CHECK anlav-deakt ge sav_gjbeg.
+  ENDIF.
+
+* Information AfA-Bereich fuer Header.
+  ON CHANGE OF anlav-bukrs.
+*   Individueller Teil des Headers
+    WRITE: '-'       TO head-info4,
+           bereich1  TO head-info5,
+           sav_afbe1 TO head-info6.
+*
+    CONDENSE head.
+  ENDON.
+
+* Zuordnungstabelle APOS zuruecksetzen und als initiale
+* Zeilen/Spaltenmatrix aufbauen.
+  PERFORM apos_init.
+
+* Bewegungstabelle SAV_ANEPV zuruecksetzen.
+  REFRESH sav_anepv.
+
+
+GET anlb FIELDS afasl afabg safbg ndjar ndper perfy
+                xnega xgwgk zinbg wbind alind aprop umjar
+                schrw lgjan anlgr anlgr2.
+
+  CLEAR sav_anlcv.
+
+  CHECK SELECT-OPTIONS.
+
+* Keine Normal-AfA ==> AfA-Beginn = Sonder-AfA-Beginn.
+  IF anlb-afabg is initial.
+    MOVE anlb-safbg TO anlb-afabg.
+  ENDIF.
+
+
+GET anlcv.
+
+  CHECK SELECT-OPTIONS.
+  MOVE anlcv TO sav_anlcv.
+
+  PERFORM store_errors.                                        "> 1002552
+
+GET anepv.
+
+  CHECK SELECT-OPTIONS.
+* Nur Bewegungen des Jahres des Berichtsdatums durchlassen.
+  CHECK anepv-bzdat ge sav_gjbeg.
+
+* Bewegungen in SAV_ANEPV sammeln.
+  MOVE anepv TO sav_anepv.
+  APPEND sav_anepv.
+
+
+GET anlb LATE.
+
+* Check auf Bestandskonto bei Gruppensummen erst hier, wegen
+* fehlender Abgänge/Umbuchungen
+  IF not summb is initial.
+     IF not anlav-ktansw in so_ktanw.
+        REJECT 'ANLAV'.
+     ENDIF.
+  ENDIF.
+
+* ANLCV aus Save-Area zurueckholen.
+  CHECK not sav_anlcv-anln1 is initial.
+  MOVE sav_anlcv TO anlcv.
+
+* Abg-Simu: Abgang simulieren.
+  PERFORM abga_simulieren.
+
+* Einarbeiten der Jahresanfangswerte in das Gitter.
+  PERFORM ya_berechnen.
+* Einarbeiten der Jahreswerte in das Gitter.
+  PERFORM yy_berechnen.
+* Einarbeiten der Jahresendwerte in das Gitter.
+  PERFORM yz_berechnen.
+* Einarbeiten der Bewegungswerte in das Gitter.
+  PERFORM nn_berechnen.
+
+* Daten gegen Sortierwerte beim PickUp checken.
+  PERFORM sort_check.
+
+  PERFORM prepare_sort_fields.                            ">1496486
+  PERFORM fill_outtab_line.                               ">1496486
+
+END-OF-SELECTION.
+
+************************************************************************
+* Ausgabe der internen Tabelle mit dem ALV *****************************
+************************************************************************
+
+PERFORM tcollect_fuellen.
+* Start of note 1496486
+  IF summb eq space.
+    gd_tabname_header = gc_tabname_header.
+  ELSE.
+    gd_tabname_header = gc_tabname_sum.
+  ENDIF.
+
+  CALL FUNCTION 'FIAA_ALV_DISPLAY'
+       EXPORTING
+            use_alv_grid       = p_grid
+            variante           = p_vari
+            tabname_header     = gd_tabname_header
+            gitterbericht      = flg_gitter                 "> 1802101
+            summen_bericht     = summb
+            x_t086             = t086
+            tcollect           = tcollect
+       TABLES
+            itab_header        = <itab_data>[]
+            bukrs              = bukrs[]
+            sortfeld           = feld[]
+            itab_errors        = gt_anfm[].                 "> 1002552
+* End of noter 1496486
+
+
+
+*---------------------------------------------------------------------*
+
+
+*---------------------------------------------------------------------*
+
+
+FORM tabellen_init.
+
+  DATA: l_tabix   LIKE sy-tabix.
+
+* Teile von TABW in Arbeitstabelle laden.
+  SELECT * FROM tabw
+    ORDER BY PRIMARY KEY.
+    MOVE: tabw-bwasl  TO yabw-bwasl,
+          tabw-bwagrp TO yabw-bwagrp,
+          tabw-gittgr TO yabw-gittgr.
+    APPEND yabw.
+  ENDSELECT.
+
+* Abg-Simu: Teile von TABWG in Arbeitstabelle laden.
+  SELECT * FROM tabwg
+    ORDER BY PRIMARY KEY.
+    MOVE: tabwg-bwagrp TO yabwg-bwagrp,
+          tabwg-xzugne TO yabwg-xzugne.
+    APPEND yabwg.
+  ENDSELECT.
+
+* TABWP einlesen.
+  SELECT SINGLE * FROM tabwp
+    WHERE gitvrs EQ pa_gitvs.
+* Fuer Report-Header: Version vollstaendig/unvollstaendig.
+* Vollständigkeitsprüfung Gitter
+
+  CALL FUNCTION 'FIAA_CHECK_HISTORYSHEET'
+       EXPORTING      i_gitvrs     = pa_gitvs
+       IMPORTING      e_xcompl     = tabwp-xcompl.
+
+  IF tabwp-xcompl is initial.
+    WRITE text-101 TO sav_compltxt.
+  ELSE.
+    WRITE text-100 TO sav_compltxt.
+  ENDIF.
+
+* Arbeitstabelle XABWM (BWA-Untergruppe --> Gitterposition) aufbauen.
+  SELECT * FROM tabwm
+    WHERE gitvrs EQ pa_gitvs
+    ORDER BY PRIMARY KEY.
+    MOVE: tabwm-bwagrp TO xabwm-bwagrp,
+          tabwm-lfdnr  TO xabwm-lfdnr,
+          tabwm-gitzl0 TO xabwm-gitzl0,
+          tabwm-gitsp0 TO xabwm-gitsp0,
+          tabwm-gitzl1 TO xabwm-gitzl1,
+          tabwm-gitsp1 TO xabwm-gitsp1,
+          tabwm-gitzl2 TO xabwm-gitzl2,
+          tabwm-gitsp2 TO xabwm-gitsp2,
+          tabwm-gitzl3 TO xabwm-gitzl3,
+          tabwm-gitsp3 TO xabwm-gitsp3,
+          tabwm-gitzl4 TO xabwm-gitzl4,
+          tabwm-gitsp4 TO xabwm-gitsp4,
+          tabwm-gitzl5 TO xabwm-gitzl5,
+          tabwm-gitsp5 TO xabwm-gitsp5,
+          tabwm-gitzl6 TO xabwm-gitzl6,
+          tabwm-gitsp6 TO xabwm-gitsp6,
+          tabwm-gitzl7 TO xabwm-gitzl7,
+          tabwm-gitsp7 TO xabwm-gitsp7.
+    APPEND xabwm.
+  ENDSELECT.
+
+* Bezeichnungen zu Gitterpositionen in Tabelle UEBS.
+  SELECT * FROM tabwn
+    WHERE spras  EQ sy-langu
+    AND   gitvrs EQ pa_gitvs
+    ORDER BY PRIMARY KEY.
+    MOVE: tabwn-gitzl  TO uebs-gitzl,
+          tabwn-gitsp  TO uebs-gitsp,
+          tabwn-gitspt TO uebs-gitspt.
+    APPEND uebs.
+  ENDSELECT.
+
+* Tabelle SPLT der vorhandenen Spalten aufbauen.
+* Anzahl CON_GITSP der vorhandenen Spalten ermitteln.
+  LOOP AT uebs.
+*   Spalte schon registriert?
+    READ TABLE splt WITH KEY uebs-gitsp.
+*   Nein --> dann registrieren.
+    IF sy-subrc ne 0.
+      MOVE uebs-gitsp TO splt-gitsp.
+      APPEND splt.
+*     Anzahl Gitterspalten hochzaehlen.
+      con_gitsp = con_gitsp + 1.
+    ENDIF.
+
+  ENDLOOP.
+  SORT splt BY gitsp.
+
+* Letzte Spalte der Wertfelder merken.
+  MOVE con_gitsp TO cnt_count.
+  con_endsp = cnt_count * 16 + 1.
+* Uline in Laenge der Wertfeldspalten merken.
+  WRITE sy-uline TO hlp_uline+0(con_endsp).
+
+* Tabelle ZEIL der vorhandenen Zeilen aufbauen.
+* Anzahl CON_GITZL der vorhandenen Zeilen ermitteln.
+  LOOP AT uebs.
+*   Zeile schon registriert?
+    READ TABLE zeil WITH KEY uebs-gitzl.
+*   Nein --> dann registrieren.
+    IF sy-subrc ne 0.
+      MOVE uebs-gitzl TO zeil-gitzl.
+      APPEND zeil.
+*     Anzahl Gitterzeilen hochzaehlen.
+      con_gitzl = con_gitzl + 1.
+    ENDIF.
+  ENDLOOP.
+  SORT zeil BY gitzl.
+
+* Zu reservierende Zeilen bei Nicht-Summenbericht:
+* Anzahl Gitterzeilen + Anlagenzeile + 2 Unterstriche + 1 Deaktivierung
+  con_resgi = con_gitzl + 4.
+
+* Fehlende Positionsbezeichnungen in UEBS ergaenzen.
+  LOOP AT zeil.
+    LOOP AT splt.
+      MOVE: zeil-gitzl TO key_uebs-gitzl,
+            splt-gitsp TO key_uebs-gitsp.
+      READ TABLE uebs WITH KEY key_uebs BINARY SEARCH.
+      CASE sy-subrc.
+      WHEN 4.
+        MOVE: zeil-gitzl TO uebs-gitzl,
+              splt-gitsp TO uebs-gitsp,
+              space      TO uebs-gitspt.
+        INSERT uebs INDEX sy-tabix.
+      WHEN 8.
+        MOVE: zeil-gitzl TO uebs-gitzl,
+              splt-gitsp TO uebs-gitsp,
+              space      TO uebs-gitspt.
+        APPEND uebs.
+      ENDCASE.
+    ENDLOOP.
+  ENDLOOP.
+
+* Natuerliches durchnummerieren der Zeilen + Spalten in XABWM.
+  LOOP AT xabwm.
+    l_tabix = sy-tabix.
+*   BWA-Untergruppe 0.
+    IF not xabwm-gitzl0 is initial.
+      READ TABLE splt WITH KEY xabwm-gitsp0 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitsp0.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl0, xabwm-gitsp0.
+      ENDIF.
+      READ TABLE zeil WITH KEY xabwm-gitzl0 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitzl0.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl0, xabwm-gitsp0.
+      ENDIF.
+    ENDIF.
+*   BWA-Untergruppe 1.
+    IF not xabwm-gitzl1 is initial.
+      READ TABLE splt WITH KEY xabwm-gitsp1 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitsp1.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl1, xabwm-gitsp1.
+      ENDIF.
+      READ TABLE zeil WITH KEY xabwm-gitzl1 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitzl1.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl1, xabwm-gitsp1.
+      ENDIF.
+    ENDIF.
+*   BWA-Untergruppe 2.
+    IF not xabwm-gitzl2 is initial.
+      READ TABLE splt WITH KEY xabwm-gitsp2 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitsp2.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl2, xabwm-gitsp2.
+      ENDIF.
+      READ TABLE zeil WITH KEY xabwm-gitzl2 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitzl2.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl2, xabwm-gitsp2.
+      ENDIF.
+    ENDIF.
+*   BWA-Untergruppe 3.
+    IF not xabwm-gitzl3 is initial.
+      READ TABLE splt WITH KEY xabwm-gitsp3 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitsp3.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl3, xabwm-gitsp3.
+      ENDIF.
+      READ TABLE zeil WITH KEY xabwm-gitzl3 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitzl3.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl3, xabwm-gitsp3.
+      ENDIF.
+    ENDIF.
+*   BWA-Untergruppe 4.
+    IF not xabwm-gitzl4 is initial.
+      READ TABLE splt WITH KEY xabwm-gitsp4 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitsp4.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl4, xabwm-gitsp4.
+      ENDIF.
+      READ TABLE zeil WITH KEY xabwm-gitzl4 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitzl4.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl4, xabwm-gitsp4.
+      ENDIF.
+    ENDIF.
+*   BWA-Untergruppe 5.
+    IF not xabwm-gitzl5 is initial.
+      READ TABLE splt WITH KEY xabwm-gitsp5 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitsp5.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl5, xabwm-gitsp5.
+      ENDIF.
+      READ TABLE zeil WITH KEY xabwm-gitzl5 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitzl5.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl5, xabwm-gitsp5.
+      ENDIF.
+    ENDIF.
+*   BWA-Untergruppe 6.
+    IF not xabwm-gitzl6 is initial.
+      READ TABLE splt WITH KEY xabwm-gitsp6 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitsp6.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl6, xabwm-gitsp6.
+      ENDIF.
+      READ TABLE zeil WITH KEY xabwm-gitzl6 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitzl6.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl6, xabwm-gitsp6.
+      ENDIF.
+    ENDIF.
+*   BWA-Untergruppe 7.
+    IF not xabwm-gitzl7 is initial.
+      READ TABLE splt WITH KEY xabwm-gitsp7 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitsp7.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl7, xabwm-gitsp7.
+      ENDIF.
+      READ TABLE zeil WITH KEY xabwm-gitzl7 BINARY SEARCH.
+      IF sy-subrc eq 0.
+        MOVE sy-tabix TO xabwm-gitzl7.
+      ELSE.
+        MOVE '00' TO:  xabwm-gitzl7, xabwm-gitsp7.
+      ENDIF.
+    ENDIF.
+*
+    MODIFY xabwm.
+*
+  ENDLOOP.
+
+* Natuerliches Durchnummerieren der Spalten in UEBS.
+  LOOP AT uebs.
+    READ TABLE splt WITH KEY uebs-gitsp.
+    MOVE sy-tabix TO uebs-gitsp.
+    READ TABLE zeil WITH KEY uebs-gitzl.
+    MOVE sy-tabix TO uebs-gitzl.
+    MODIFY uebs.
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM ya_berechnen.
+
+  LOOP AT xabwm
+    WHERE bwagrp EQ 'YA'.
+*
+    IF not xabwm-gitzl0 is initial.
+      MOVE: xabwm-gitzl0 TO apos-gitzl,
+            xabwm-gitsp0 TO apos-gitsp.
+      apos-betrag = anlcv-kansw.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl1 is initial.
+      MOVE: xabwm-gitzl1 TO apos-gitzl,
+            xabwm-gitsp1 TO apos-gitsp.
+      apos-betrag = anlcv-knafa.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl2 is initial.
+      MOVE: xabwm-gitzl2 TO apos-gitzl,
+            xabwm-gitsp2 TO apos-gitsp.
+      apos-betrag = anlcv-ksafa.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl3 is initial.
+      MOVE: xabwm-gitzl3 TO apos-gitzl,
+            xabwm-gitsp3 TO apos-gitsp.
+      apos-betrag = anlcv-kaafa.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl4 is initial.
+      MOVE: xabwm-gitzl4 TO apos-gitzl,
+            xabwm-gitsp4 TO apos-gitsp.
+      apos-betrag = anlcv-kmafa.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl5 is initial.
+      MOVE: xabwm-gitzl5 TO apos-gitzl,
+            xabwm-gitsp5 TO apos-gitsp.
+      apos-betrag = anlcv-kaufw.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl6 is initial.
+      MOVE: xabwm-gitzl6 TO apos-gitzl,
+            xabwm-gitsp6 TO apos-gitsp.
+      apos-betrag = anlcv-kaufn.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl7 is initial.
+      MOVE: xabwm-gitzl7 TO apos-gitzl,
+            xabwm-gitsp7 TO apos-gitsp.
+      apos-betrag = anlcv-kinvz.
+      COLLECT apos.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM yy_berechnen.
+
+  LOOP AT xabwm
+    WHERE bwagrp EQ 'YY'.
+*
+    IF not xabwm-gitzl0 is initial.
+      MOVE: xabwm-gitzl0 TO apos-gitzl,
+            xabwm-gitsp0 TO apos-gitsp.
+      apos-betrag = anlcv-answl.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl1 is initial.
+      MOVE: xabwm-gitzl1 TO apos-gitzl,
+            xabwm-gitsp1 TO apos-gitsp.
+      apos-betrag = anlcv-nafap.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl2 is initial.
+      MOVE: xabwm-gitzl2 TO apos-gitzl,
+            xabwm-gitsp2 TO apos-gitsp.
+      apos-betrag = anlcv-safap.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl3 is initial.
+      MOVE: xabwm-gitzl3 TO apos-gitzl,
+            xabwm-gitsp3 TO apos-gitsp.
+      apos-betrag = anlcv-aafap.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl4 is initial.
+      MOVE: xabwm-gitzl4 TO apos-gitzl,
+            xabwm-gitsp4 TO apos-gitsp.
+      apos-betrag = anlcv-mafap.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl5 is initial.
+      MOVE: xabwm-gitzl5 TO apos-gitzl,
+            xabwm-gitsp5 TO apos-gitsp.
+      apos-betrag = anlcv-aufwp.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl6 is initial.
+      MOVE: xabwm-gitzl6 TO apos-gitzl,
+            xabwm-gitsp6 TO apos-gitsp.
+      apos-betrag = anlcv-aufnp.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl7 is initial.
+      MOVE: xabwm-gitzl7 TO apos-gitzl,
+            xabwm-gitsp7 TO apos-gitsp.
+      apos-betrag = anlcv-invzm.
+      COLLECT apos.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM yz_berechnen.
+
+  LOOP AT xabwm
+    WHERE bwagrp EQ 'YZ'.
+*
+    IF not xabwm-gitzl0 is initial.
+      MOVE: xabwm-gitzl0 TO apos-gitzl,
+            xabwm-gitsp0 TO apos-gitsp.
+      apos-betrag = anlcv-kansw + anlcv-answl.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl1 is initial.
+      MOVE: xabwm-gitzl1 TO apos-gitzl,
+            xabwm-gitsp1 TO apos-gitsp.
+      apos-betrag = anlcv-knafa + anlcv-nafap
+                  + anlcv-nafav + anlcv-nafal
+                  + anlcv-zusna.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl2 is initial.
+      MOVE: xabwm-gitzl2 TO apos-gitzl,
+            xabwm-gitsp2 TO apos-gitsp.
+      apos-betrag = anlcv-ksafa + anlcv-safap
+                  + anlcv-safav + anlcv-safal
+                  + anlcv-zussa.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl3 is initial.
+      MOVE: xabwm-gitzl3 TO apos-gitzl,
+            xabwm-gitsp3 TO apos-gitsp.
+      apos-betrag = anlcv-kaafa + anlcv-aafap
+                  + anlcv-aafav + anlcv-aafal
+                  + anlcv-zusaa.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl4 is initial.
+      MOVE: xabwm-gitzl4 TO apos-gitzl,
+            xabwm-gitsp4 TO apos-gitsp.
+      apos-betrag = anlcv-kmafa + anlcv-mafap
+                  + anlcv-mafav + anlcv-mafal
+                  + anlcv-zusma.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl5 is initial.
+      MOVE: xabwm-gitzl5 TO apos-gitzl,
+            xabwm-gitsp5 TO apos-gitsp.
+      apos-betrag = anlcv-kaufw + anlcv-aufwp
+                  + anlcv-aufwv + anlcv-aufwl.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl6 is initial.
+      MOVE: xabwm-gitzl6 TO apos-gitzl,
+            xabwm-gitsp6 TO apos-gitsp.
+      apos-betrag = anlcv-kaufn + anlcv-aufnp
+                  + anlcv-aufnv + anlcv-aufnl.
+      COLLECT apos.
+    ENDIF.
+*
+    IF not xabwm-gitzl7 is initial.
+      MOVE: xabwm-gitzl7 TO apos-gitzl,
+            xabwm-gitsp7 TO apos-gitsp.
+      apos-betrag = anlcv-kinvz + anlcv-invzm
+                  + anlcv-invzv + anlcv-invzl.
+      COLLECT apos.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM nn_berechnen.
+
+  LOOP AT sav_anepv.
+*   Bewegungsartengruppe zu zu Bewegungsart.
+    READ TABLE yabw WITH KEY sav_anepv-bwasl.
+    CHECK sy-subrc EQ 0.
+*   In alle Zuordnungen zu dieser Gittergruppe einarbeiten.
+    LOOP AT xabwm
+      WHERE bwagrp EQ yabw-gittgr.
+*
+      IF not xabwm-gitzl0 is initial.
+        MOVE: xabwm-gitzl0 TO apos-gitzl,
+              xabwm-gitsp0 TO apos-gitsp.
+        apos-betrag = sav_anepv-anbtr.
+        COLLECT apos.
+      ENDIF.
+*
+      IF not xabwm-gitzl1 is initial.
+        MOVE: xabwm-gitzl1 TO apos-gitzl,
+              xabwm-gitsp1 TO apos-gitsp.
+        apos-betrag = sav_anepv-nafal + sav_anepv-nafav.
+        COLLECT apos.
+      ENDIF.
+*
+      IF not xabwm-gitzl2 is initial.
+        MOVE: xabwm-gitzl2 TO apos-gitzl,
+              xabwm-gitsp2 TO apos-gitsp.
+        apos-betrag = sav_anepv-safal + sav_anepv-safav.
+        COLLECT apos.
+      ENDIF.
+*
+      IF not xabwm-gitzl3 is initial.
+        MOVE: xabwm-gitzl3 TO apos-gitzl,
+              xabwm-gitsp3 TO apos-gitsp.
+        apos-betrag = sav_anepv-aafal + sav_anepv-aafav.
+        COLLECT apos.
+      ENDIF.
+*
+      IF not xabwm-gitzl4 is initial.
+        MOVE: xabwm-gitzl4 TO apos-gitzl,
+              xabwm-gitsp4 TO apos-gitsp.
+        apos-betrag = sav_anepv-mafal + sav_anepv-mafav.
+        COLLECT apos.
+      ENDIF.
+*
+      IF not xabwm-gitzl5 is initial.
+        MOVE: xabwm-gitzl5 TO apos-gitzl,
+              xabwm-gitsp5 TO apos-gitsp.
+        apos-betrag = sav_anepv-aufwl + sav_anepv-aufwv.
+        COLLECT apos.
+      ENDIF.
+*
+      IF not xabwm-gitzl6 is initial.
+        MOVE: xabwm-gitzl6 TO apos-gitzl,
+              xabwm-gitsp6 TO apos-gitsp.
+        apos-betrag = sav_anepv-aufnl + sav_anepv-aufnv.
+        COLLECT apos.
+      ENDIF.
+*
+      IF not xabwm-gitzl7 is initial.
+        MOVE: xabwm-gitzl7 TO apos-gitzl,
+              xabwm-gitsp7 TO apos-gitsp.
+        apos-betrag = sav_anepv-invzl + sav_anepv-invzv.
+        COLLECT apos.
+      ENDIF.
+    ENDLOOP.
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM stufe_aufreissen.
+
+  LOOP AT apos.
+    WRITE: apos-gitzl  TO sum5-sukey(2),
+           apos-gitsp  TO sum5-supos.
+    MOVE:  apos-betrag TO sum5-betrag.
+    COLLECT sum5.
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM apos_init.
+
+  REFRESH apos.
+* Geruest der Tabelle APOS: Zu jeder Position ein Eintrag.
+  LOOP AT uebs.
+    MOVE: uebs-gitzl TO apos-gitzl,
+          uebs-gitsp TO apos-gitsp,
+          0          TO apos-betrag.
+    APPEND apos.
+  ENDLOOP.
+
+ENDFORM.
+
+
+FORM abgsimuflag_setzen1 USING flag.
+
+* Default: Keine Abgangssimulation.
+  flag = off.
+
+* GWG-Klasse?
+  MOVE anlav-anlkl TO rarep-gwgkl.
+  READ TABLE so_gwgkl INDEX 1.
+  IF sy-subrc eq 0.
+    CHECK so_gwgkl.
+  ELSE.
+    EXIT.
+  ENDIF.
+
+* ... Ja ! Aktivdatum im Simulationszeitraum?
+  IF     not pa_simdv is initial and
+         not pa_simdb is initial .
+    CHECK anlav-aktiv ge pa_simdv and
+          anlav-aktiv le pa_simdb .
+*
+  ELSEIF     pa_simdv is initial and
+         not pa_simdb is initial .
+    CHECK anlav-aktiv le pa_simdb .
+*
+  ELSEIF not pa_simdv is initial and
+             pa_simdb is initial .
+    CHECK anlav-aktiv ge pa_simdv .
+*
+  ELSE.
+*   ... nein!
+    EXIT.
+  ENDIF.
+
+* Zugang- und Abgang im gleichen Jahr
+ IF ( anlav-aktiv between sav_gjbeg and sav_gjend ) and
+    ( anlav-deakt between sav_gjbeg and sav_gjend ).
+*    EXIT.                                                     "> 683961
+ ENDIF.
+
+* Anlage ohne Werte
+ IF anlcv-gja_kansw = 0    and
+    anlcv-gje_kansw = 0    and
+    anlcv-answl     = 0.
+   EXIT.
+ ENDIF.
+
+* ... ja, dann Abg-Simu.
+  flag = on.
+
+ENDFORM.
+
+
+FORM abgsimuflag_setzen2 USING flag.
+
+* Default: Keine Abgangssimulation.
+  flag = off.
+
+* Klasse immaterieller WG?
+  MOVE anlav-anlkl TO rarep-imwgkl.
+  READ TABLE so_imwgk INDEX 1.
+  IF sy-subrc eq 0.
+    CHECK so_imwgk.
+  ELSE.
+    EXIT.
+  ENDIF.
+
+* ... ja!
+  flag = on.
+
+ENDFORM.
+
+
+FORM abga_simulieren.
+
+  DATA:
+*       Flag: Abgangssimulation fuer GWG erwuenscht.
+        flg_abgsim1(1)    TYPE c,
+*       Flag: Abgangssimulation fuer immaterielles WG erwuenscht.
+        flg_abgsim2(1)    TYPE c,
+*       Abgelaufene Nutzungsdauer bei immateriellen WGs.
+        abg_ndjar         LIKE anlb-ndjar,
+        abg_ndper         LIKE anlb-ndper,
+*       decision indicator for new retirement simulation with newDCP
+        ld_dec_ind        TYPE sy-tabix,                  "> 1060616
+        ld_function       TYPE funcname.                  "> 1060616
+
+* keine Abgangssimulation für deaktivierte Anlage oder Anlagen ohne
+* Werte.
+* IF ( NOT anlav-deakt IS INITIAL AND anlav-deakt <= berdatum )
+*                   OR
+*    ( anlcv-kansw IS INITIAL AND anlcv-answl IS INITIAL ).
+*
+*    EXIT.
+* ENDIF.
+* Default: Keine Abgangssimulationen.
+  MOVE off TO: flg_abgsim1,
+               flg_abgsim2.
+
+* GWG mit Abg-Simu ==> Abg-Simu-Flag setzen.
+  PERFORM abgsimuflag_setzen1 USING flg_abgsim1.
+* Immaterielles WG mit Abg-Simu ==> Abg-Simu-Flag setzen.
+  PERFORM abgsimuflag_setzen2 USING flg_abgsim2.
+
+* Keine Simulation angefordert ==> Nix machen.
+  CHECK flg_abgsim1 EQ on or
+        flg_abgsim2 EQ on.
+
+* Abgangssimulation fuer ein GWG.
+  IF flg_abgsim1 eq on.
+
+*   Buchwert zu GJ-Beginn = 0 ...
+    IF anlcv-gja_bchwrt eq 0 and
+*      ... und im LJ höchstens Abgänge ...
+       anlcv-answl      le 0 and
+*      ... Vorsicht: Abgang auf Neuzugang
+       anlav-aktiv      lt sav_gjbeg.
+*     ... dann so tun, als sei Anlage bereits Ende letzten Jahres
+*     abgegangen (Kontinuitätsprinzip).
+      REJECT 'ANLAV'.
+    ENDIF.
+
+*   If asset is low value asset, and capitalization date before start
+*   of simulation time range, then cumulative values have to be kept at
+*   fiscal year start
+    IF anlav-aktiv LT pa_simdv.                           "> 1060616
+      ADD 1 TO ld_dec_ind.                                "> 1060616
+    ENDIF.                                                "> 1060616
+
+*   Anlage vor dem LJ aktiviert aber Buchwert zu Beginn LJ = 0?
+    IF anlcv-gja_bchwrt eq 0        and
+*      ANLCV-GJE_BCHWRT NE 0         AND
+       anlav-aktiv      lt sav_gjbeg .
+*     Ja, dann Abgang zum Ende VJ simulieren.
+      IF hlp_old_afar = con_x.                            "> 1060616
+        PERFORM abga_simu_vj.
+      ELSE.                                               "> 1060616
+        ADD 3 TO ld_dec_ind.                              "> 1060616
+      ENDIF.                                              "> 1060616
+    ENDIF.
+
+*   Buchwert zu Ende LJ = 0 ?
+    IF anlcv-gje_bchwrt eq 0.
+*     Ja, dann Abgang zum Ende LJ simulieren.
+      IF hlp_old_afar = con_x.                            "> 1060616
+        PERFORM abga_simu_lj.
+      ELSE.                                               "> 1060616
+        ADD 7 TO ld_dec_ind.                              "> 1060616
+      ENDIF.                                              "> 1060616
+    ENDIF.
+
+  ENDIF.
+
+* Abgangssimulation fuer immaterielles WG.
+  IF flg_abgsim2 EQ on
+*   If already retirement simulation for LVA has been processed, then no
+*   further retirement simulation on immaterial assets should be done.
+    AND ld_dec_ind < 3.                                   "> 1060616
+
+*   Abgelaufene Nutzungsdauer zum Ende VJ.
+    abg_ndjar = anlcv-ndabj.
+    abg_ndper = anlcv-ndabp.
+
+*   Abg-Simu zum Ende VJ, wenn WG das Ende der Nutzungsdauer zu
+*   diesem Zeitpunkt erreicht oder ueberschritten hat.
+    IF    abg_ndjar gt anlb-ndjar     or
+        ( abg_ndjar eq anlb-ndjar and
+          abg_ndper ge anlb-ndper )   .
+
+*     Buchwert zu GJ-Beginn = 0 ...
+      IF anlcv-gja_bchwrt eq 0 and
+*        ... und keine Bewegungen im LJ ...
+         anlcv-answl      eq 0.
+*       ... dann sogar so tun, als sei Anlage bereits Ende letzten
+*       Jahres abgegangen (Kontinuitätsprinzip).
+        REJECT 'ANLAV'.
+      ENDIF.
+
+*     Anlage vor dem LJ aktiviert aber Buchwert zu Beginn LJ = 0?
+      IF anlcv-gja_bchwrt eq 0         and
+         anlav-aktiv      lt sav_gjbeg .
+*       Ja, dann Abgang zum Ende VJ simulieren.
+        IF hlp_old_afar = con_x.                          "> 1060616
+          PERFORM abga_simu_vj.
+        ELSE.                                             "> 1060616
+          ADD 15 TO ld_dec_ind.                           "> 1060616
+        ENDIF.                                            "> 1060616
+      ENDIF.
+
+    ENDIF.
+
+*   Abgelaufene Nutzungsdauer zum Ende LJ.
+    abg_ndjar = anlcv-ndabj + '001'.
+    abg_ndper = anlcv-ndabp.
+
+*   Abg-Simu zum Ende LJ, wenn WG das Ende der Nutzungsdauer zu
+*   diesem Zeitpunkt erreicht oder ueberschritten hat.
+    IF    abg_ndjar gt anlb-ndjar     or
+        ( abg_ndjar eq anlb-ndjar and
+          abg_ndper ge anlb-ndper )   .
+
+*     Buchwert zu Ende LJ = 0 ?
+      IF anlcv-gje_bchwrt eq 0.
+*       Ja, dann Abgang zum Ende LJ simulieren.
+         IF ( anlav-deakt is initial or anlav-deakt > berdatum )
+                   and not
+            ( anlcv-kansw is initial and anlcv-answl is initial ).
+          IF hlp_old_afar = con_x.                        "> 1060616
+            PERFORM abga_simu_lj.
+          ELSE.                                           "> 1060616
+            ADD 31 TO ld_dec_ind.                         "> 1060616
+          ENDIF.                                          "> 1060616
+         ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+*** begin of insertion note 1060616
+* In case of new depreciation calculation logic, simulate retirement
+* according to decision indicators
+  CHECK ld_dec_ind > 1 AND hlp_old_afar IS INITIAL.
+
+  TRY.
+*   decision indicator for low value and immaterial asset retirement
+*   simulation
+*   LVA (low value asset)           immaterial asset
+*   1       3       7               15          31
+*   1         = delete cumulative values for LVA
+*   3 and 15  = skip prior year APC transactions in simulation for current year
+*   7 and 31  = process simulation of current year acquisitions
+    ld_function = 'FAA_DC_ENGINE_CALL_ON_RET_SIM'.
+    CALL FUNCTION  LD_FUNCTION
+      EXPORTING
+        is_anlav                    = anlav
+        is_anlcv                    = anlcv
+        is_anlb                     = anlb
+        iv_reporting_date           = berdatum
+        iv_decision_indicator       = ld_dec_ind
+      IMPORTING
+        es_anlcv                    = anlcv
+      TABLES
+        ct_anepv                    = sav_anepv
+      EXCEPTIONS                                     "> 1158549
+        OTHERS                      = 1.             "> 1158549
+
+    CATCH cx_sy_dyn_call_illegal_func.
+  ENDTRY.
+
+* wenn keine ANEPS gefunden dann reject.
+  IF sav_anepv[] is initial.
+    REJECT 'ANLAV'.
+  ENDIF.
+*** end of insertion note 1060616
+ENDFORM.
+
+
+FORM abga_simu_vj.
+
+  DATA: BEGIN OF hlp_ants.
+          INCLUDE STRUCTURE ants.
+  DATA: END OF hlp_ants.
+
+  DATA: BEGIN OF hlp_anlc OCCURS 1.
+          INCLUDE STRUCTURE anlc.
+  DATA: END OF hlp_anlc.
+
+  DATA: BEGIN OF hlp_anea OCCURS 1.
+          INCLUDE STRUCTURE anea.
+  DATA: END OF hlp_anea.
+
+  DATA: BEGIN OF hlp_anep OCCURS 1.
+          INCLUDE STRUCTURE anep.
+  DATA: END OF hlp_anep.
+
+  DATA: BEGIN OF hlp_anlb OCCURS 1.
+          INCLUDE STRUCTURE anlb.
+  DATA: END OF hlp_anlb.
+
+  DATA: BEGIN OF hlp_anfm OCCURS 1.
+          INCLUDE STRUCTURE anfm.
+  DATA: END OF hlp_anfm.
+
+  DATA: BEGIN OF hlp_anlz OCCURS 1.
+          INCLUDE STRUCTURE anlz.
+  DATA: END OF hlp_anlz.
+
+* Nicht-Wertfelder von HLP_ANLC aus ANLCV fuellen.
+  CLEAR hlp_anlc.
+  MOVE: anlcv-mandt  TO hlp_anlc-mandt,
+        anlcv-bukrs  TO hlp_anlc-bukrs,
+        anlcv-anln1  TO hlp_anlc-anln1,
+        anlcv-anln2  TO hlp_anlc-anln2,
+        anlcv-gjahr  TO hlp_anlc-gjahr,
+        anlcv-afabe  TO hlp_anlc-afabe,
+        anlcv-zujhr  TO hlp_anlc-zujhr,
+        anlcv-zucod  TO hlp_anlc-zucod,
+        anlcv-afblpe TO hlp_anlc-afblpe,
+        anlcv-afbanz TO hlp_anlc-afbanz,
+        anlcv-ndabj  TO hlp_anlc-ndabj,
+        anlcv-ndabp  TO hlp_anlc-ndabp,
+        anlcv-andsj  TO hlp_anlc-andsj,
+        anlcv-andsp  TO hlp_anlc-andsp.
+*
+  APPEND hlp_anlc.
+
+  MOVE-CORRESPONDING anlav TO hlp_ants.
+  MOVE               anlb TO hlp_anlb. APPEND hlp_anlb.
+
+* HLP_ANLC = ANLC-Segment nur aus Bewegungen auf Neuzugang.
+  LOOP AT sav_anepv.
+*   Nur Bewegungen auf Neuzugang durchlassen.
+    READ TABLE yabw WITH KEY sav_anepv-bwasl.
+    IF sy-subrc ne 0.
+      DELETE sav_anepv.
+      CHECK '1' EQ '0'.
+    ENDIF.
+    READ TABLE yabwg WITH KEY yabw-bwagrp.
+    IF sy-subrc ne 0.
+      DELETE sav_anepv.
+      CHECK '1' EQ '0'.
+    ENDIF.
+    IF yabwg-xzugne is initial.
+      DELETE sav_anepv.
+      CHECK '1' EQ '0'.
+    ENDIF.
+*
+    CLEAR:   hlp_anep, hlp_anea.
+    REFRESH: hlp_anep, hlp_anea.
+    MOVE-CORRESPONDING sav_anepv TO hlp_anep. APPEND hlp_anep.
+    MOVE-CORRESPONDING sav_anepv TO hlp_anea. APPEND hlp_anea.
+*   HLP_ANLC sukzessive hochaddieren.
+    CALL FUNCTION 'ANEP_AFARECHNEN'
+      EXPORTING  i_ants              = hlp_ants
+                 i_cal_closed_fyears = 'X'
+      TABLES     t_anep              = hlp_anep
+                 t_anea              = hlp_anea
+                 t_anlb              = hlp_anlb
+                 t_anlc              = hlp_anlc
+                 t_anfm              = hlp_anfm
+                 t_anlz              = hlp_anlz.
+
+  ENDLOOP.
+* wenn keine ANEPS gefunden dann reject.
+  IF hlp_anep[] is initial.
+     REJECT 'ANLAV'.
+  ENDIF.
+
+  READ TABLE hlp_anlc INDEX 1.
+  MOVE-CORRESPONDING hlp_anlc TO anlcv.
+
+ENDFORM.
+
+
+FORM abga_simu_lj.
+
+  DATA: BEGIN OF hlp_anlc OCCURS 1.
+          INCLUDE STRUCTURE anlc.
+  DATA: END OF hlp_anlc.
+
+  DATA: BEGIN OF hlp_anepi OCCURS 1.
+          INCLUDE STRUCTURE anepi.
+  DATA: END OF hlp_anepi.
+
+*********************** BEGIN OF NOTE 683961 ***************************
+  DATA: ls_tabw             TYPE tabw.
+  DATA: ls_tabwg            TYPE tabwg.
+  DATA: ld_anbtr_neu        TYPE anbtr.
+  DATA: ld_anbtr_alt        TYPE anbtr.
+
+  FIELD-SYMBOLS: <fs_anepv> TYPE anepv.
+
+  LOOP AT sav_anepv ASSIGNING <fs_anepv>.
+    CALL FUNCTION 'TABW_READ'
+     EXPORTING
+        I_BWASL         = <fs_anepv>-bwasl
+      IMPORTING
+        F_TABW          = ls_tabw
+        E_TABWG         = ls_tabwg
+      EXCEPTIONS
+        NOT_FOUND       = 1
+        OTHERS          = 2.
+    IF ls_tabwg-XZUGNE = con_x.
+      ADD <fs_anepv>-anbtr TO ld_anbtr_neu.
+    ELSE.
+      ADD <fs_anepv>-anbtr TO ld_anbtr_alt.
+    ENDIF.
+  ENDLOOP.
+*********************** END OF NOTE 683961 *****************************
+
+  IF not anlav-deakt is initial and anlav-deakt > sav_gjbeg.
+     CLEAR anlav-deakt.
+  ENDIF.
+
+  MOVE-CORRESPONDING anlcv TO hlp_anlc. APPEND hlp_anlc.
+
+* -------------- Begin Of Insertion Note 583014 ------------------------
+  CALL FUNCTION 'LVA_RETIREMENT_SIMULATE'
+    EXPORTING
+      i_anlav                      = anlav
+      i_gjahr                      = hlp_anlc-gjahr
+*     i_bzdat                      = sav_gjend
+      i_bzdat                      = berdatum                  "> 683961
+      i_waers                      = sav_waer1
+      i_anbtr_neu                  = ld_anbtr_neu              "> 683961
+      i_anbtr_alt                  = ld_anbtr_alt              "> 683961
+    tables
+      t_anepi                      = hlp_anepi
+      t_anlc                       = hlp_anlc
+    EXCEPTIONS
+      ERROR_OCCURED                = 1
+      OTHERS                       = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+            WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+* -------------- End Of Insertion Note 583014 --------------------------
+
+* Neues ANLCV bilden.
+  READ TABLE hlp_anlc INDEX 1.
+  MOVE-CORRESPONDING hlp_anlc TO anlcv.
+
+* Neuen ANEPV aus neuem ANEP/ANEA aufbauen ...
+  LOOP AT hlp_anepi.
+    CLEAR sav_anepv.                                           "> 926691
+    MOVE-CORRESPONDING hlp_anepi TO sav_anepv.
+*   ... und an SAV_ANEPV anhaengen.                            "> 926691
+    APPEND sav_anepv.                                          "> 926691
+                                          "<<< BEGIN OF INSERTION NOTE 68323
+*   begin of change note 1242262
+*   add amounts from the transaction "simulate retirement"
+    IF t093b-abgja GE anlcv-gjahr.
+      anlcv-answl = anlcv-answl + hlp_anepi-anbtr.
+      anlcv-nafap = anlcv-nafap + hlp_anepi-nafab.
+      anlcv-safap = anlcv-safap + hlp_anepi-safab.
+      anlcv-nafal = anlcv-nafal + hlp_anepi-nafal.
+      anlcv-nafav = anlcv-nafav + hlp_anepi-nafav.
+      anlcv-safal = anlcv-safal + hlp_anepi-safal.
+      anlcv-safav = anlcv-safav + hlp_anepi-safav.
+      anlcv-aafal = anlcv-aafal + hlp_anepi-aafal.
+      anlcv-aafav = anlcv-aafav + hlp_anepi-aafav.
+      anlcv-mafal = anlcv-mafal + hlp_anepi-mafal.
+      anlcv-mafav = anlcv-mafav + hlp_anepi-mafav.
+    ENDIF.
+* end of change note 1242262
+                                        "<<< END OF INSERTION NOTE 68323
+  ENDLOOP.
+
+
+ENDFORM.
+
+
+FORM gitbez_lesen.
+* TABWO einlesen.
+  SELECT SINGLE * FROM tabwo
+    WHERE spras  EQ sy-langu
+    AND   gitvrs EQ pa_gitvs.
+* Gitterversion nicht in TABWO ==> Fehler.
+  IF sy-subrc ne 0.
+    MESSAGE e004 WITH sy-langu pa_gitvs.
+  ELSE.
+    MOVE tabwo-gitbez TO git_txt.
+    MOVE tabwo-gitbez TO gitbez.
+  ENDIF.
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM INIT_FIELDCAT                                            *
+*---------------------------------------------------------------------*
+*       Feldkatalog für den ABAP Listviewer aufbauen.                 *
+*       Dies ist der Default-Feldkatalog, der in der Auslieferung     *
+*       vorgegeben wird. Das Aussehen kann speziell mit den Anzeige-  *
+*       varianten angepasst werden. Welche Felder überhaupt zur       *
+*       Verfügung stehen, _muss_ hier definiert werden.               *
+*---------------------------------------------------------------------*
+FORM init_fieldcat.
+
+* Das Feld NUMBER sollte benutzt werden um die Anzahl der Leereinträge
+* zu bestimmen. Dies geschieht jedoch schon im Baustein
+* FIAA_FIELDCAT_ADD_SPACE. Deshalb mit Hinweis 541194 ausgebaut.
+* DATA: number(1),                                             "> 541194
+  DATA: index       TYPE i,                                    "> 541194
+        leerraum    TYPE i,
+        fieldname   LIKE x_fieldcat-fieldname,
+        color(4)    VALUE 'C700'.
+
+
+* Field catalog - sort fields S1 - max. S5 from sort variant
+  PERFORM fieldcat_s_fields_define2 USING 'ITAB_DATA'     ">1496486
+                                          'S'.            ">1868621
+
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'ANLN0'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'ANLAV'.
+  x_fieldcat-emphasize     = color.                   " Einfärben
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING fieldcat_line = x_fieldcat.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'ANLN2'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'ANLAV'.
+  x_fieldcat-emphasize     = color.                   " Einfärben
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING fieldcat_line = x_fieldcat.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'AKTIV'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'ANLAV'.
+  x_fieldcat-emphasize     = color.                   " Einfärben
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING fieldcat_line = x_fieldcat.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'TXT50'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'ANLAV'.
+  x_fieldcat-emphasize     = color.                   " Einfärben
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING fieldcat_line = x_fieldcat.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'WAERS'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'T093B'.
+  x_fieldcat-emphasize     = color.                   " Einfärben
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING fieldcat_line = x_fieldcat.
+
+
+* Field catalog - field from the dynamic selection
+  PERFORM fieldcat_s_fields_define2 USING 'ITAB_DATA'      ">1868621
+                                          'D'.             ">1868621
+
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING command = 'NEWLINE'.
+
+* CHANGE MM (01/11/1999):
+* Routine ist an die neuen Funktionsbausteine angepasst.
+* Dadurch wesentlich kürzer (Auch im Summenbericht).
+
+*  number   = 0.       " Nummer des Leerraumes                 "> 541194
+  leerraum = 0.       " Leerraum Grösse
+
+  LOOP AT xzeile.
+    LOOP AT xspalte.
+      LOOP AT xtabwn WHERE gitzl = xzeile-zeile AND
+                           gitsp = xspalte-spalte.
+        index = sy-tabix.
+        IF leerraum > 0.
+*         es muss erst noch ein Leerraum eingefügt werden!
+          SUBTRACT 1 FROM leerraum.
+          CALL FUNCTION 'FIAA_FIELDCAT_ADD_SPACE'
+               EXPORTING length  = leerraum
+                         tabname = 'ITAB_DATA'.
+          leerraum = 0.
+*          ADD 1 TO number.                                    "> 541194
+        ENDIF.
+*       Betragsfeld eintragen.
+        CALL FUNCTION 'FIAA_FIELDCAT_ADD_BTR'
+             EXPORTING num           = index
+                       text          = xtabwn-gitspt
+                       tabname       = 'ITAB_DATA'.
+      ENDLOOP.
+      IF sy-subrc > 0.
+*       Kein Eintrag gefunden. Leerraum erweitern.
+        ADD 17 TO leerraum.
+      ENDIF.
+    ENDLOOP.
+*   Zeile zuende. Leerraum ist nicht mehr notwendig und Zeilenvorschub.
+    leerraum = 0.
+    CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+         EXPORTING command = 'NEWLINE'.
+  ENDLOOP.
+
+* User Felder an den Feldkatalog anhängen.
+* ACHTUNG: Auf korrekten Struktur- und Tabellen-Namen achten!
+  PERFORM fieldcat_user_fields_append USING *anla0-selfield_structure1
+                                            'ITAB_DATA'.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM INIT_FIELDCAT_SUM                                        *
+*---------------------------------------------------------------------*
+*       Feldkatalog für Gruppensummen definieren                      *
+*---------------------------------------------------------------------*
+FORM init_fieldcat_sum.
+
+* Das Feld NUMBER sollte benutzt werden um die Anzahl der Leereinträge
+* zu bestimmen. Dies geschieht jedoch schon im Baustein
+* FIAA_FIELDCAT_ADD_SPACE. Deshalb mit Hinweis 541194 ausgebaut.
+* DATA: number(1),                                             "> 541194
+  DATA: index       TYPE i,                                    "> 541194
+        leerraum    TYPE i,
+        fieldname   LIKE x_fieldcat-fieldname,
+        color(4)    VALUE 'C700'.
+
+* Pflichtteil!
+
+**********
+* S1 bis S5 entsprechen der Sortiervariante. _Immer_ mitnehmen!
+*
+  PERFORM fieldcat_s_fields_define2 USING 'SUMTAB_DATA_S'  ">1496486
+                                          'S'.             ">1868621
+
+*  LOOP AT t_fieldcat INTO x_fieldcat.
+*    x_fieldcat-emphasize     = color.                   " Einfärben
+*    MODIFY t_fieldcat FROM x_fieldcat.
+*  ENDLOOP.
+
+*
+**********
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'TEXT'.
+  x_fieldcat-tabname       = 'SUMTAB_DATA_S'.
+  x_fieldcat-outputlen     = 30.
+  x_fieldcat-emphasize     = color.                   " Einfärben
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING fieldcat_line = x_fieldcat.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'WAERS'.
+  x_fieldcat-tabname       = 'SUMTAB_DATA_S'.
+  x_fieldcat-ref_tabname   = 'T093B'.
+  x_fieldcat-emphasize     = color.                   " Einfärben
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING fieldcat_line = x_fieldcat.
+
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING command = 'NEWLINE'.
+
+*  number   = 0.       " Nummer des Leerraumes                 "> 541194
+  leerraum = 0.       " Leerraum Grösse
+
+  LOOP AT xzeile.
+    LOOP AT xspalte.
+      LOOP AT xtabwn WHERE gitzl = xzeile-zeile AND
+                           gitsp = xspalte-spalte.
+        index = sy-tabix.
+        IF leerraum > 0.
+*         es muss erst noch ein Leerraum eingefügt werden!
+          SUBTRACT 1 FROM leerraum.
+          CALL FUNCTION 'FIAA_FIELDCAT_ADD_SPACE'
+               EXPORTING length  = leerraum
+                         tabname = 'SUMTAB_DATA_S'.
+          leerraum = 0.
+*          ADD 1 TO number.                                    "> 541194
+        ENDIF.
+*       Betragsfeld eintragen.
+        CALL FUNCTION 'FIAA_FIELDCAT_ADD_BTR'
+             EXPORTING num           = index
+                       text          = xtabwn-gitspt
+                       tabname       = 'SUMTAB_DATA_S'.
+      ENDLOOP.
+      IF sy-subrc > 0.
+*       Kein Eintrag gefunden. Leerraum erweitern.
+        ADD 17 TO leerraum.
+      ENDIF.
+    ENDLOOP.
+*   Zeile zuende. Leerraum ist nicht mehr notwendig und Zeilenvorschub.
+    leerraum = 0.
+    CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+         EXPORTING command = 'NEWLINE'.
+  ENDLOOP.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_OUTTAB_LINE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM FILL_OUTTAB_LINE.
+
+* Werte in interne Tabelle einarbeiten
+* unschoen da nicht flexibel (nur bis 18 Werte moeglich)
+  DATA: btrz(2), tbtrfeld(5).
+
+  MOVE-CORRESPONDING anlb TO  <itab_line>.
+  MOVE-CORRESPONDING anlav TO <itab_line>.
+
+* Über Werte in apos loopen
+  zaehler = 0.
+  LOOP AT apos.
+    ok = 0.
+
+*   Nur Werte nehmen, die in Tabelle sollen da apos
+*   Lücken in Tabelle mit Wert 0 belegt
+    LOOP AT xzlsp WHERE zl = apos-gitzl.
+      IF xzlsp-sp = apos-gitsp.
+        ok = 1.
+        exit.
+      ENDIF.
+    ENDLOOP.
+    CHECK ok = 1.
+
+    zaehler = zaehler + 1.
+    btrz = zaehler.
+    CONCATENATE 'BTR' btrz INTO tbtrfeld.
+    ASSIGN COMPONENT tbtrfeld OF STRUCTURE <itab_line> TO <field>..
+    <field> = apos-betrag.
+  ENDLOOP.
+
+* Die Währung zur Ausgabe
+  ASSIGN COMPONENT 'WAERS' OF STRUCTURE <itab_line> TO <field>.
+    <field> = sav_waer1.
+* Alles in der Tabelle ist auswählbar!
+  ASSIGN COMPONENT 'FLG_PICK_UP' OF STRUCTURE <itab_line> TO <field>.
+    <field> = con_x.
+* Alle Einträge in der ersten Stufe
+  ASSIGN COMPONENT 'RANGE' OF STRUCTURE <itab_line> TO <field>.
+    <field> = 1.
+* Die Datenzeilen sind immer in der vollen Sortierung
+* == Anzahl Summenstufen
+  ASSIGN COMPONENT 'HLP_LEVEL' OF STRUCTURE <itab_line> TO <field>.
+    <field> = con_srtst.
+
+  range = '1'.
+
+* Bestand für Summenbericht aufbereiten
+  IF summb ne space.
+    PERFORM add_or_collect USING    <itab_line>
+                                    gt_fieldcat_value
+                           CHANGING <itab_data>.
+  ELSE.
+    APPEND <itab_line> TO <itab_data>.
+  ENDIF.
+
+ENDFORM.                    " FILL_OUTTAB_LINE
+
+* Allgemeine FORM-Routinen.
+INCLUDE rasort_alv_misc.
+
+* start of note 1496486
+* Formroutinen für den ABAP List Viewer (neue variable Ausgabe für ALV)
+INCLUDE rasort_alv_prepare_table2.      " Feldcatalog/Layout/Sort vorber.
+INCLUDE rasort_alv_tools2.              " diverse Forms
+* End of note 1496486
+
+*GUI Texts
+*----------------------------------------------------------
+* 002 --> Anlagengitter auf Basis gebuchter AfA
+
+*Text elements
+*----------------------------------------------------------
+* 001 LVA simulation period from
+* 024 Generated variant
+* 050 To  ;
+* 100 (complete)
+* 101 (incomplete)
+* AV1 Add to worklist
+* AV2 Which assets
+* AV3 would you like
+* AV4 to add to the worklist?
+* AV5 Selected asset
+* AV6 All assets
+* BL0 Display options
+* BL1 Further selections
+* BL2 Further settings
+* C03 Add. Batch Run Specif.
+* C04 Retirmt simulations
+* F01 Log of assets with errors
+* F10 Error message long text
+* U01 Report date:
+* U02 Creation date:
+
+
+*Selection texts
+*----------------------------------------------------------
+* PA_GITVS         History sheet version
+* PA_MIKRO         Print microfiche line
+* PA_TITEL         Additional heading
+* PA_XGBAF         Depreciation posted
+* P_GRID         Use ALV grid
+* SO_AFASL         Depreciation key
+* SO_AKTIV         Capitalization date
+* SO_GWGKL         Low value assets classes
+* SO_IMWGK         Intangible assets classes
+* SO_KTANW         Balance sheet account
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: AA
+*825   Either incorrect entry or incorrect function
+*
+* Message class: AB
+*087   No subnumber summarization for retirement simulation
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

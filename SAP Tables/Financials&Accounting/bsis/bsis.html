@@ -1,0 +1,1132 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- BSIS</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   background-color:#E0E7ED;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   background-color:#F2F4F7;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: BSIS</h2>
+  <h3>Description: Accounting: Secondary Index for G/L Accounts</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>.INCLU--AP</td>
+  <td>80</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Local Authorities</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>.INCLU--AP</td>
+  <td>86</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>.INCLU--AP</td>
+  <td>82</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Joint Venture Accounting</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>.INCLU--AP</td>
+  <td>84</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>withholding Tax Code</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>.INCLUDE</td>
+  <td>87</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>AUFNR</td>
+  <td>27</td>
+  <td>&nbsp;</td>
+  <td>AUFNR_NEU</td>
+  <td>AUFNR</td>
+  <td>CHAR</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>Order Number</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>AUGBL</td>
+  <td>5</td>
+  <td>X</td>
+  <td>AUGBL</td>
+  <td>BELNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Document Number of the Clearing Document</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>AUGDT</td>
+  <td>4</td>
+  <td>X</td>
+  <td>AUGDT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Clearing Date</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>AUGGJ</td>
+  <td>70</td>
+  <td>&nbsp;</td>
+  <td>AUGGJ</td>
+  <td>GJAHR</td>
+  <td>NUMC</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Fiscal Year of Clearing Document</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>BDIF2</td>
+  <td>35</td>
+  <td>&nbsp;</td>
+  <td>BDIF2</td>
+  <td>WRTV7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Valuation Difference for the Second Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>BDIF3</td>
+  <td>43</td>
+  <td>&nbsp;</td>
+  <td>BDIF3</td>
+  <td>WRTV7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Valuation Difference for the Third Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>BDIFF</td>
+  <td>34</td>
+  <td>&nbsp;</td>
+  <td>BDIFF</td>
+  <td>WRTV7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Valuation Difference</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>BELNR</td>
+  <td>8</td>
+  <td>X</td>
+  <td>BELNR_D</td>
+  <td>BELNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Accounting Document Number</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>BEWAR</td>
+  <td>59</td>
+  <td>&nbsp;</td>
+  <td>RMVCT</td>
+  <td>RMVCT</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Transaction Type</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>BLART</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>BLART</td>
+  <td>BLART</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Document Type</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>BLDAT</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>BLDAT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Document Date in Document</td>
+</tr>
+<tr class="cell">
+  <td>17</td>
+  <td>BSCHL</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>BSCHL</td>
+  <td>BSCHL</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Posting Key</td>
+</tr>
+<tr class="cell">
+  <td>18</td>
+  <td>BSTAT</td>
+  <td>33</td>
+  <td>&nbsp;</td>
+  <td>BSTAT_D</td>
+  <td>BSTAT</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Document Status</td>
+</tr>
+<tr class="cell">
+  <td>19</td>
+  <td>BUDAT</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>BUDAT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Posting Date in the Document</td>
+</tr>
+<tr class="cell">
+  <td>20</td>
+  <td>BUDGET_PD</td>
+  <td>77</td>
+  <td>&nbsp;</td>
+  <td>FM_BUDGET_PERIOD</td>
+  <td>FM_BUDGET_PERIOD</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>FM: Budget Period</td>
+</tr>
+<tr class="cell">
+  <td>21</td>
+  <td>BUKRS</td>
+  <td>2</td>
+  <td>X</td>
+  <td>BUKRS</td>
+  <td>BUKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Company Code</td>
+</tr>
+<tr class="cell">
+  <td>22</td>
+  <td>BUPLA</td>
+  <td>55</td>
+  <td>&nbsp;</td>
+  <td>BUPLA</td>
+  <td>J_1BBRANCH</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Business Place</td>
+</tr>
+<tr class="cell">
+  <td>23</td>
+  <td>BUZEI</td>
+  <td>9</td>
+  <td>X</td>
+  <td>BUZEI</td>
+  <td>BUZEI</td>
+  <td>NUMC</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Number of Line Item Within Accounting Document</td>
+</tr>
+<tr class="cell">
+  <td>24</td>
+  <td>BUZID</td>
+  <td>69</td>
+  <td>&nbsp;</td>
+  <td>BUZID</td>
+  <td>CHAR1</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Identification of the Line Item</td>
+</tr>
+<tr class="cell">
+  <td>25</td>
+  <td>CCBTC</td>
+  <td>53</td>
+  <td>&nbsp;</td>
+  <td>CCBTC</td>
+  <td>CCBTC</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Payment cards: Settlement run</td>
+</tr>
+<tr class="cell">
+  <td>26</td>
+  <td>DABRZ</td>
+  <td>61</td>
+  <td>&nbsp;</td>
+  <td>DABRBEZ</td>
+  <td>DDAT</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Reference Date for Settlement</td>
+</tr>
+<tr class="cell">
+  <td>27</td>
+  <td>DMBE2</td>
+  <td>39</td>
+  <td>&nbsp;</td>
+  <td>DMBE2</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Amount in Second Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>28</td>
+  <td>DMBE3</td>
+  <td>40</td>
+  <td>&nbsp;</td>
+  <td>DMBE3</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Amount in Third Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>29</td>
+  <td>DMBTR</td>
+  <td>21</td>
+  <td>&nbsp;</td>
+  <td>DMBTR</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Amount in Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>30</td>
+  <td>FIPEX</td>
+  <td>81</td>
+  <td>&nbsp;</td>
+  <td>FM_FIPEX_DONT_USE</td>
+  <td>FM_FIPEX</td>
+  <td>CHAR</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>Commitment item - Do not use field - see note 447805</td>
+</tr>
+<tr class="cell">
+  <td>31</td>
+  <td>FIPOS</td>
+  <td>65</td>
+  <td>&nbsp;</td>
+  <td>FIPOS</td>
+  <td>FIPOS</td>
+  <td>CHAR</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>Commitment Item</td>
+</tr>
+<tr class="cell">
+  <td>32</td>
+  <td>FISTL</td>
+  <td>66</td>
+  <td>&nbsp;</td>
+  <td>FISTL</td>
+  <td>FISTL</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>Funds Center</td>
+</tr>
+<tr class="cell">
+  <td>33</td>
+  <td>FKBER</td>
+  <td>64</td>
+  <td>&nbsp;</td>
+  <td>FKBER</td>
+  <td>FKBER</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>Functional Area</td>
+</tr>
+<tr class="cell">
+  <td>34</td>
+  <td>FKONT</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>FIPLS</td>
+  <td>FIPLS</td>
+  <td>NUMC</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Financial Budget Item</td>
+</tr>
+<tr class="cell">
+  <td>35</td>
+  <td>GEBER</td>
+  <td>67</td>
+  <td>&nbsp;</td>
+  <td>BP_GEBER</td>
+  <td>BP_GEBER</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Fund</td>
+</tr>
+<tr class="cell">
+  <td>36</td>
+  <td>GJAHR</td>
+  <td>7</td>
+  <td>X</td>
+  <td>GJAHR</td>
+  <td>GJAHR</td>
+  <td>NUMC</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Fiscal Year</td>
+</tr>
+<tr class="cell">
+  <td>37</td>
+  <td>GRANT_NBR</td>
+  <td>63</td>
+  <td>&nbsp;</td>
+  <td>GM_GRANT_NBR</td>
+  <td>GM_GRANT_NBR</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Grant</td>
+</tr>
+<tr class="cell">
+  <td>38</td>
+  <td>GSBER</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>GSBER</td>
+  <td>GSBER</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Business Area</td>
+</tr>
+<tr class="cell">
+  <td>39</td>
+  <td>HKONT</td>
+  <td>3</td>
+  <td>X</td>
+  <td>HKONT</td>
+  <td>SAKNR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>General Ledger Account</td>
+</tr>
+<tr class="cell">
+  <td>40</td>
+  <td>IMKEY</td>
+  <td>60</td>
+  <td>&nbsp;</td>
+  <td>IMKEY</td>
+  <td>IMKEY</td>
+  <td>CHAR</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Internal Key for Real Estate Object</td>
+</tr>
+<tr class="cell">
+  <td>41</td>
+  <td>INTRENO</td>
+  <td>62</td>
+  <td>&nbsp;</td>
+  <td>VVINTRENO</td>
+  <td>VVINTRENO</td>
+  <td>CHAR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Internal Real Estate Master Data Code</td>
+</tr>
+<tr class="cell">
+  <td>42</td>
+  <td>KIDNO</td>
+  <td>79</td>
+  <td>&nbsp;</td>
+  <td>KIDNO</td>
+  <td>CHAR30</td>
+  <td>CHAR</td>
+  <td>30</td>
+  <td>&nbsp;</td>
+  <td>Payment Reference</td>
+</tr>
+<tr class="cell">
+  <td>43</td>
+  <td>KOSTL</td>
+  <td>29</td>
+  <td>&nbsp;</td>
+  <td>KOSTL</td>
+  <td>KOSTL</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Cost Center</td>
+</tr>
+<tr class="cell">
+  <td>44</td>
+  <td>MANDT</td>
+  <td>1</td>
+  <td>X</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td>45</td>
+  <td>MEASURE</td>
+  <td>76</td>
+  <td>&nbsp;</td>
+  <td>FM_MEASURE</td>
+  <td>FM_MEASURE</td>
+  <td>CHAR</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>Funded Program</td>
+</tr>
+<tr class="cell">
+  <td>46</td>
+  <td>MONAT</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>MONAT</td>
+  <td>MONAT</td>
+  <td>NUMC</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Fiscal Period</td>
+</tr>
+<tr class="cell">
+  <td>47</td>
+  <td>MWSKZ</td>
+  <td>19</td>
+  <td>&nbsp;</td>
+  <td>MWSKZ</td>
+  <td>MWSKZ</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Tax on sales/purchases code</td>
+</tr>
+<tr class="cell">
+  <td>48</td>
+  <td>MWST2</td>
+  <td>41</td>
+  <td>&nbsp;</td>
+  <td>MWST2</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Tax Amount in Second Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>49</td>
+  <td>MWST3</td>
+  <td>42</td>
+  <td>&nbsp;</td>
+  <td>MWST3</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Tax Amount in Third Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>50</td>
+  <td>MWSTS</td>
+  <td>23</td>
+  <td>&nbsp;</td>
+  <td>MWSTS</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Tax Amount in Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>51</td>
+  <td>PBUDGET_PD</td>
+  <td>78</td>
+  <td>&nbsp;</td>
+  <td>FM_PBUDGET_PERIOD</td>
+  <td>FM_BUDGET_PERIOD</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>FM: Partner Budget Period</td>
+</tr>
+<tr class="cell">
+  <td>52</td>
+  <td>PGEBER</td>
+  <td>74</td>
+  <td>&nbsp;</td>
+  <td>FM_PFUND</td>
+  <td>BP_GEBER</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Partner Fund</td>
+</tr>
+<tr class="cell">
+  <td>53</td>
+  <td>PGRANT_NBR</td>
+  <td>75</td>
+  <td>&nbsp;</td>
+  <td>GM_GRANT_PARTNER</td>
+  <td>GM_GRANT_NBR</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Partner Grant</td>
+</tr>
+<tr class="cell">
+  <td>54</td>
+  <td>PPDIF2</td>
+  <td>57</td>
+  <td>&nbsp;</td>
+  <td>PPDIF2</td>
+  <td>WRTV7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Realized Exchange Rate Gain/Loss 2.Loc. Curr.(Part Payments)</td>
+</tr>
+<tr class="cell">
+  <td>55</td>
+  <td>PPDIF3</td>
+  <td>58</td>
+  <td>&nbsp;</td>
+  <td>PPDIF3</td>
+  <td>WRTV7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Realized Exchange Rate Gain/Loss 3.Loc.Curr.(Part Payments)</td>
+</tr>
+<tr class="cell">
+  <td>56</td>
+  <td>PPDIFF</td>
+  <td>56</td>
+  <td>&nbsp;</td>
+  <td>PPDIFF</td>
+  <td>WRTV7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Realized Exchange Rate Gain/Loss 1.Loc.Curr.(Part Payments)</td>
+</tr>
+<tr class="cell">
+  <td>57</td>
+  <td>PPRCT</td>
+  <td>68</td>
+  <td>&nbsp;</td>
+  <td>PPRCTR</td>
+  <td>PRCTR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Partner Profit Center</td>
+</tr>
+<tr class="cell">
+  <td>58</td>
+  <td>PRCTR</td>
+  <td>47</td>
+  <td>&nbsp;</td>
+  <td>PRCTR</td>
+  <td>PRCTR</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Profit Center</td>
+</tr>
+<tr class="cell">
+  <td>59</td>
+  <td>PRODPER</td>
+  <td>83</td>
+  <td>&nbsp;</td>
+  <td>JVA_PROD_MONTH</td>
+  <td>BUPER</td>
+  <td>ACCP</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+</tr>
+<tr class="cell">
+  <td>60</td>
+  <td>PROJK</td>
+  <td>46</td>
+  <td>&nbsp;</td>
+  <td>PS_PSP_PNR</td>
+  <td>PS_POSNR</td>
+  <td>NUMC</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Work Breakdown Structure Element (WBS Element)</td>
+</tr>
+<tr class="cell">
+  <td>61</td>
+  <td>PROJN</td>
+  <td>26</td>
+  <td>&nbsp;</td>
+  <td>PROJN</td>
+  <td>PROJN</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>Old: Project number : No longer used --> PS_POSNR</td>
+</tr>
+<tr class="cell">
+  <td>62</td>
+  <td>PROPMANO</td>
+  <td>88</td>
+  <td>&nbsp;</td>
+  <td>REHORECNNRM</td>
+  <td>RECNNR</td>
+  <td>CHAR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Mandate, Mandate-Opening Contract</td>
+</tr>
+<tr class="cell">
+  <td>63</td>
+  <td>PSEGMENT</td>
+  <td>73</td>
+  <td>&nbsp;</td>
+  <td>FB_PSEGMENT</td>
+  <td>FB_SEGMENT</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Partner Segment for Segmental Reporting</td>
+</tr>
+<tr class="cell">
+  <td>64</td>
+  <td>PSWBT</td>
+  <td>50</td>
+  <td>&nbsp;</td>
+  <td>PSWBT</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Amount for Updating in General Ledger</td>
+</tr>
+<tr class="cell">
+  <td>65</td>
+  <td>PSWSL</td>
+  <td>37</td>
+  <td>&nbsp;</td>
+  <td>PSWSL</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Update Currency for General Ledger Transaction Figures</td>
+</tr>
+<tr class="cell">
+  <td>66</td>
+  <td>QSSKZ</td>
+  <td>85</td>
+  <td>&nbsp;</td>
+  <td>QSSKZ</td>
+  <td>QSSKZ</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Withholding Tax Code</td>
+</tr>
+<tr class="cell">
+  <td>67</td>
+  <td>RDIF3</td>
+  <td>44</td>
+  <td>&nbsp;</td>
+  <td>RDIF3</td>
+  <td>WRTV7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Exchange Rate Difference Realized for Third Local Currency</td>
+</tr>
+<tr class="cell">
+  <td>68</td>
+  <td>RFZEI</td>
+  <td>52</td>
+  <td>&nbsp;</td>
+  <td>RFZEI_CC</td>
+  <td>NUM03</td>
+  <td>NUMC</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Payment Card Item</td>
+</tr>
+<tr class="cell">
+  <td>69</td>
+  <td>SEGMENT</td>
+  <td>72</td>
+  <td>&nbsp;</td>
+  <td>FB_SEGMENT</td>
+  <td>FB_SEGMENT</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>Segment for Segmental Reporting</td>
+</tr>
+<tr class="cell">
+  <td>70</td>
+  <td>SGTXT</td>
+  <td>25</td>
+  <td>&nbsp;</td>
+  <td>SGTXT</td>
+  <td>TEXT50</td>
+  <td>CHAR</td>
+  <td>50</td>
+  <td>X</td>
+  <td>Item Text</td>
+</tr>
+<tr class="cell">
+  <td>71</td>
+  <td>SHKZG</td>
+  <td>17</td>
+  <td>&nbsp;</td>
+  <td>SHKZG</td>
+  <td>SHKZG</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Debit/Credit Indicator</td>
+</tr>
+<tr class="cell">
+  <td>72</td>
+  <td>UZAWE</td>
+  <td>71</td>
+  <td>&nbsp;</td>
+  <td>UZAWE</td>
+  <td>UZAWE</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Payment Method Supplement</td>
+</tr>
+<tr class="cell">
+  <td>73</td>
+  <td>VALUT</td>
+  <td>32</td>
+  <td>&nbsp;</td>
+  <td>VALUT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Value date</td>
+</tr>
+<tr class="cell">
+  <td>74</td>
+  <td>VBUND</td>
+  <td>36</td>
+  <td>&nbsp;</td>
+  <td>RASSC</td>
+  <td>RCOMP</td>
+  <td>CHAR</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>Company ID of trading partner</td>
+</tr>
+<tr class="cell">
+  <td>75</td>
+  <td>WAERS</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>WAERS</td>
+  <td>WAERS</td>
+  <td>CUKY</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Currency Key</td>
+</tr>
+<tr class="cell">
+  <td>76</td>
+  <td>WERKS</td>
+  <td>28</td>
+  <td>&nbsp;</td>
+  <td>WERKS_D</td>
+  <td>WERKS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Plant</td>
+</tr>
+<tr class="cell">
+  <td>77</td>
+  <td>WMWST</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>WMWST</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Tax amount in document currency</td>
+</tr>
+<tr class="cell">
+  <td>78</td>
+  <td>WRBTR</td>
+  <td>22</td>
+  <td>&nbsp;</td>
+  <td>WRBTR</td>
+  <td>WERT7</td>
+  <td>CURR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>Amount in document currency</td>
+</tr>
+<tr class="cell">
+  <td>79</td>
+  <td>WVERW</td>
+  <td>38</td>
+  <td>&nbsp;</td>
+  <td>WVERW</td>
+  <td>WVERW</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Bill of exchange usage type</td>
+</tr>
+<tr class="cell">
+  <td>80</td>
+  <td>XARCH</td>
+  <td>49</td>
+  <td>&nbsp;</td>
+  <td>XARCH</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Document already archived ?</td>
+</tr>
+<tr class="cell">
+  <td>81</td>
+  <td>XBLNR</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>XBLNR1</td>
+  <td>XBLNR1</td>
+  <td>CHAR</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>Reference Document Number</td>
+</tr>
+<tr class="cell">
+  <td>82</td>
+  <td>XNEGP</td>
+  <td>51</td>
+  <td>&nbsp;</td>
+  <td>XNEGP</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Negative posting</td>
+</tr>
+<tr class="cell">
+  <td>83</td>
+  <td>XOPVW</td>
+  <td>31</td>
+  <td>&nbsp;</td>
+  <td>XOPVW</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Open Item Management?</td>
+</tr>
+<tr class="cell">
+  <td>84</td>
+  <td>XRAGL</td>
+  <td>45</td>
+  <td>&nbsp;</td>
+  <td>XRAGL</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Clearing was Reversed</td>
+</tr>
+<tr class="cell">
+  <td>85</td>
+  <td>XREF3</td>
+  <td>54</td>
+  <td>&nbsp;</td>
+  <td>XREF3</td>
+  <td>CHAR20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Reference key for line item</td>
+</tr>
+<tr class="cell">
+  <td>86</td>
+  <td>XSTOV</td>
+  <td>48</td>
+  <td>&nbsp;</td>
+  <td>XSTOV</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Indicator: Document is flagged for reversal</td>
+</tr>
+<tr class="cell">
+  <td>87</td>
+  <td>ZFBDT</td>
+  <td>30</td>
+  <td>&nbsp;</td>
+  <td>DZFBDT</td>
+  <td>DATUM</td>
+  <td>DATS</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Baseline Date for Due Date Calculation</td>
+</tr>
+<tr class="cell">
+  <td>88</td>
+  <td>ZUONR</td>
+  <td>6</td>
+  <td>X</td>
+  <td>DZUONR</td>
+  <td>ZUONR</td>
+  <td>CHAR</td>
+  <td>18</td>
+  <td>X</td>
+  <td>Assignment Number</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

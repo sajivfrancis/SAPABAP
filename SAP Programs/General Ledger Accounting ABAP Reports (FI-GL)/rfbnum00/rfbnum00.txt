@@ -1,0 +1,904 @@
+REPORT rfbnum00 MESSAGE-ID fr LINE-SIZE 80 NO STANDARD PAGE HEADING.
+* Weitere Korrekturen durch Frank Buchholz unter Abstimmung mit Peter
+* Schiwek eingebaut
+
+*----------------------------------------------------------------------*
+* Change history of ALV Development
+* Program description: To display Gaps in Document Number Assignment
+* Author: Sonal Ramteke (C5053259)
+* Short description of the program:
+*    The existing output of the program (using write statements)
+*    is converted to ALV display using REUSE_ALV_LIST_DISPLAY
+*    function modules
+*    The contents of the write statements are moved to a new
+*    table GT_OUTPUT which is used for display.
+*--------------------------------------------------------------------*
+TYPE-POOLS : slis.
+TABLES: t003, b0sg, bkpf, bhdgd.
+
+DATA: xnriv        LIKE inriv OCCURS 10 WITH HEADER LINE,
+      tabix        LIKE sy-tabix,
+      belnr        LIKE bkpf-belnr,
+      belnr_prev   LIKE bkpf-belnr,
+      gjahr_prev   LIKE bkpf-gjahr,
+      xsel         TYPE c.
+
+DATA: BEGIN OF beltab OCCURS 0,
+        bukrs      LIKE bkpf-bukrs,
+        belnr      LIKE bkpf-belnr,
+        gjahr      LIKE bkpf-gjahr,
+      END OF beltab.
+
+DATA: BEGIN OF nr OCCURS 10,
+        range      LIKE inriv-nrrangenr,
+        fromyear   LIKE inriv-toyear,
+        toyear     LIKE inriv-toyear,
+        from       LIKE bkpf-belnr,
+        to         LIKE bkpf-belnr,
+        ct         LIKE bkpf-belnr,
+        fromnumber LIKE inriv-tonumber,
+        tonumber   LIKE inriv-tonumber,
+        nrlevel    LIKE inriv-nrlevel,
+        externind  LIKE inriv-externind,
+      END OF nr.
+
+DATA: BEGIN OF result OCCURS 100,
+        range    LIKE inriv-nrrangenr,
+        fromyear LIKE inriv-toyear,
+        toyear   LIKE inriv-toyear,
+        low      LIKE bkpf-belnr,
+        gjahr    LIKE bkpf-gjahr,
+        high     LIKE bkpf-belnr,
+        type,                          "'G' Gap 'D' Duprec
+      END OF result.
+*----------------------------------------------------------------------*
+*   Variables Declared By C5053259 For ALV Display                     *
+*----------------------------------------------------------------------*
+*   Internal tables
+*   for output data of ALV
+DATA :  gt_output TYPE STANDARD TABLE OF fagl_s_rfbnum00_list
+                                INITIAL SIZE 0 WITH HEADER LINE,
+*    Field Catalog
+       gt_fieldcat TYPE slis_t_fieldcat_alv,
+*    Event Table
+       gt_events TYPE  slis_t_event,
+*    List Header
+       gt_header TYPE slis_t_listheader.
+
+* sort
+DATA:  gt_sort   TYPE SLIS_T_SORTINFO_ALV.
+
+
+*    Field Strings
+DATA:  gs_output TYPE fagl_s_rfbnum00_list,       "Work area for outtab
+       gs_variant  LIKE disvariant,               "Variant Structure
+       gv_repid LIKE sy-repid,                    "Caller Program
+       gv_save(1) TYPE c,                         "Save option
+       gv_exit(1) TYPE c,                         "Exit option
+       gv_subrc   TYPE c.                         "System variable copy
+
+DATA:  GD_TABNAME TYPE SLIS_TABNAME VALUE 'GT_OUTTAB'.
+
+*    Constants
+CONSTANTS:
+    gc_formname_top TYPE    slis_formname
+                       VALUE  'HANDLE_EVENT_TOP_OF_PAGE',
+    gc_formname_eol TYPE    slis_formname
+                       VALUE  'HANDLE_EVENT_END_OF_LIST',
+                                                  "Subroutine name
+    gc_save_all TYPE c VALUE 'A',                 "Save All variant
+    gc_structname  TYPE dd02l-tabname VALUE 'FAGL_S_RFBNUM00_LIST',
+                                                  "Name of output struct
+    gc_listheading_type TYPE c VALUE 'S',         "Heading typ-selection
+    gc_set_variable TYPE c VALUE 'X'.             "Constant to set
+
+"variable
+*----------------------------------------------------------------------*
+*   End Of Data Declaration By C5053259 For ALV Display                *
+*----------------------------------------------------------------------*
+
+begin_of_block 1.
+PARAMETERS: pa_numkr LIKE t003-numkr,
+            pa_blart LIKE bkpf-blart.
+PARAMETERS:
+     title     LIKE rfpdo1-allgline.   "Untertitel
+end_of_block 1.
+
+**Parameter for variant.
+*begin_of_block 2.
+*PARAMETERS:p_varia TYPE slis_vari.
+*end_of_block 2.
+*----------------------------------------------------------------------*
+INITIALIZATION.
+*----------------------------------------------------------------------*
+  gv_repid = sy-repid.
+  get_frame_title: 1.
+
+*    Build Field Catalog Table
+  PERFORM fieldcat_build CHANGING gt_fieldcat.
+*    Build the Events Table
+  PERFORM event_build CHANGING gt_events.
+*    assure new page for new time interval
+  PERFORM sort_init USING GT_SORT[].
+
+  gv_save = gc_save_all.
+
+*    Set Initial Value of the Variant Structure
+  PERFORM initial_variant CHANGING gs_variant.
+*    Get the default variant .
+  PERFORM get_default_variant CHANGING gs_variant.
+
+*----------------------------------------------------------------------*
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_varia.
+*----------------------------------------------------------------------*
+*    Provide F4 help for the Variant Field
+*    PERFORM f4help_for_variant CHANGING p_varia.
+
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+*----------------------------------------------------------------------*
+* Irrelevante Selektionsfelder ausblenden
+  LOOP AT SCREEN.
+    IF   screen-name CP '*BR_BELNR*'
+      OR screen-name CP '*BR_BUDAT*'
+      OR screen-name CP '*BR_XBLNR*'
+      OR screen-name CP '*BR_SEQ*'.
+      screen-active = 0.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN ON br_bukrs.
+*----------------------------------------------------------------------*
+* Genau ein Buchungskreis
+  READ TABLE br_bukrs INDEX 1.
+  DESCRIBE TABLE br_bukrs LINES sy-tabix.
+  IF sy-tabix <> 1 OR br_bukrs-sign <> 'I' OR br_bukrs-option <> 'EQ'.
+    MESSAGE e264. "Genau einen Buchungskreis eingeben
+  ENDIF.
+
+AT SELECTION-SCREEN ON br_gjahr.
+* Genau ein Geschätsjahr (oder leer)
+  DESCRIBE TABLE br_gjahr LINES sy-tabix.
+  IF sy-tabix > 0.
+    READ TABLE br_gjahr INDEX 1.
+    IF sy-tabix <> 1 OR br_gjahr-sign <> 'I' OR br_gjahr-option <> 'EQ'.
+      MESSAGE e386. "Es muß genau ein Geschäftsjahr angegeben werden
+    ENDIF.
+  ENDIF.
+*---------------------------------------------------------------------
+AT SELECTION-SCREEN.
+*----------------------------------------------------------------------*
+* Belegart oder Nummernkreisintervall angeben
+  IF pa_blart IS INITIAL AND pa_numkr IS INITIAL.
+    SET CURSOR FIELD pa_blart.
+    MESSAGE e223.                      "Bitte Belegart angeben
+* Belegart und Nummernkreisintervall angegeben
+  ELSEIF NOT pa_blart IS INITIAL AND NOT pa_numkr IS INITIAL.
+    SET CURSOR FIELD pa_blart.
+    SELECT SINGLE * FROM t003 WHERE blart = pa_blart.
+    IF sy-subrc <> 0 OR pa_numkr NE t003-numkr.
+      MESSAGE e999 WITH
+  'Number range interval does not correspond to document type'(001).
+
+    ENDIF.
+* Wenn kein Nummernkreis angegeben dann via T003 mit Belegart
+  ELSEIF NOT pa_blart IS INITIAL AND pa_numkr IS INITIAL.
+    SELECT SINGLE * FROM t003 WHERE blart = pa_blart.
+    IF sy-subrc <> 0.
+      MESSAGE e388 WITH pa_blart.
+    ENDIF.
+    pa_numkr = t003-numkr.
+  ENDIF.
+
+* process after input for variant entered on screen
+*  PERFORM pai_of_selection_screen USING p_varia
+*                                  CHANGING gs_variant.
+
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+*----------------------------------------------------------------------*
+
+  b0sg-xstav = 'Z'.                    "vorerfasste (geloeschte) Belege
+  b0sg-xstas = 'X'.                    "statistische Belege
+  b0sg-xstaa = 'X'.                    "Ausgleichsbelege
+  b0sg-xstan = 'X'.                    "normale Belege selektieren
+  b0sg-xstam = 'X'.                    "Musterbelege selektieren
+  b0sg-xstad = 'X'. "Dauerbuchungsurbelege selektieren
+  b0sg-xstab = 'X'. "zurückgenommene Ausgleichbelege selektieren
+  gv_subrc   = ' '. "Initialize the variable C5053259
+
+  CALL FUNCTION 'NUMBER_RANGE_INTERVAL_LIST'
+    EXPORTING
+      nr_range_nr1 = pa_numkr
+      object       = 'RF_BELEG'
+      subobject    = br_bukrs-low
+    TABLES
+      interval     = xnriv
+    EXCEPTIONS
+      OTHERS       = 1.
+  IF sy-subrc <> 0.
+    MESSAGE e389.
+  ENDIF.
+
+  MOVE: '0'      TO bhdgd-inifl,
+    br_bukrs-low TO bhdgd-bukrs,
+    br_bukrs-low TO bhdgd-werte,
+        sy-linsz TO bhdgd-lines,    "Zeilenbreite der Liste (Reportanw.)
+        sy-uname TO bhdgd-uname,       "Benutzername (SAP-Anmeldung)
+        sy-repid TO bhdgd-repid,       "Name des ABAP-Programms
+        sy-title TO bhdgd-line1,       "Titel des ABAP-Programms
+        title    TO bhdgd-line2,       "Untertitel
+*       MI_FICHE TO BHDGD-MIFFL,       "Mikro-Fiche-Information
+*       LISTSEP  TO BHDGD-SEPAR,       "Listseparation
+        'BUKRS'  TO bhdgd-domai.
+
+  REFRESH br_belnr.
+  br_belnr-sign = 'I'. br_belnr-option = 'BT'.
+
+  DATA xnriv_fromyear LIKE xnriv-toyear.
+  CLEAR: br_gjahr, xnriv_fromyear, nr.
+  READ TABLE br_gjahr INDEX 1.
+  LOOP AT xnriv.
+    CHECK xnriv-fromnumber CO ' 0123456789'
+      AND xnriv-tonumber   CO ' 0123456789'.
+
+*   Selektion nach Geschätsjahr auf Intervallgültigkeit vergrößern
+    IF NOT br_gjahr-low IS INITIAL.
+      IF    br_gjahr-low >= xnriv_fromyear
+        AND br_gjahr-low <= xnriv-toyear.
+        br_gjahr-low    = xnriv_fromyear.
+        br_gjahr-high   = xnriv-toyear.
+        br_gjahr-sign   = 'I'.
+        br_gjahr-option = 'BT'.
+        MODIFY br_gjahr INDEX 1.
+      ELSE.
+        xnriv_fromyear = xnriv-toyear + 1.
+        CONTINUE.
+      ENDIF.
+    ENDIF.
+
+    br_belnr-low = xnriv-fromnumber.
+    IF xnriv-externind IS INITIAL.
+      br_belnr-high = xnriv-nrlevel+10(10)."Interne bis Füllstand
+    ELSE.
+      br_belnr-high = xnriv-tonumber.  "Externe komplett
+    ENDIF.
+    APPEND br_belnr.
+
+    nr-range    = xnriv-nrrangenr.
+    nr-fromyear = xnriv_fromyear.
+    nr-toyear   = xnriv-toyear.
+    nr-from     = xnriv-fromnumber.
+    IF xnriv-externind IS INITIAL.
+      nr-to = xnriv-nrlevel+10(10).    "Interne bis Füllstand
+    ELSE.
+      nr-to = xnriv-tonumber.          "Externe komplett
+    ENDIF.
+    nr-ct = nr-from + 0.               "wegen fuehrender Null
+
+    nr-fromnumber = xnriv-fromnumber.
+    nr-tonumber   = xnriv-tonumber.
+    nr-nrlevel    = xnriv-nrlevel.
+    nr-externind  = xnriv-externind.
+    APPEND nr.
+
+    xnriv_fromyear = xnriv-toyear + 1.
+  ENDLOOP.
+
+GET bkpf FIELDS bukrs belnr gjahr.
+* werden wegen vorerfasster belege nicht sortiert geliefert
+  MOVE-CORRESPONDING bkpf TO beltab.
+  APPEND beltab.
+  xsel = 'X'.
+
+*----------------------------------------------------------------------*
+END-OF-SELECTION.
+*----------------------------------------------------------------------*
+
+  SORT beltab.
+  CLEAR: belnr_prev, gjahr_prev.
+  LOOP AT beltab.
+*   Ermitteln des korrekten Nummernkreisintervalls
+    LOOP AT nr WHERE toyear >= beltab-gjahr
+                 AND from   <= beltab-belnr
+                 AND to     >= beltab-belnr.
+      tabix = sy-tabix.
+      EXIT.
+    ENDLOOP.
+    IF sy-subrc <> 0.
+      CONTINUE.
+    ENDIF.
+
+* document number numeric?                              "N782699
+    if beltab-belnr cn ' 0123456789'.                   "N782699
+      clear result.                                     "N782699
+      result-range    = nr-range.                       "N782699
+      result-fromyear = nr-fromyear.                    "N782699
+      result-toyear   = nr-toyear.                      "N782699
+      result-low      = beltab-belnr.                   "N782699
+      result-gjahr    = beltab-gjahr.                   "N782699
+      result-type     = 'A'.                            "N782699
+      append result.                                    "N782699
+      continue.                                         "N782699
+    endif.                                              "N782699
+
+    belnr = beltab-belnr + 0.          "wegen fuehrender Null
+
+*   Merken des Lueckenintervalls
+    IF nr-ct < belnr.
+      CLEAR result.
+      result-range    = nr-range.
+      result-fromyear = nr-fromyear.
+      result-toyear   = nr-toyear.
+      result-low      = nr-ct.
+      result-high     = belnr - 1.
+      result-type     = 'G'.
+      APPEND result.
+    ENDIF.
+    nr-ct = belnr + 1.
+    MODIFY nr INDEX tabix.
+
+*   Belegnummer mehrfach vergeben?
+    IF belnr_prev = belnr.
+      CLEAR result.
+      result-range    = nr-range.
+      result-fromyear = nr-fromyear.
+      result-toyear   = nr-toyear.
+      result-low      = belnr.
+      result-gjahr    = gjahr_prev.
+      result-type     = 'D'.
+      APPEND result.
+      result-gjahr  = beltab-gjahr.
+      APPEND result.
+    ELSE.
+      belnr_prev = belnr.
+      gjahr_prev = beltab-gjahr.
+    ENDIF.
+
+  ENDLOOP.
+
+* Lücke bis zum Zaehlerstand?
+  LOOP AT nr.
+    belnr = nr-from + 0.               "wegen fuehrender Null
+    CHECK belnr <> nr-ct.
+    nr-to = nr-to + 0.                 "wegen fuehrender Null
+    nr-ct = nr-ct - 1.
+    IF nr-ct <> nr-to AND nr-to <> 0.
+      result-range  = nr-range.
+      result-toyear = nr-toyear.
+      result-low    = nr-ct + 1.
+      result-high   = nr-to.
+* correction with note 562967:
+      result-type     = 'G'.
+      APPEND result.
+    ENDIF.
+  ENDLOOP.
+
+  SORT result BY range toyear low gjahr.
+
+* Ausgabe der ermittelten Luecken
+  CLEAR: belnr_prev, gjahr_prev.
+  LOOP AT result.
+    AT NEW toyear.
+      NEW-PAGE.
+      FORMAT RESET.
+    ENDAT.
+
+*    All the write statements here are commented. Instead, the data to
+*    be shown is transferred to output table gt_output for ALV display
+*    Changes begin "C5053259
+    case result-type.                                    "N782699
+*   Lücke ausgeben
+     when 'G'.                                           "N782699
+*    if result-type = 'G'.                               "N782699 (DEL)
+      IF result-low = result-high.
+*        write: /  result-low,                  27 sy-vline. "
+        MOVE result-low TO gs_output-missing_numbers_from.
+        MOVE result-range to gs_output-range.
+        MOVE result-fromyear to gs_output-from_year.
+        MOVE result-toyear to gs_output-to_year.
+        APPEND gs_output TO gt_output.
+        CLEAR gs_output.
+      ELSE.
+*        write: /  result-low, '...', result-high, 27 sy-vline.
+        MOVE result-low TO gs_output-missing_numbers_from.
+        MOVE result-high TO gs_output-missing_numbers_to.
+        MOVE result-range to gs_output-range.
+        MOVE result-fromyear to gs_output-from_year.
+        MOVE result-toyear to gs_output-to_year.
+        APPEND gs_output TO gt_output.
+        CLEAR gs_output.
+      ENDIF.
+
+*   Mehrfach vergebene Belegnummer
+     when 'D'.                                          "N782699
+*    ELSEIF result-type = 'D'.                          "N782699 (DEL)
+      IF belnr_prev NE result-low.
+*        write: /27 sy-vline, result-low, result-gjahr.
+
+        MOVE result-low TO gs_output-duplicate_number.
+        MOVE result-gjahr TO gs_output-duplicated_in_year.
+        MOVE result-range to gs_output-range.
+        MOVE result-fromyear to gs_output-from_year.
+        MOVE result-toyear to gs_output-to_year.
+        APPEND gs_output TO gt_output.
+
+*       belnr_prev = result-low.
+        belnr_prev = gs_output-duplicate_number.
+*       gjahr_prev = result-gjahr.
+        gjahr_prev = gs_output-duplicated_in_year.
+        CLEAR gs_output.
+
+      ELSEIF gjahr_prev NE result-gjahr.
+*       write result-gjahr.
+        MOVE result-gjahr TO gs_output-duplicated_in_year.
+        MOVE result-low TO gs_output-duplicate_number. "C5053259 chg
+*       gjahr_prev = result-gjahr.
+        gjahr_prev = gs_output-duplicated_in_year.
+        MOVE result-range to gs_output-range.
+        MOVE result-fromyear to gs_output-from_year.
+        MOVE result-toyear to gs_output-to_year.
+        APPEND gs_output TO gt_output.
+        CLEAR gs_output.
+      ENDIF.
+     when 'A'.                                          "N782699
+      MOVE result-gjahr TO gs_output-duplicated_in_year."N782699
+      MOVE 'alphanum.' to gs_output-missing_numbers_to. "N782699
+      MOVE result-low TO gs_output-duplicate_number.    "N782699
+      MOVE result-fromyear to gs_output-from_year.      "N782699
+      MOVE result-toyear to gs_output-to_year.          "N782699
+      MOVE result-range to gs_output-range.             "N782699
+      APPEND gs_output TO gt_output.                    "N782699
+      CLEAR gs_output.                                  "N782699
+    endcase.                                            "N782699
+*    ENDIF.                                             "N782699 (DEL)
+  ENDLOOP.
+* for gap list not found.
+  IF sy-subrc NE 0.
+    gv_subrc = gc_set_variable. "Variable is set to X indicating that
+    " no data was selected.
+  ENDIF.
+
+*    Display the ALV List Output
+  PERFORM display_list_output TABLES gt_output
+                              USING gt_fieldcat
+                                    gt_events
+                                    gs_variant.
+
+*  if sy-subrc ne 0
+*    and xsel = 'X'.
+**    write: / 'Keine Lücken vorhanden'(012).
+*  endif.
+* changes end "C5053259
+
+  IF sy-pagno = 0.                     "Keine Liste ausgegeben
+    CALL FUNCTION 'POPUP_NO_LIST'.
+  ENDIF.
+* Changes made by C5053259
+* all these statements are handled in top_of_page events
+**top-of-page.
+*
+*  perform batch-heading(rsbtchh0).
+*  uline.
+*  format color col_heading.
+*  write: / 'Nummernkreis'(010), result-range.
+*  MOVE result-range TO gs_output-range.
+*  IF NOT  result-fromyear IS INITIAL.
+*    write:   'von'(002),          result-fromyear.
+*    MOVE result-fromyear TO gs_output-from_year.
+
+*  ENDIF.
+*  write:   'bis Jahr'(011),     result-toyear,
+*         at sy-linsz space.
+*  MOVE result-toyear TO gs_output-to_year.
+
+*  read table nr with key range  = result-range
+*                         toyear = result-toyear.
+
+*  READ TABLE nr WITH KEY range  = gs_output-range
+*                         toyear = gs_output-to_year.
+*  write: / 'Intervall'(013),
+*           'Von'(002), (15) nr-fromnumber,
+*           'Bis'(003), (15) nr-tonumber.
+*  MOVE nr-fromnumber TO gs_output-from_number.
+*  MOVE nr-tonumber TO gs_output-to_number.
+
+*  if nr-externind = space.
+**    write: 'Stand'(004), nr-nrlevel+10(10).
+*    MOVE nr-nrlevel+10(10) TO gt_output_rfbnum00-current_number.
+*  else.
+**    write: 'extern'(005).
+*  endif.
+*
+*   write: at sy-linsz space.
+*  write: / 'Fehlende Belegnummern'(014), 27 sy-vline,
+*           'Mehrfach vergebene Belegnummern'(015),
+*           at sy-linsz space.
+*  uline.
+* changes made by C5053259
+
+*&---------------------------------------------------------------------*
+*&      Form  fieldcat_build
+*&---------------------------------------------------------------------*
+*    To create field catalog by passing the std.sturcture to FM.
+*----------------------------------------------------------------------*
+*      <->XT_FIELDCAT  Changing Parameter  Table for Field Cat
+*----------------------------------------------------------------------*
+FORM fieldcat_build      CHANGING xt_fieldcat
+                         TYPE slis_t_fieldcat_alv.
+
+  DATA : ls_fieldcat TYPE slis_fieldcat_alv. "Local structure of
+  "fieldcatlog
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+   EXPORTING
+*   I_PROGRAM_NAME               =
+*   I_INTERNAL_TABNAME           =
+    i_structure_name             = gc_structname
+*   I_CLIENT_NEVER_DISPLAY       = 'X'
+*   I_INCLNAME                   =
+*   I_BYPASSING_BUFFER           =
+*   I_BUFFER_ACTIVE              =
+    CHANGING
+      ct_fieldcat                  =  xt_fieldcat
+    EXCEPTIONS
+     inconsistent_interface       = 1
+     program_error                = 2
+     OTHERS                       = 3
+            .
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  LOOP AT xt_fieldcat INTO ls_fieldcat.
+
+    CASE ls_fieldcat-fieldname.
+
+      WHEN 'MISSING_NUMBERS_FROM'.
+      WHEN 'MISSING_NUMBERS_TO'.
+      WHEN  'DUPLICATE_NUMBER'.
+      WHEN  'DUPLICATED_IN_YEAR'.
+      WHEN OTHERS.
+        ls_fieldcat-tech = 'X'.
+    ENDCASE.
+    MODIFY xt_fieldcat FROM ls_fieldcat TRANSPORTING tech.
+  ENDLOOP.
+ENDFORM.                    "fieldcat_build
+*&---------------------------------------------------------------------*
+*&      Form  event_build
+*&---------------------------------------------------------------------*
+*      Subroutine to handle the TOP_OF_PAGE event
+*----------------------------------------------------------------------*
+*      <-->XT_EVENTS  Changing parameter Table for event
+*----------------------------------------------------------------------*
+FORM event_build  CHANGING xt_events TYPE slis_t_event.
+  DATA: lt_event TYPE slis_t_event.   "Local table for events
+  DATA: ls_event TYPE slis_alv_event. "Local structure for events
+
+  CALL FUNCTION 'REUSE_ALV_EVENTS_GET'
+    EXPORTING
+      i_list_type = 0
+    IMPORTING
+      et_events   = lt_event.
+
+* event end of list
+  READ TABLE lt_event WITH KEY name =  slis_ev_top_of_page
+                      INTO ls_event.
+
+  IF sy-subrc = 0.
+    MOVE gc_formname_top TO ls_event-form.
+    APPEND ls_event TO xt_events.
+  ENDIF.
+
+* event top of page
+  READ TABLE lt_event WITH KEY name =  slis_ev_end_of_list
+                    INTO ls_event.
+
+  IF sy-subrc = 0.
+    MOVE gc_formname_eol TO ls_event-form.
+    APPEND ls_event TO xt_events.
+  ENDIF.
+
+ENDFORM.                    " event_build
+
+*&---------------------------------------------------------------------*
+*&      Form  SORT_INIT
+*&---------------------------------------------------------------------*
+*      -->RT_SORT[]  text
+*----------------------------------------------------------------------*
+FORM SORT_INIT  USING    RT_SORT  TYPE SLIS_T_SORTINFO_ALV.
+  DATA: LS_SORT TYPE SLIS_T_SORTINFO_ALV WITH HEADER LINE.
+
+  CLEAR LS_SORT.
+  LS_SORT-SPOS         = '1'.
+  LS_SORT-FIELDNAME    = 'TO_YEAR'.
+  LS_SORT-TABNAME      = GD_TABNAME.
+  LS_SORT-UP           = 'X'.
+  LS_SORT-GROUP        = '* '.
+* LS_SORT-OBLIGATORY   = 'X'.
+  APPEND LS_SORT TO  RT_SORT.
+
+ENDFORM.                    " SORT_INIT
+
+
+*----------------------------------------------------------------------*
+*  FROM HANDLE_EVENT_END_OF_LIST
+*---------------------------------------------------------------------*
+FORM handle_event_end_of_list.           " # EC Called.
+
+  DATA:
+    lo_grid    TYPE REF TO cl_salv_form_layout_grid,
+    lo_row     TYPE REF TO cl_salv_form_layout_flow,
+*   lo_action  TYPE REF TO cl_salv_form_action_info,
+*   lo_header  TYPE REF TO cl_salv_form_header_info,
+    lo_text    TYPE REF TO cl_salv_form_text.
+*   lo_label   TYPE REF TO cl_salv_form_label.
+
+* Create Grid
+  CREATE OBJECT lo_grid.
+
+  IF gt_output[] is initial.
+    lo_row = lo_grid->add_row( ).
+    lo_text = lo_row->create_text( text = text-012 ).
+    cl_salv_form_content=>set( lo_grid ).
+  ENDIF.
+
+ENDFORM.                    "handle_event_end_of_list
+
+*----------------------------------------------------------------------*
+*  FROM HANDLE_EVENT_TOP_OF_PAGE
+*---------------------------------------------------------------------*
+FORM handle_event_top_of_page.           " # EC Called.
+
+  DATA: lt_listheadings TYPE slis_t_listheader,
+        ls_listheadings TYPE slis_listheader.
+
+  IF NOT gt_output IS INITIAL.
+    MOVE gt_output-range TO gs_output-range.
+    IF NOT  gt_output-from_year IS INITIAL.
+      MOVE gt_output-from_year TO gs_output-from_year.
+    ENDIF.
+
+    MOVE gt_output-to_year TO gs_output-to_year.
+
+
+    READ TABLE nr WITH KEY range  = gs_output-range
+                           toyear = gs_output-to_year.
+* no gaps found, so get header data from number range itself
+  ELSE.
+    READ TABLE nr WITH KEY toyear = br_gjahr-high.
+    IF sy-subrc <> 0.
+      READ TABLE nr INDEX 1.
+    ENDIF.
+    MOVE nr-range TO gs_output-range.
+    MOVE nr-toyear TO gs_output-to_year.
+    MOVE nr-nrlevel TO gs_output-current_number.
+  ENDIF.
+
+  MOVE nr-fromnumber TO gs_output-from_number.
+  MOVE nr-tonumber TO gs_output-to_number.
+
+* Number Range
+  CLEAR ls_listheadings.
+  ls_listheadings-typ  = gc_listheading_type. "'S'
+  ls_listheadings-key  = text-010.
+  IF NOT gt_output-from_year IS INITIAL.
+
+    CONCATENATE  gt_output-range text-002 gt_output-from_year text-011
+                                   gt_output-to_year
+                                   INTO ls_listheadings-info
+                                   SEPARATED BY space.
+
+    APPEND ls_listheadings TO lt_listheadings.
+  ELSE.
+    IF NOT gt_output-range is initial.
+      CONCATENATE gt_output-range text-011 gt_output-to_year
+                   INTO ls_listheadings-info
+                   SEPARATED BY space.
+    ELSE.
+      CONCATENATE gs_output-range text-011 gs_output-to_year
+             INTO ls_listheadings-info
+             SEPARATED BY space.
+    ENDIF.
+    APPEND ls_listheadings TO lt_listheadings.
+
+  ENDIF.
+
+
+* Interval Of Numbers
+  CLEAR ls_listheadings.
+  ls_listheadings-typ  = gc_listheading_type. "'S'
+  ls_listheadings-key  = text-013.
+  CONCATENATE  text-002 nr-fromnumber text-003 nr-tonumber
+                              INTO ls_listheadings-info
+                              SEPARATED BY space.
+  APPEND ls_listheadings TO lt_listheadings.
+
+* for Number
+  CLEAR ls_listheadings.
+  ls_listheadings-typ  = gc_listheading_type. "'S'
+
+  IF NOT GT_OUTPUT IS INITIAL.
+    IF nr-externind = space.
+      ls_listheadings-key  = text-016.
+      ls_listheadings-info = nr-nrlevel+10(10).
+    ELSE.
+      ls_listheadings-key  = text-016.
+      ls_listheadings-info = text-005.
+    ENDIF.
+    APPEND ls_listheadings TO lt_listheadings.
+  ENDIF.
+
+
+** for gap list not found.
+  IF gv_subrc EQ gc_set_variable
+    AND xsel = 'X'.
+    CLEAR ls_listheadings.
+    ls_listheadings-typ  = gc_listheading_type. "'S'
+    ls_listheadings-info = text-012.
+
+    APPEND ls_listheadings TO lt_listheadings.
+  ENDIF.
+
+  CALL FUNCTION 'FAGL_BATCH_HEADING_PERFORM'
+    EXPORTING
+      is_bhdgd = bhdgd.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = lt_listheadings.
+
+ENDFORM.                    "HANDLE_TOP_OF_PAGE
+*&---------------------------------------------------------------------*
+*&      Form  inital_variant
+*&---------------------------------------------------------------------*
+*       initialize the variant.
+*----------------------------------------------------------------------*
+*        <--> xv_variant  Initial Variant variable
+*----------------------------------------------------------------------*
+FORM initial_variant CHANGING xv_variant TYPE disvariant .
+
+  CLEAR gs_variant.
+  xv_variant-report = gv_repid.
+
+ENDFORM.                    " initial_variant
+
+*&---------------------------------------------------------------------*
+*&      Form  get_default_variant
+*&---------------------------------------------------------------------*
+*      To get the default variant
+*----------------------------------------------------------------------*
+*      <-->XS_VARIANT  default variant is obtained in this field
+*----------------------------------------------------------------------*
+FORM get_default_variant  CHANGING xs_variant TYPE disvariant.
+
+*  CALL FUNCTION 'REUSE_ALV_VARIANT_DEFAULT_GET'
+*    EXPORTING
+*      i_save     = gv_save
+*    CHANGING
+*      cs_variant = xs_variant
+*    EXCEPTIONS
+*      not_found  = 2.
+*  IF sy-subrc = 0.
+*    p_varia = xs_variant-variant.
+*  ENDIF.
+
+ENDFORM.                    " get_default_variant
+*&---------------------------------------------------------------------*
+*&      Form  f4help_for_variant
+*&---------------------------------------------------------------------*
+*      Provide F4 help for variant.
+*----------------------------------------------------------------------*
+*      <->  XV_VARIA Display Variant
+*----------------------------------------------------------------------*
+FORM f4help_for_variant CHANGING xv_varia TYPE slis_vari.
+  .
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant = gs_variant
+      i_save     = gv_save
+    IMPORTING
+      e_exit     = gv_exit
+      es_variant = gs_variant
+    EXCEPTIONS
+      not_found  = 2.
+
+  IF sy-subrc = 2.
+    MESSAGE ID sy-msgid TYPE 'S'      NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.
+    IF gv_exit = space.
+      xv_varia = gs_variant-variant.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " f4help_for_variant
+*&---------------------------------------------------------------------*
+*&      Form  PAI_OF_SELECTION_SCREEN
+*&---------------------------------------------------------------------*
+*       Existence Check for the variant option entered by user
+*----------------------------------------------------------------------*
+*    <-->XV_VARIANT Display variant.
+*----------------------------------------------------------------------*
+FORM pai_of_selection_screen USING iv_varia TYPE slis_vari
+                             CHANGING xv_variant TYPE disvariant  .
+
+  IF NOT iv_varia IS INITIAL.
+    MOVE iv_varia TO xv_variant-variant.
+
+    CALL FUNCTION 'REUSE_ALV_VARIANT_EXISTENCE'
+      EXPORTING
+        i_save     = gv_save
+      CHANGING
+        cs_variant = xv_variant.
+  ELSE.
+    PERFORM initial_variant CHANGING xv_variant.
+  ENDIF.
+
+ENDFORM.                    " PAI_OF_SELECTION_SCREEN
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_LIST_OUTPUT
+*&---------------------------------------------------------------------*
+*       Display the output through ALV List
+*----------------------------------------------------------------------*
+*
+*          IT_OUTPUT   Internal table containing output data
+*          IT_fieldcat Internal table for Field Catalog
+*          IT_EVENTS   Internal Table for Events
+*          IS_VARIANT  Sturcture for Dispaly Variant
+*----------------------------------------------------------------------*
+FORM display_list_output
+                        TABLES it_output  STRUCTURE fagl_s_rfbnum00_list
+                         USING it_fieldcat TYPE slis_t_fieldcat_alv
+                               it_events TYPE slis_t_event
+                               is_variant TYPE disvariant.
+
+  CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+    EXPORTING
+      i_callback_program = gv_repid
+      it_sort            = gt_sort[]
+      it_fieldcat        = it_fieldcat
+      is_variant         = is_variant
+      i_save             = gc_save_all
+      it_events          = it_events
+    TABLES
+      t_outtab           = it_output
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    " DISPLAY_LIST_OUTPUT
+
+*Text elements
+*----------------------------------------------------------
+* 001 Number range interval does not correspond to document type
+* 002 of
+* 003 To
+* 004 Number
+* 005 External Number Assignment
+* 010 Number range
+* 011 to year
+* 012 No gaps exist
+* 013 Interval
+* 014 Missing Document Numbers
+* 015 Document Numbers Assigned More Than Once
+* 016 Number Range Status
+
+
+*Selection texts
+*----------------------------------------------------------
+* PA_BLART         Document type
+* PA_NUMKR         Number range
+* P_VARIA D       Layout
+* TITLE         Additional heading
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

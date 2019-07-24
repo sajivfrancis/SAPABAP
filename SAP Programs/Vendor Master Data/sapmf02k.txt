@@ -1,0 +1,1042 @@
+*-----------------------------------------------------------------------
+*        Report-Header / Tabellen / Daten / Field-Symbols
+*-----------------------------------------------------------------------
+         INCLUDE MF02KTOP.
+
+*-----------------------------------------------------------------------
+*        Module
+*-----------------------------------------------------------------------
+         INCLUDE MF02KO00.
+         INCLUDE MF02KI00.
+
+*-----------------------------------------------------------------------
+*        FORM-Routinen  (alphabetisch)
+*-----------------------------------------------------------------------
+         INCLUDE MF02KFA0.
+         INCLUDE MF02KFB0.
+         INCLUDE MF02KFC0.
+         INCLUDE MF02KFD0.
+         INCLUDE MF02KFE0.
+         INCLUDE MF02KFEX.  "User-Exit
+         INCLUDE MF02KFF0.
+         INCLUDE MF02KFG0.
+         INCLUDE MF02KFH0.
+         INCLUDE MF02KFI0.
+         INCLUDE MF02KFK0.
+         INCLUDE MF02KFL0.
+         INCLUDE MF02KFM0.
+         INCLUDE MF02KFN0.
+         INCLUDE MF02KFO0.
+         INCLUDE MF02KFR0.
+         INCLUDE MF02KFS0.
+         INCLUDE MF02KFT0.
+         INCLUDE MF02KFV0.
+         INCLUDE MF02KFX0.
+         INCLUDE MF02KFZ0.
+
+*-----------------------------------------------------------------------
+*        Module Einkauf
+*-----------------------------------------------------------------------
+         INCLUDE MF02KO0M.
+         include WSTR_MF02KI0M.     "Holds store grouping for Purchasing
+         include WSTR_MF02KI0M_1351. "Holds store grouping for Purchas
+         INCLUDE MF02KI0M.
+
+*-----------------------------------------------------------------------
+*        FORM-Routinen  Einkauf (alphabetisch)
+*-----------------------------------------------------------------------
+         INCLUDE MF02KFMA.
+         INCLUDE MF02KFMB.
+         INCLUDE MF02KFMC.
+         INCLUDE MF02KFMD.
+         INCLUDE MF02KFME.
+         INCLUDE MF02KFMF.
+         INCLUDE MF02KFMH.
+         INCLUDE MF02KFMI.
+         include WSTR_MF02KFMK_369. "Holds store grouping for Purchasing
+         INCLUDE MF02KFMK.
+         include WSTR_MF02KFML. "Holds store grouping for Purchasing
+         INCLUDE MF02KFML.
+         INCLUDE MF02KFMM.
+         INCLUDE MF02KFMN.
+         include WSTR_MF02KFMO. "Holds store grouping for Purchasing
+         INCLUDE MF02KFMO.
+         INCLUDE MF02KFMP.
+         INCLUDE MF02KFMR.
+         INCLUDE MF02KFMS.
+         INCLUDE MF02KFMT.
+         INCLUDE MF02KFMU.
+         INCLUDE MF02KFMV.
+         INCLUDE MF02KFMW.
+         INCLUDE MF02KFMX.
+         INCLUDE MF02KFMZ.
+
+*---------------------------------------------------------------------*
+*        Gemeinsame Form-Routinen fuer Debitor (SAPMF02D) und Kreditor
+*        (SAPMF02K)
+*---------------------------------------------------------------------*
+         include MF02DK_COMMON_FORM0.                       " \TP 889691
+
+*---------------------------------------------------------------------*
+*        Special includes for South America (J_1A0018, J_1A0006)
+*---------------------------------------------------------------------*
+*        include mj1a02ko.                       "PBO modules
+*        include mj1a02ki.                       "PAI modules
+
+
+*---------------------------------------------------------------------*
+*        Schnittstelle Betriebestamm
+*---------------------------------------------------------------------*
+         INCLUDE MF02KBET.
+
+*---------------------------------------------------------------------*
+*        Schnittstelle D&B
+*---------------------------------------------------------------------*
+         INCLUDE DBGFTC03.
+ENHANCEMENT-POINT SAPMF02K_03 SPOTS ES_SAPMF02K STATIC.
+
+*---------------------------------------------------------------------*
+*        ADD_ON-Änderungen
+*        ADD-ON-Includes
+*---------------------------------------------------------------------*
+         INCLUDE MF02K_ADD_ON_F01.
+         INCLUDE MF02K_ADD_ON_PAI.
+         INCLUDE MF02K_ADD_ON_PBO.
+
+***********************************************************************
+*       Include of Industry Solutions (IIS)                           *
+***********************************************************************
+INCLUDE MF02KIIS.
+
+INCLUDE MF02KFASHI01.
+
+*INCLUDE MF02K_FSSC01.
+
+INCLUDE MF02K_FSSC01.
+
+INCLUDE MF02K_IAVF01.
+
+*INCLUDE MF02K_IAV_O01.
+
+*INCLUDE MF02K_IAV_I01.
+
+INCLUDE MFSUSTTOP.
+
+INCLUDE SAPJ1BXK01.
+
+INCLUDE mf02k_type_ahead_0320o01.
+
+** start_EoP_adaptation
+** Read back internal guideline note 1998910 before starting delivering a correction
+INCLUDE mf02k_cvp_ilm_checki01.              "EoP NPUT modules
+INCLUDE ERP_CVP_I1_X_TRX0007 IF FOUND.       "EoP FORMs
+** end_EoP_adaptation
+
+*GUI Texts
+*----------------------------------------------------------
+* BRTAX --> Brazilian Tax Data
+* P00 --> Positionieren
+* T00 --> Kreditor $: Einstieg $
+* T01 --> Kreditor $: $ $
+* T02 --> Kontengruppe ändern
+* T03 --> Kreditor anlegen: &1
+* T04 --> Kreditor ändern: &1
+* T05 --> Kreditor anzeigen: &1
+* W01 --> Verwaltungsdaten
+* W02 --> Kreditor: Duplikate anzeigen
+* W03 --> Kontengruppen und Nummernkreise
+* W04 --> Kontengruppe ändern: Kritische Feldgruppen
+* W05 --> Buchungskreise und Einkaufsorganisationen zum Kreditor
+* W06 --> Abweichende Daten
+* W07 --> Partnerrollen
+* W08 --> Teilsortimente
+* W09 --> Anlegen abweichende Daten
+* W10 --> Übersicht Partnerrollen
+* W11 --> Einkaufsinfosätze
+* W12 --> Übersicht Einkaufsdaten
+* W13 --> Besuchszeiten
+* W14 --> Detail Partner
+* W15 --> Vorschlagsdaten Debitor
+* W16 --> Erweitern Debitor
+* WF1 --> Zahlwege
+* WPA --> Partner auswählen
+* WVA --> Vorschlagswerte durchreichen
+* BRTAX --> Brazilian Tax Data
+* P00 --> Position Cursor
+* T00 --> $ Vendor: $ Initial Screen
+* T01 --> $ Vendor: $ $
+* T02 --> Change Account Group
+* T03 --> Create Vendor: &1
+* T04 --> Change Vendor: &1
+* T05 --> Display Vendor: &1
+* W01 --> Administrative Data
+* W02 --> Vendor: Display Duplicates
+* W03 --> Account Groups and Number Ranges
+* W04 --> Change Account Group: Critical Field Groups
+* W05 --> Company Codes and Purchasing Organizations for Vendor
+* W06 --> Alternative Data
+* W07 --> Partner Functions
+* W08 --> Sub-Ranges
+* W09 --> Create different data
+* W10 --> Partner Functions Overview
+* W11 --> Purchasing Info Records
+* W12 --> Overview Purchasing Data
+* W13 --> Visiting Hours
+* W14 --> Partner Details
+* W15 --> Customer Default Data
+* W16 --> Extend Customer
+* WF1 --> Payment Methods
+* WPA --> Choose Partner
+* WVA --> Pass on Default Values
+* BRTAX --> Données fiscales Brésil
+* P00 --> Positionner
+* T00 --> Fournisseur $ : écran initial $
+* T01 --> $ fournisseur: $ $
+* T02 --> Modifier groupe de comptes
+* T03 --> Créer fournisseur : &1
+* T04 --> Modifier fournisseur : &1
+* T05 --> Afficher fournisseur : &1
+* W01 --> Données gestion
+* W02 --> Fournisseur : afficher duplicatas
+* W03 --> Groupes de comptes et tranches de numéros
+* W04 --> Modifier groupe de comptes : groupes de zones critiques
+* W05 --> Sociétés et organisations d'achat pour fournisseur
+* W06 --> Données divergentes
+* W07 --> Rôles partenaire
+* W08 --> Sous-gammes
+* W09 --> Créer données divergentes
+* W10 --> Synth. fonctions parten.
+* W11 --> Fiches infos-achats
+* W12 --> Synthèse données achats
+* W13 --> Heures de visite
+* W14 --> Détail partenaire
+* W15 --> Données par défaut client
+* W16 --> Détailler client
+* WF1 --> Modes de paiement
+* WPA --> Sélectionner partenaire
+* WVA --> Communiquer valeurs par défaut
+* BRTAX --> Dati fiscali Brasile
+* P00 --> Posizionare
+* T00 --> Fornitore $: accesso $
+* T01 --> Fornitore $: $ $
+* T02 --> Modificare gr. conti
+* T03 --> Creare fornitore: &1
+* T04 --> Modificare fornitore: &1
+* T05 --> Visualizzare fornitore: &1
+* W01 --> Dati di gestione
+* W02 --> Fornitore: vis. duplicati
+* W03 --> Gruppi di conti e range di numerazione
+* W04 --> Modificare gruppo conti: gruppi campi critici
+* W05 --> Società e organizzazioni acquisti per cliente
+* W06 --> Dati divergenti
+* W07 --> Ruoli partner
+* W08 --> Assortimenti parziali
+* W09 --> Creare dati divergenti
+* W10 --> Riepilogo ruoli partner
+* W11 --> Record inf. acquisti
+* W12 --> Riepilogo dati acquisto
+* W13 --> Orari di visita
+* W14 --> Dettaglio partner
+* W15 --> Dati default cliente
+* W16 --> Ampliare cliente
+* WF1 --> Modalità di pagamento
+* WPA --> Selezionare partner
+* WVA --> Trasmettere valori default
+* BRTAX --> #########
+* P00 --> ######
+* T00 --> $ ###: $ ####
+* T01 --> ### $ : $ $
+* T02 --> ########
+* T03 --> #####: &1
+* T04 --> #####: &1
+* T05 --> #####: &1
+* W01 --> #####
+* W02 --> ###: #######
+* W03 --> ###########
+* W04 --> ########: ########
+* W05 --> ################
+* W06 --> #####
+* W07 --> #####
+* W08 --> ###
+* W09 --> #######
+* W10 --> #######
+* W11 --> ####
+* W12 --> #######
+* W13 --> ####
+* W14 --> #####
+* W15 --> ########
+* W16 --> #####
+* WF1 --> ####
+* WPA --> #####
+* WVA --> #####
+* BRTAX --> Dados fiscais brasileiros
+* P00 --> Posicionar
+* T00 --> $ Fornecedor: 1ª tela $
+* T01 --> $ Fornecedor: $ $
+* T02 --> Modificar grupo de contas
+* T03 --> Criar fornecedor: &1
+* T04 --> Modificar fornecedor: &1
+* T05 --> Exibir fornecedor: &1
+* W01 --> Dados administrativos
+* W02 --> Fornecedor: exibir duplicados
+* W03 --> Grupos de contas e intervalos de numeração
+* W04 --> Modificar grupo de contas: grupos de campos críticos
+* W05 --> Empresas e organizações de compras do fornecedor
+* W06 --> Dados diferentes
+* W07 --> Funções do parceiro
+* W08 --> Subsortimentos
+* W09 --> Criar dados diferentes
+* W10 --> Síntese das funções do parceiro
+* W11 --> Registros info para compras
+* W12 --> Síntese dados de compras
+* W13 --> Horários de visita
+* W14 --> Detalhes parceiro
+* W15 --> Dados propostos cliente
+* W16 --> Aumentar cliente
+* WF1 --> Formas de pagamento
+* WPA --> Selecionar parceiro
+* WVA --> Transmitir valores propostos
+* BRTAX --> Datos de impuestos Brasil
+* P00 --> Posicionar
+* T00 --> Acreedor $: Acceso $
+* T01 --> Acreedor $: $ $
+* T02 --> Modificar grupo de cuentas
+* T03 --> Crear acreedor: &1
+* T04 --> Modificar acreedor: &1
+* T05 --> Visualizar acreedor: &1
+* W01 --> Datos de gestión
+* W02 --> Acreedor: visualizar duplicados
+* W03 --> Grupos de cuentas y rangos de números
+* W04 --> Modificar grupo de cuentas: Grupos (críticos) de campos
+* W05 --> Sociedades y organizaciones de compras p.acreedor
+* W06 --> Datos divergentes
+* W07 --> Funciones de interlocutor
+* W08 --> Gamas parciales productos
+* W09 --> Crear datos divergentes
+* W10 --> Resumen funciones interlocutor
+* W11 --> Registros info de compras
+* W12 --> Resumen datos de compras
+* W13 --> Horarios de visita
+* W14 --> Info det.interloc.
+* W15 --> Datos propuestos cliente
+* W16 --> Ampliar cliente
+* WF1 --> Vías de pago
+* WPA --> Seleccionar interlocutor
+* WVA --> Transferir valores propuestos
+* BRTAX --> Brezilya vergi verileri
+* P00 --> Konumland#r
+* T00 --> Sat#c# $: Ba#lang#ç ekran# $
+* T01 --> Sat#c# $: $ $
+* T02 --> Hesap grubunu de#i#tir
+* T03 --> Sat#c#y# yarat: &1
+* T04 --> Sat#c#y# de#i#tir: &1
+* T05 --> Sat#c#y# görüntüle: &1
+* W01 --> Yönetim verileri
+* W02 --> Sat#c#: Çiftleri görüntüle
+* W03 --> Hesap gruplar# ve numara alanlar#
+* W04 --> Hesap gruplar# de#i#ikli#i: Kritik alan gruplar#
+* W05 --> Sat#c#ya ili#kin #irket kodu ve sat#nalma organizasyonu
+* W06 --> Alternatif veriler
+* W07 --> Muhatap rolleri
+* W08 --> Alt ürün yelpazeleri
+* W09 --> Alternatif verileri yarat
+* W10 --> Muhatap rollerine genel bak##
+* W11 --> Sat#nalma bilgi kay#tlar#
+* W12 --> Sat#nalma verilerine genel bak##
+* W13 --> Ziyaret saatleri
+* W14 --> Muhatap ayr#nt#lar#
+* W15 --> Mü#teri için veri önerileri
+* W16 --> Mü#teriye ili#kin geli#tirmeler
+* WF1 --> Ödeme biçimleri
+* WPA --> Muhatap seçimi
+* WVA --> Varsay#lan de#erlerin aktar#m#
+
+*Text elements
+*----------------------------------------------------------
+* 011 Line 1
+* 012 Line 2
+* 013 Line 3
+* 100 Delete Bank Details
+* A10 Address
+* A20 Control
+* A21 VAT Registration No.
+* A22 Additional VAT Registration Numbers
+* A30 Payment transactions
+* A31 Alternative payee
+* A32 IBAN
+* A40 Contact persons
+* A60 Tax categories
+* D00 Processing of duplicates
+* D01 Do you want to expand the master data for vendor &1 with
+* D02 additional organizational units, or change the existing master data?
+* D03 You are exiting processing without saving
+* D11 Do you want to exit processing without saving and continue
+* D12 maintenance of master data for vendor &1?
+* EML With E-mail
+* F01 Additional components...
+* F10 Accounting information
+* F15 Payment transactions
+* F20 Correspondence
+* F21 Dunning areas
+* F61 Withholding tax
+* F70 Sustainability
+* INT INTERNAL
+* K01 on
+* M00 Central             ;;
+* M01 For Accounting
+* M02 For Purchasing
+* M12 Conditions
+* M13 VSR
+* M14 Ord.Cncy
+* M15 PmntTrm
+* M16 Incoterms
+* M17 Min. PO value
+* M18 SchmGrp
+* M19 PrDat
+* M20 Control data part 1
+* M21 GR
+* M22 Auto
+* M23 Confrm
+* M24 Subs.
+* M25 BV
+* M26 ABC
+* M27 Sale
+* M28 Inbound
+* M29 IV
+* M30 Delivery
+* M31 Req.
+* M32 POrd
+* M33 Settl.
+* M34 Comp
+* M35 ID
+* M36 Brnch
+* M37 CstOfC
+* M38 Buyer
+* M39 group
+* M40 Sales data
+* M41 Salesperson
+* M42 Tel.no.
+* M43 Default data material
+* M44 Plnnd del.
+* M45 Planning
+* M46 MRP
+* M47 time
+* M48 MRP Cont.
+* M49 calendar
+* M50 Freq.
+* M51 Service data
+* M52 Ticketing
+* M53 Rack-
+* M54 PO entry
+* M55 Vendor
+* M56 jobbing
+* M57 Plnt
+* M60 Auto
+* M61 Price
+* M62 Natural
+* M63 dtr
+* M64 in kind
+* M65 Confrm
+* M66 Ctrl
+* M67 Set.Ind.
+* M68 DocInd
+* M69 Sort
+* M70 Subs.
+* M71 active
+* M72 Crit
+* M73 Round
+* M74 Unit
+* M75 Profl.
+* M76 Group
+* M77 Ret.
+* M78 Vers
+* M79 Delivery
+* M80 cycle
+* M81 POrg level
+* M82 VSR level
+* M83 PlantLevel
+* M84 Order opt. rest
+* M85 Service
+* M86 level
+* M87 Acc. with vendor
+* M88 Control data part 2
+* M89 Auto
+* M90 Returns
+* M91 Creat
+* M92 Profl.
+* M93 Color
+* M94 Suppressed or not present at this level
+* M95 Relev.
+* M96 New
+* M97 PROACT
+* M98 Agency
+* M99 val.
+* N01 Vers
+* N02 Con
+* N03 Sr-bsd
+* N04 IV
+* O01 Enhance
+* O02 Change
+* O03 Yes
+* O04 No
+* P01 Exit vendor
+* P02 Should the data be                                                    ;;  --> P03
+* P03 saved first?                                                          ;;
+* P04 Other vendor
+* P05 Back
+* P06 Editing will be ended
+* P07 Last data screen reached
+* P08 No data was changed
+* P09 Do you want to exit editing                                           ;;  --> P10
+* P10 of this vendor?
+* P11 Do you want to exit the
+* P12 of this vendor?
+* P13 Cancel vendor
+* P14 Do you want to quit                                                   ;;  --> P15
+* P15 editing for this vendor?                                              ;;
+* P16 Do you want to quit editing                                           ;;  --> P17
+* P17 of this screen?                                                       ;;
+* P21 Contact person: &1 &2
+* P22 Home Address
+* P23 Business address
+* P24 Cancel contact person
+* P25 Do you want to exit editing                                           ;; ->P26
+* P26 for this contact person?
+* P30 You are not authorized                                                ;; ->P31
+* P31 to change vendor data other than the                                  ;; ->P32
+* P32 account group.
+* P33 Change account group
+* P34 Do you want to save the vendor                                        ;; ->P35
+* P35 with the new account group?
+* P39 Number of entries
+* P40 You cannot make this change because the new account group   ;; ->P41
+* P41 results in the following field groups being switched off:
+* P42 The following field groups must be maintained, as
+* P43 the change has made them mandatory fields:
+* P44 ... when changes made to acc. grp, this is to be maint. for
+* P45 dummy
+* P46 dummy
+* P47 dummy
+* T00 Vendor
+* T01 Create
+* T02 Change
+* T03 Display
+* T04 Block/Unblock
+* T05 Flag for Deletion
+* T13 Confirm Change
+* T14 General Data
+* T15 Company Code Data
+* T16 Purchasing Organization Data
+* T17 General Data (Enhanced)
+* T18 Company Code Data (Enhanced)
+* T19 Purchasing Organization Data(Enhanced)
+* T20 Accounting
+* T30 Purchasing
+* T40 Vendor Name
+* T41 Vendor Location
+* T50 Details
+* T51 Block Data
+* T52 Deletion flags
+* T53 Confirm. of change
+* UNB Unknown
+* V01 Confirmed
+* V02 To be confirmed
+* V03 Rejected
+* VER Cust.
+* W01 VSR
+* W02 Plant
+* W03 Dif. Purch. Data
+* W05 Not assigned to a sub-range
+* W06 Material
+* W07 Purch. Org.
+* W08 Sub-range
+* W09 Purchasing organization
+* W10 Vendor
+* W11 Purchasing data
+* W12 Business partner
+* W13 Partner function
+* W14 Data maint. level
+* W15 Should the VSR
+* W16  be deleted?
+* W17 Are you sure you want to delete the VSRs indicated?
+* W18 Are you sure you want to delete the supply regions indicated?
+* W19 Should the supply region
+* W20 Supply region
+* W21 Partner functions
+* W22 VSR-/Plant Relev.
+* W23 Do you want to create the dif.
+* W24 Purchasing block
+* W25 data?
+* W26 Different data
+* W27 Create different data
+* W28 There is no other                                                     ;; ->W29
+* W29 is defined
+* W30 Do you want to transfer                 ;; ->W31
+* W31 the updated material default data
+* W32 to material master records?
+* W36 Name
+* W37 VSR:
+* W41 Multiling'l maint: vendor sub-range
+* W42 Should the VSR description be
+* W43 to the purchasing info records?
+* W44 Should changed default data be passed
+* W45 to purchasing info records and
+* W46 material master records?
+* W47 Should the change to &
+* W48 be scheduled?
+* W49 Contact Persons
+* W50 Should the partner
+* W51  be deleted?
+* W52 Plan
+* W53 Activate
+* W54   Name
+* W55 Vendor Subrange
+* W56 Partn.functn
+* W58 Plnt
+* W59 Display in future
+* W60 From
+* W61 Vendor is already created
+* W62 Copy vendor?
+* W63 Field changes
+* W64 Account changes
+* W65 planned field changes
+* W66 planned account changes
+* W67 All fields
+* W68 Sensitive fields
+* W69 No (Additional) Enhancement Active
+* X01 Monday morning from
+* X02 Monday morning to
+* X03 Tuesday morning from
+* X04 Tuesday morning to
+* X05 Wednesday morning from
+* X06 Wednesday morning to
+* X07 Thursday morning from
+* X08 Thursday morning to
+* X09 Friday morning from
+* X10 Friday morning to
+* X11 Saturday morning from
+* X12 Saturday morning to
+* X13 Sunday morning from
+* X14 Sunday morning to
+* X20 Monday afternoon from
+* X21 Monday afternoon to
+* X22 Tuesday afternoon from
+* X23 Tuesday afternoon to
+* X24 Wednesday afternoon from
+* X25 Wednesday afternoon to
+* X26 Thursday afternoon from
+* X27 Thursday afternoon to
+* X28 Friday afternoon from
+* X29 Friday afternoon to
+* X30 Saturday afternoon from
+* X31 Saturday afternoon to
+* X32 Sunday afternoon from
+* X33 Sunday afternoon to
+* XA1 Created By (General Data)
+* XA2 Created On (General Data)
+* XF1 Created By (Company Code Data)
+* XF2 Created On (Company Code Data)
+* XM1 Created By (Purchasing Data)
+* XM2 Created On (Purchasing Data)
+* Z01 of
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 00
+*172   You are not authorized to use Transaction &
+*
+* Message class: 8B
+*014   Vendor master record with the same tax number already exists
+*
+* Message class: AM
+*049   Person could not be deleted as it is still used.
+*214   Country key & is not defined
+*
+* Message class: BF00
+*013   Bank number and bank account number cannot be generated
+*121   Bank data does not exist for bank country & bank key &
+*211   Bank & & does not exist
+*
+* Message class: CL
+*570   No allocations found
+*
+* Message class: CVP_DP_ILM
+*008   Customer &1 is blocked; see long text
+*009   Contact person &1 is blocked; see long text
+*015   Vendor &1 is blocked; see long text
+*023   Vendor &1 with company code &2 is blocked; see long text
+*075   Vendor &1 is blocked; see long text
+*076   Vendor &1 with company code &2 is blocked; see long text
+*077   Cannot confirm changes for vendor &1; see long text
+*078   Cannot confirm changes for vendor &1 with company code &2; see long text
+*
+* Message class: F2
+*002   Account &1 does not exist
+*003   Account &1 is a one-time account
+*007   Account &1 already exists
+*008   System error, further processing not possible
+*009   Bank details do not exist
+*011   Account is a branch: Agree local processing with head office
+*012   Place the cursor on a data field
+*013   Country &1 not defined in system.
+*014   Selected screen suppressed by screen control
+*015   Trading partner &1 is not defined
+*016   Language &1 is not defined
+*017   Place the cursor on a selection field
+*018   Select at least one processing option
+*019   Place the cursor on the account to be displayed
+*020   None of the fields to be edited exist
+*021   Enter a purchasing organization
+*022   Enter a company code and a purchasing organization
+*023   Enter account number of account to be displayed
+*025   Select bank details
+*026   Bank no longer exists in the bank table; check
+*027   System error when reading bank table
+*029   Sort key & is not defined
+*030   Purchasing organization &1 assigned to company code &2, not &3
+*031   Region & is not defined for country &
+*032   Interest indicator & is not defined
+*033   Account is a branch; select clearing at head office
+*034   Currency key & is not defined
+*035   No changes were made
+*036   General data already exists. Account has account group &1
+*037   Acct group &1 uses ext. no. assignment. Specify an account number
+*038   System lock error: Inform system administrator
+*039   Number range &1 has external number assignment
+*040   Number range object &1 is not defined in table TNRO
+*041   Specify the account group
+*042   Account &1 is currently blocked by user &2
+*043   Enter a number between & and &
+*044   Number range & is not defined for object &
+*045   Purchasing organization & is not defined
+*046   Account group & is not defined in table &
+*047   Account group & uses internal numbering assignments; leave number blank
+*048   A number range is not assigned to account group &
+*049   Bank details have been duplicated
+*050   Action type & (table T020) is not supported
+*051   Dunning area & already exists
+*052   Screen class & (table T020) is not supported
+*053   Action type in table T020 incorrect. Enter action type 'V'
+*054   Allocate number from the critical area
+*055   Allocate last number of the interval
+*056   Changes have been made
+*058   Screen layout is not defined for company code &
+*059   Do not enter the current account for the tax address
+*060   Do not enter the current account for the head office
+*061   Check: Table &1 does not exist, table &2 does
+*062   Do not enter central data for one-time accounts
+*063   Do not specify this account as the alternative payee
+*064   Account & & is itself a branch account
+*065   Specify a reference account number
+*066   Account & & is itself an account with an alternative payee
+*067   Account has been posted to; hold balance sheet adjustment
+*068   Account &1 is an invalid reconciliation account in company code &2
+*069   Assignment of customer number &1 is not defined
+*070   Company code & is not defined for purchasing organization &
+*072   Payment method & is not defined for country &
+*073   Up to 10 payment methods are possible
+*074   No clearing account has been entered
+*075   Clearing indicator is not set in clearing account &1 &2
+*076   Country & is not defined for purchasing organization
+*077   Customer & & does not exist
+*078   Material &1 does not exist
+*081   G/L account & does not exist in company code &
+*082   No previous screen exists
+*083   Head office & & does not exist
+*084   Alternative payee & & does not exist
+*086   Alternative payee &1 is a one-time account
+*087   Do not enter current account for alternative dunning recipient
+*088   Alternative dunning recipient &1 &2 does not exist
+*089   Alternative dunning recipient &1 is a one-time account
+*090   No dunning settings have been maintained for company code &
+*091   Dunning procedure & is not defined
+*092   Define dunning procedure or cancel all dunning data
+*093   Dunning data was cancelled
+*094   Specify dunning procedure before entering dunning areas
+*095   Dunning area data exists; check
+*096   Specify a dunning level between 0 and 9
+*097   Complete country key field
+*098   Complete bank key field
+*100   In table &, the entry & & & is missing
+*102   System error on reading internal table DYNTAB, screen no. &1
+*104   System error on reading internal table DYNTAB. XLAST not set
+*105   System error on reading internal table DYNTAB. Start screen not found
+*106   Enter at least one set of bank details
+*108   Do not enter a bank key
+*111   Account number incorrect. Check your entry
+*112   Reference account number incorrect. Check your entry
+*113   No additional addresses are maintained for vendor &
+*117   Delete all dunning area data first
+*118   Only delete the default dunning data on the 'correspondence' screen
+*122   Date is in the future; correct
+*123   Date is in the past; correct
+*126   Enter bank country
+*128   Vendor & is marked for deletion
+*129   Vendor & is marked for deletion in company code &
+*130   Vendor & is marked for deletion in purch.organization &
+*135   Vendor & has open items in company code &
+*136   Vendor & (head office &) has open items in comp.code &
+*140   VAT reg.no. already exists for country &
+*141   Country & is not an EC member
+*142   Enter VAT registration number
+*143   Maintain VAT registration no.for country & on the previous screen
+*146   Jurisdiction code entered deviates from calculated one (&)
+*147   Instruction key &1 does not exist
+*148   Jurisdiction code was proposed by external tax system
+*149   Jurisdiction code for procedure & is calculated by external system
+*161   Vendor & already exists
+*162   Vendor &1 already exists for company code &2
+*163   Vendor & has not been created
+*164   Vendor &1 has not been created for company code &2
+*165   Vendor &1 has not been created for purchasing organization &2
+*166   Vendor &1 already exists for purchasing organization &2
+*167   Vendor &1 already exists for company code &2 and purchasing organizatn &3
+*168   Enter a tax category
+*169   Enter default value for withholding tax code
+*170   Account &1 has been created
+*173   Vendor &1 has been created for purchasing organization &2
+*175   Vendor &1 has been created for company code &2 purchasing organization &3
+*176   Enter a company code
+*183   Partner & has not been created
+*184   No further data exists
+*185   Position the cursor on a field in the chosen line
+*186   Enter withholding tax code
+*187   Required entry is missing in withholding tax area
+*190   Partner & & is not assigned to a partner function
+*196   Extended withholding tax funtionality is not active
+*200   You have not entered a postal code or postal code for the post box
+*202   Alternative payee & already exists
+*204   Select at least one account for processing
+*207   Accounting clerk &1 does not exist in company code &2
+*210   Telex number is not valid
+*211   Fax number is not valid
+*212   Teletex number is not valid
+*215   Enter the country
+*216   Account & has not yet been agreed as being EDI partner
+*217   Jurisdiction code could not be determined
+*218   Address was changed by external tax system
+*219   Company code & is not defined
+*220   Screen layout for purchasing organization & is not defined
+*223   First enter an Internet address
+*224   Changes for vendor & have not yet been confirmed
+*226   Changes for vendor & in company code & have not yet been confirmed
+*228   Change must be confirmed
+*229   Change to general data must be confirmed
+*230   Change to company code &3 must be confirmed
+*271   Vendor &1 was created in company code &2
+*283   ISO code &1 in VAT reg. no. &2 does not belong to country &3; see lg text
+*285   In company code &1 &2 is an FSCM-BD payment method and cannot be used
+*286   Payment terms &1 invalid for country &3 due to proposed payment method &2
+*290   Check the data and processes dependent on the new country
+*293   Customer &1 is currently not referenced and will be updated accordingly
+*294   Customer &1 currently refers to vendor &2
+*295   No change is undone as a result of the rejection (see long text)
+*300   No authorization for giving this authorization
+*301   No authorization for changing the general data for this account
+*302   No authorization for displaying the general data for this account
+*303   No authorization for blocking the general data for this account
+*304   No authorization for marking the general data for this acct for deletion
+*305   No authorization for creating accounts in company code &
+*306   No authorization for changing accounts in company code &
+*307   No authorization for displaying accounts in company code &
+*308   No authorization for blocking accounts in company code &
+*309   No authorization for marking accounts in company code & for deletion
+*311   No authorization for changing this account in company code &1
+*312   No authorization for displaying this account in company code &1
+*313   No authorization for blocking this account for company code &1
+*314   No authorization for marking this account for deletion for company code &
+*325   No authorization for creating vendor &
+*326   No authorization for changing vendor &
+*327   No authorization for displaying vendor &
+*328   No authorization for blocking vendor &
+*329   No authorization for marking vendor & for deletion
+*330   No authorization for creating vendors in purchasing organization &1
+*331   No authorization for changing vendors in purchasing organization &1
+*332   No authorization for displaying vendors in purchasing organization &1
+*333   No authorization for blocking vendors in purchasing organization &1
+*334   No authorization for marking vendors in purchasing org. &1 for deletion
+*335   No authorization for confirming this account's general data
+*336   No authorization for confirming accounts in company code &1
+*337   No authorization for confirming this account for company code &1
+*338   No authorization for confirming changes to vendor &
+*342   No authorization for displaying this reference account
+*343   No authorization for displaying this reference account in comp.code &1
+*344   No authorization for displaying accounts in company code &1 as reference
+*365   You are not allowed to confirm changes, only to display them
+*366   You are not allowed to confirm general data changes, only to display them
+*367   You are not permitted to confirm changes in co.code &1, display only
+*370   No authorization to change general data
+*371   No authorization to display general data
+*372   No authorization to block general data
+*373   No authorization to mark general data for deletion
+*374   No authorization to confirm changes to general data
+*375   No authorization to create general data
+*376   General data not yet created
+*380   No authorization to create accounts from account group &4
+*381   No authorization to change accounts from account group &4
+*382   No authorization to display accounts from account group &4
+*383   No authorization to block accounts from account group &4
+*384   No authorization to mark accounts from account group &4 for deletion
+*385   No authorization to confirm changes to accounts from account group &
+*401   Subsidy indicator & is not defined
+*402   Planning group & is not defined
+*403   Payment block & is not defined
+*406   No IBAN defined for these bank details
+*407   An IBAN is defined for these bank details; it will not be deleted
+*408   Bank details changed; old bank details contained an IBAN
+*409   Start of validity for IBAN saved with &3
+*410   Start of validity before your change was &2
+*411   For new IBAN &2, old start of validity &3 transferred
+*412   One of the IBANs to be confirmed is currently being processed by user &1
+*418   Both fields must not be activated at the same time
+*419   Select an e-mail address from input help
+*421   E-mail address &1 does not exist in the master record
+*424   Option &1 is not possible because there is no e-mail address
+*425   Change of type of communication for payment advice notes not possible
+*512   Only &1 active add-on application can be supported
+*531   Internal error: &1 &2 &3 &4
+*547   You are not authorized to change field &1
+*602   Edit the incorrect line item first of all
+*604   Time interval invalid
+*605   Position the cursor on a line
+*608   No visiting times maintained for & &
+*627   Scrolling forward is only possible if all lines are filled
+*636   Contact person & & already exists
+*647   Business address has not been maintained for & &
+*648   Private address has not been maintained for & &
+*650   Reference account group is &1
+*652   Date is in the future
+*680   Specify name of contact person
+*690   Old and new account groups are the same
+*692   New account group & is one-time group: Change not permitted
+*716   Overflow in number range assignment of address file
+*738   Fill all required entry fields
+*781   Contact person & & & is assigned to a partner role
+*806   Person data transferred from contact partner
+*810   Bank & marked for deletion in country &
+*813   Enter an account holder
+*814   Non-permitted character "&1" in text &2
+*815   Country key not set, check is not possible
+*895   System error in module &1, table &2
+*896   System error in routine &1, table &2
+*898   System error in routine '&1'
+*899   & & & &
+*
+* Message class: F4
+*780   Text changes have been carried out
+*
+* Message class: FC
+*080   System error: Termination in routine & & & &
+*
+* Message class: FF
+*720   No tax procedure can be found for country &
+*748   Jurisdiction code not defined for procedure &
+*
+* Message class: LFS_SSTN_VALIDATIONS
+*037   No sustainability data exists for vendor &
+*
+* Message class: QB
+*072   You can only enter a date, if a QS system has been entered
+*
+* Message class: SEPA
+*009   Internal error in form routine &1 of program &2 &3 &4
+*
+* Message class: WN
+*000   &
+*113   Classification not possible, vendor no. different from customer no.
+*320   Vendor &1 synchronized with business partner &2 . Assignment n. possible
+*501   Vendor & already assigned to plant &
+*505   Vendor & already exists
+*517   Please enter a company code and/or a purchasing organization
+*
+* Message class: WY
+*001   Vendor sub-range & not created for vendor &
+*002   Plant & not defined
+*003   Purchasing data for VSR & and plant & already created
+*004   Specify data retention levels
+*005   Choose a view
+*006   Purchasing data for & & already created
+*007   Position the cursor on a valid line
+*010   Enter a partner number
+*011   Enter a valid partner function
+*013   Partner function & already maintained
+*014   Partner function & &: reference master record and master record identical
+*015   Deletion of mandatory partner function & not possible
+*016   Vendor & does not exist
+*022   Stock planner & not defined for plant &
+*023   Variant data with VSR still exists in this purchasing organization
+*024   Variant data for plants still defined
+*027   No entries selected
+*028   No materials selected for sub-range &
+*029   Entry & & in table & does not exist
+*030   Entry & in table & does not exist
+*031   Enter a description for sub-range &1
+*032   Enter a sub-range
+*033   No variant purchasing data exists
+*034   No different partner functions exist
+*036   Partner function $ suggested from "different payee"
+*037   Vendor sub-ranges still exist
+*038   Partner function & has more than one default partner
+*039   No further entries selected
+*040   Plant & not assigned to purchasing organization &
+*042   Variant data for VSR still exists in purchasing organization &
+*044   Data retention levels VSR and plant are not allowed
+*048   Partner & would be second default partner for partner function &
+*049   VSR $ cannot be deleted due to variant data in purchasing organization $
+*051   A purchasing info record exists for this vendor sub-range
+*053   A purchasing info record exists for vendor sub-range &
+*055   No data retention level chosen
+*056   Caution: vendor &1 currently processed by user &2
+*059   Select a valid line
+*060   Plant & already assigned to vendor &
+*061   Plant & is already being processed; plant assignment cannot be changed
+*062   System error blocking plant & (inform your system administrator)
+*063   Plant & initially assigned to vendor no longer exists
+*064   Enter a valid value for the plant
+*071   Partner function & does not exist
+*072   Partner function & must be unique in master record
+*073   Date & for planned change is not in future
+*074   Change to vendor & planned for &
+*076   Partner function & is a compulsory function
+*078   No suitable entry for activation transaction & in table T078K
+*079   New bank master data cannot be created in this processing mode
+*082   Contact person not assigned to a vendor
+*084   Vendor & marked for deletion for contact person &
+*086   Vendor number missing; check your entries
+*087   Vendor has account group &: No partner maintenance defined
+*088   Vendor & has account group &: Partner data can only be displayed
+*095   Specify a valid period
+*096   Date & is in the past
+*097   No suitable entry for display transaction & in table T078K
+*098   Customer & does not exist
+*099   Change vendor hierarchy if changing rebate or price relevance
+*103   No suitable entry for change transaaction & in table T078K
+*108   Contact person & already exists for customer &
+*109   Contact person & already exists for vendor &
+*110   Specify name of contact person
+*111   Vendor & does not match interval of number range & &
+*112   Vendor &: account group & replaced by &
+*113   Vendor & is one-time vendor: account group cannot be changed
+*114   Customer will be created when you save
+*116   Rounding profile & not allowed
+*117   Purchasing org. & assigned to reference pur. org. &
+*118   Caution: partner determination procedure will change from &2 to &3 on &1
+*119   Enter a language indicator
+*120   No suitable entry for change transaction & in table T078K
+*122   Enter a valid percentage rate
+*123   Customer & is already assigned to another vendor
+*142   Plannning cycle & is not allowed for plant &
+*143   Delivery cycle & is not allowed for plant &
+*146   GR-based IV reqd for auto. GR settlment vendors/returns or revaluation
+*147   & is not an industry plant; assignment not possible
+*157   Vendor &: account group & replaced by &
+*158   Customer processing terminated. Indicator has been deselected.
+*159   Partner functions for VSR &1 and plant &2 already created
+*164   It is not possible to copy data from field 'Returns with shipping proc.'
+*175   Partner function(s) cannot be deleted
+*177   Check for duplicates cannot be carried out
+
+----------------------------------------------------------------------
+Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740

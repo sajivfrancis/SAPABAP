@@ -1,0 +1,911 @@
+*----------------------------------------------------------------------*
+* Title 	Delete Check Information on Payment Run
+*----------------------------------------------------------------------*
+* Program description: Conversion of Classic list into Append ALV
+* Date         : 22/07/2004
+* Short description of the program:This creates a Append ALV list with
+* Company code, Bank and Account id put on the TOP OF LIST.The first ALV
+* list displays the check numbers, recipients Date and Check amount.The
+* second ALV list displays the corrected check lots.
+* FM 'REUSE_ALV_LIST_DISPLAY' is used to display the ALV list
+* Strcutures Created: FAGL_S_RFCHKD00_LIST1 for First List
+*                     FAGL_S_RFCHKD00_LIST2 for Second List
+*----------------------------------------------------------------------*
+
+REPORT RFCHKD00 LINE-SIZE 132 MESSAGE-ID FIBL.
+
+TABLES:
+  IFIBL_AUX_FIELDS,
+  PAYR,
+  PCEC,
+  T001,
+  TVOIT.
+
+*>>>>inserted Retrofit
+TYPE-POOLS: slis.
+DATA:  gt_outtab2 TYPE STANDARD TABLE OF fagl_s_rfchkd00_list1,
+                                                     "1st ALV List
+       gs_outtab2 TYPE fagl_s_rfchkd00_list1,        "work area
+
+       gt_outtab3 TYPE STANDARD TABLE OF fagl_s_rfchkd00_list2,
+                                                     "2nd ALV List
+       gs_outtab3 TYPE fagl_s_rfchkd00_list2.        "work area
+DATA:  gt_header  TYPE slis_t_listheader, " List Header
+       gs_line    TYPE slis_listheader,   " Workarea Header
+       gv_repid   TYPE sy-repid,          "Program name
+       gv_counter TYPE i.                 "List index.
+*<<<<inserted Retrofit
+DATA:
+  G_REPID TYPE REPID   ,
+  G_SUBRC LIKE SY-SUBRC,
+  G_APPLICATION_SYSTEM_TYPE TYPE CHAR1,
+  BEGIN OF TAB_LAUFK OCCURS 1.
+    INCLUDE STRUCTURE ILAUFK.
+  DATA: END OF TAB_LAUFK,
+  BEGIN OF TAB_PCEC OCCURS 2.
+    INCLUDE STRUCTURE PCEC.
+  DATA: END OF TAB_PCEC,
+  BEGIN OF TAB_SCHECKS OCCURS 100,
+    STAPL LIKE PCEC-STAPL,
+    CHECF LIKE PAYR-CHECF,
+    CHECT LIKE PAYR-CHECT,
+  END OF TAB_SCHECKS,
+
+  HLP_ERSTER_SCHECK  LIKE PAYR-CHECF,
+  HLP_ERSTER_STAPEL  LIKE PCEC-STAPL,
+  HLP_FSTAP          LIKE PCEC-FSTAP,
+  HLP_GEFUNDEN(2)    TYPE N,
+  HLP_GPA(14)        TYPE C,
+  HLP_LETZTER_SCHECK LIKE PAYR-CHECT,
+  HLP_LETZTER_STAPEL LIKE PCEC-STAPL,
+  HLP_STAPL          LIKE PCEC-STAPL,
+  HLP_VON_BIS(27)    TYPE C.
+*>>>>inserted Retrofit
+CONSTANTS: gc_form_end_of_list1(30)   TYPE c
+                          VALUE 'END_OF_LIST_LIST1', "End of List1
+           gc_form_top_of_page_list2(30)   TYPE c
+                          VALUE 'TOP_OF_PAGE_LIST2', "top of page -list2
+           gc_form_top_of_list1(30)   TYPE c
+                          VALUE 'TOP_OF_LIST_LIST1', "top of list -list1
+           gc_form_pf_status(30)     TYPE c
+                          VALUE 'STATUS_MAIN',       "PF status
+           gc_value_x   TYPE c VALUE 'X' ,        " Value X
+           gc_value_y   TYPE c VALUE 'Y' ,        " Value X
+           gc_line_size TYPE sylinsz VALUE '255', " Line size
+           gc_struc1    TYPE dd02l-tabname VALUE
+                                   'FAGL_S_RFCHKD00_LIST1',
+           gc_struc2    TYPE dd02l-tabname VALUE
+                                   'FAGL_S_RFCHKD00_LIST2',
+           gc_colpos1   TYPE i VALUE 1,
+           gc_colpos2   TYPE i VALUE 2,
+           gc_colpos3   TYPE i VALUE 3,
+           gc_colpos4   TYPE i VALUE 4,
+           gc_colpos5   TYPE i VALUE 5,
+           gc_value_l   TYPE c VALUE 'L'.
+*<<<<inserted Retrofit
+*INCLUDE rfdbrmac.
+
+SELECTION-SCREEN SKIP 2.
+PARAMETERS:
+  PAR_ZBUK LIKE PAYR-ZBUKR MEMORY ID BUK,
+  PAR_HBKI LIKE PAYR-HBKID MEMORY ID HBK,
+  PAR_HKTI LIKE PAYR-HKTID MEMORY ID HKT.
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF BLOCK 1 WITH FRAME TITLE TEXT-009.
+PARAMETERS:
+  PAR_LAUD LIKE PAYR-LAUFD,
+  PAR_LAUI LIKE PAYR-LAUFI.
+SELECT-OPTIONS:
+  SEL_RZAW FOR  PAYR-RZAWE.
+SELECTION-SCREEN END OF BLOCK 1.
+
+SELECTION-SCREEN BEGIN OF BLOCK 5 WITH FRAME TITLE TEXT-105.
+PARAMETERS:
+  PAR_ECHT LIKE IFIBL_AUX_FIELDS-ALLGECHT.
+SELECTION-SCREEN END   OF BLOCK 5.
+
+INITIALIZATION.
+  gv_repid = sy-repid. "inserted Retrofit
+  CALL FUNCTION 'RH_APPLICATION_SYSTEM_CHECK'
+       IMPORTING
+            APPLICATION_SYSTEM_TYPE = G_APPLICATION_SYSTEM_TYPE
+       EXCEPTIONS
+            SYSTEM_TYPE_UNKNOWN     = 1
+            BASIS_SYSTEM            = 2
+            OTHERS                  = 3.
+  IF SY-SUBRC <> 0.
+    G_APPLICATION_SYSTEM_TYPE = 'H'.
+  ENDIF.
+  REFRESH TAB_LAUFK.
+  TAB_LAUFK-LAUFK = 'W'.
+  TAB_LAUFK-SIGN  = 'E'.
+  APPEND TAB_LAUFK.
+* get_frame_title 5.
+  GET PARAMETER ID '110' FIELD HLP_GPA.
+  PAR_LAUD = HLP_GPA(8).
+  PAR_LAUI = HLP_GPA+8.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR PAR_LAUD.
+  IF G_APPLICATION_SYSTEM_TYPE = 'H'.
+  ELSE.
+  CALL FUNCTION 'F4_ZAHLLAUF'
+       EXPORTING
+            F1TYP   = 'D'
+            F1NME   = 'PAR_LAUD'
+            F2NME   = 'PAR_LAUI'
+       IMPORTING
+            LAUFD   = PAR_LAUD
+            LAUFI   = PAR_LAUI
+       TABLES
+            LAUFK   = TAB_LAUFK.
+  ENDIF.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR PAR_LAUI.
+  IF G_APPLICATION_SYSTEM_TYPE = 'H'.
+  ELSE.
+  CALL FUNCTION 'F4_ZAHLLAUF'
+       EXPORTING
+            F1TYP   = 'I'
+            F1NME   = 'PAR_LAUI'
+            F2NME   = 'PAR_LAUD'
+       IMPORTING
+            LAUFD   = PAR_LAUD
+            LAUFI   = PAR_LAUI
+       TABLES
+            LAUFK   = TAB_LAUFK.
+  ENDIF.
+
+AT SELECTION-SCREEN ON PAR_ZBUK.
+  SELECT SINGLE * FROM T001            "Buchungskreis vorgesehen?
+    WHERE BUKRS EQ PAR_ZBUK.
+  IF SY-SUBRC NE 0.
+    MESSAGE E511 WITH PAR_ZBUK.
+  ENDIF.
+
+AT SELECTION-SCREEN.
+  IF PAR_ECHT NE SPACE.
+    PAR_ECHT = 'X'.
+  ENDIF.
+  IF PAR_LAUD IS INITIAL OR            "alle Parameter müssen gefüllt
+     PAR_LAUI IS INITIAL OR            "sein
+     PAR_ZBUK IS INITIAL OR
+     PAR_HBKI IS INITIAL OR
+     PAR_HKTI IS INITIAL.
+    MESSAGE E572.
+  ENDIF.
+  IF PAR_LAUI+5(1) EQ '*'.
+    MESSAGE W656.
+  ENDIF.
+  IF PAR_LAUI+5(1) NE 'P'.
+    AUTHORITY-CHECK OBJECT 'F_PAYR_BUK'"Löschberechtigung im FI
+      ID 'BUKRS' FIELD PAR_ZBUK
+      ID 'ACTVT' FIELD '06'.
+    IF SY-SUBRC NE 0.
+      SET CURSOR FIELD 'PAR_ZBUK'.
+      MESSAGE E597 WITH PAR_ZBUK.
+    ENDIF.
+  ELSE.
+    G_REPID = SY-REPID.            "Reportberechtigung im HR
+    CALL FUNCTION 'HR_PROGRAM_CHECK_AUTHORIZATION'
+         EXPORTING
+              REPID = G_REPID
+         IMPORTING
+              SUBRC = G_SUBRC.
+    IF G_SUBRC NE 0.
+      SET CURSOR FIELD 'PAR_LAUI'.
+      MESSAGE E637 WITH SY-REPID.
+    ENDIF.
+  ENDIF.
+
+  REFRESH:
+    TAB_PCEC,
+    TAB_SCHECKS.
+  SELECT * FROM PAYR                   "gibt es den Zahllauf in PAYR?
+    WHERE ZBUKR EQ PAR_ZBUK
+      AND HBKID EQ PAR_HBKI
+      AND HKTID EQ PAR_HKTI
+      AND RZAWE IN SEL_RZAW
+      AND LAUFD EQ PAR_LAUD
+      AND LAUFI EQ PAR_LAUI.
+* feinere Berechtigunsprüfung für HR
+    if payr-laufi+5(1) = 'P' and payr-pernr ne 0.
+      CALL FUNCTION 'HR_CHECK_AUTHORITY_PERNR'
+           EXPORTING
+                PERNR  = PAYR-PERNR
+                BEGDA  = PAYR-LAUFD
+                ENDDA  = PAYR-LAUFD
+           EXCEPTIONS
+                OTHERS = 4.
+      if sy-subrc ne 0.
+        MESSAGE ID SY-MSGID TYPE 'E' NUMBER SY-MSGNO
+          WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      endif.
+    endif.
+    IF PAYR-XBANC NE SPACE.
+      MESSAGE E584.
+    ENDIF.
+    CALL FUNCTION 'GET_CHECK_INTERVAL'
+      EXPORTING
+        I_ZBUKR     = PAYR-ZBUKR
+        I_HBKID     = PAYR-HBKID
+        I_HKTID     = PAYR-HKTID
+        I_CHECK     = PAYR-CHECF
+      IMPORTING
+        E_PCEC      = PCEC
+      EXCEPTIONS
+        NOT_FOUND   = 8.
+    IF SY-SUBRC NE 0.
+      MESSAGE A574 WITH PAYR-ZBUKR PAYR-HBKID PAYR-HKTID PAYR-CHECF.
+    ENDIF.
+    TAB_SCHECKS-STAPL = PCEC-STAPL.
+    TAB_SCHECKS-CHECF = PAYR-CHECF.
+    TAB_SCHECKS-CHECT = PAYR-CHECT.
+    APPEND TAB_SCHECKS.
+    TAB_PCEC = PCEC.
+    COLLECT TAB_PCEC.
+  ENDSELECT.
+  IF SY-SUBRC NE 0.
+    MESSAGE E573.
+  ENDIF.
+  HLP_ERSTER_STAPEL  = 0.
+  HLP_LETZTER_STAPEL = 0.
+  LOOP AT TAB_PCEC.
+    HLP_STAPL = TAB_PCEC-STAPL.
+    HLP_FSTAP = TAB_PCEC-FSTAP.
+    HLP_GEFUNDEN = 0.                  "Suche nach dem ersten Stapel
+    LOOP AT TAB_PCEC.
+      IF TAB_PCEC-FSTAP EQ HLP_STAPL.
+        HLP_GEFUNDEN = 1.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+    IF HLP_GEFUNDEN = 0.
+      IF HLP_ERSTER_STAPEL NE 0.
+        MESSAGE E576.
+      ENDIF.
+      TAB_PCEC = SPACE.
+      TAB_PCEC-STAPL = HLP_STAPL.
+      READ TABLE TAB_PCEC.
+      HLP_ERSTER_STAPEL = TAB_PCEC-STAPL.
+    ENDIF.
+    HLP_GEFUNDEN = 0.                  "Suche nach dem letzten Stapel
+    LOOP AT TAB_PCEC.
+      IF TAB_PCEC-STAPL EQ HLP_FSTAP.
+        HLP_GEFUNDEN = 1.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+    IF HLP_GEFUNDEN = 0.
+      IF HLP_LETZTER_STAPEL NE 0.
+        MESSAGE E576.
+      ENDIF.
+      TAB_PCEC = SPACE.
+      TAB_PCEC-STAPL = HLP_STAPL.
+      READ TABLE TAB_PCEC.
+      HLP_LETZTER_STAPEL = TAB_PCEC-STAPL.
+    ENDIF.
+  ENDLOOP.
+  SORT TAB_SCHECKS ASCENDING.
+  TAB_SCHECKS = SPACE.
+  TAB_SCHECKS-STAPL = HLP_ERSTER_STAPEL.
+  READ TABLE TAB_SCHECKS.
+  HLP_ERSTER_SCHECK = TAB_SCHECKS-CHECF.
+  SORT TAB_SCHECKS DESCENDING.
+  TAB_SCHECKS = SPACE.
+  TAB_SCHECKS-STAPL = HLP_LETZTER_STAPEL.
+  READ TABLE TAB_SCHECKS.
+  HLP_LETZTER_SCHECK = TAB_SCHECKS-CHECT.
+  TAB_PCEC = SPACE.
+  TAB_PCEC-STAPL = HLP_LETZTER_STAPEL.
+  READ TABLE TAB_PCEC.
+  IF HLP_LETZTER_SCHECK NE TAB_PCEC-CHECL.
+    MESSAGE E575 WITH HLP_LETZTER_SCHECK TAB_PCEC-CHECL.
+  ENDIF.
+  HLP_GPA(8) = PAR_LAUD.
+  HLP_GPA+8  = PAR_LAUI.
+  GET PARAMETER ID '110' FIELD HLP_GPA.
+
+START-OF-SELECTION.
+  CALL FUNCTION 'ENQUEUE_EFPCEC'
+       EXPORTING
+            ZBUKR        = PAR_ZBUK
+            HBKID        = PAR_HBKI
+            HKTID        = PAR_HKTI
+       EXCEPTIONS
+            FOREIGN_LOCK = 8.
+  IF SY-SUBRC NE 0.                    "Nummern sind durch anderen
+    MESSAGE E536 WITH SY-MSGV1.        "Benutzer gesperrt
+  ENDIF.
+  CALL FUNCTION 'ENQUEUE_EFPAYR'
+       EXPORTING
+            ZBUKR        = PAR_ZBUK
+            HBKID        = PAR_HBKI
+            HKTID        = PAR_HKTI
+       EXCEPTIONS
+            FOREIGN_LOCK = 8.
+  IF SY-SUBRC NE 0.                    "Zahlungsträgerdatei ist durch
+    MESSAGE E556 WITH SY-MSGV1.        "anderen Benutzer gesperrt
+  ENDIF.
+*>>>>> removed Retrofit
+*  WRITE:                               "Neben dem Löschen wird ein
+*    / TEXT-000.                        "Protokoll der gelöschten
+*Scheck-
+*  IF PAR_ECHT EQ SPACE.                "informationen erstellt und
+*    WRITE:                             "die Änderungen der Schecknum-
+*      / TEXT-001.                      "mernstände aufgelistet
+*  ENDIF.
+*  ULINE.
+*  WRITE:
+*    / TEXT-002,
+*   20 PAR_ZBUK,
+*    / TEXT-003,
+*   20 PAR_HBKI,
+*    / TEXT-004,
+*   20 PAR_HKTI.
+*  ULINE.
+*  WRITE:
+*    / TEXT-005.
+*  ULINE.
+*<<<<< removed Retrofit
+  SELECT * FROM PAYR
+    WHERE ZBUKR EQ PAR_ZBUK
+      AND HBKID EQ PAR_HBKI
+      AND HKTID EQ PAR_HKTI
+      AND RZAWE IN SEL_RZAW
+      AND LAUFD EQ PAR_LAUD
+      AND LAUFI EQ PAR_LAUI.
+    IF PAYR-CHECF NE PAYR-CHECT.
+      WRITE:
+        PAYR-CHECF TO HLP_VON_BIS,
+        '-'        TO HLP_VON_BIS+13,
+        PAYR-CHECT TO HLP_VON_BIS+14.
+      CONDENSE HLP_VON_BIS NO-GAPS.
+*      WRITE / HLP_VON_BIS.  "removed Retrofit
+      MOVE hlp_von_bis TO gs_outtab2-check_num. "inserted Retrofit
+    ELSE.
+*      WRITE:   "removed Retrofit
+*        / PAYR-CHECF.   "removed Retrofit
+      MOVE payr-checf TO gs_outtab2-check_num. "inserted Retrofit
+    ENDIF.
+    IF PAYR-VOIDR EQ SPACE.
+*>>>>>removed Retrofit
+*      WRITE:
+*      29 PAYR-ZNME1,
+*      65 PAYR-ZALDT DD/MM/YY,
+*      76 PAYR-RWBTR CURRENCY PAYR-WAERS NO-SIGN,
+*         PAYR-WAERS.
+*<<<<<removed Retrofit
+*>>>>>inserted Retrofit
+      MOVE: payr-znme1 TO gs_outtab2-znme1,
+            payr-zaldt TO gs_outtab2-zaldt,
+            payr-rwbtr TO gs_outtab2-rwbtr,
+            payr-waers TO gs_outtab2-waers.
+*<<<<<inserted Retrofit
+    ELSE.
+      SELECT SINGLE * FROM TVOIT
+        WHERE LANGU EQ SY-LANGU
+          AND VOIDR EQ PAYR-VOIDR.
+      IF SY-SUBRC EQ 0.
+*        WRITE 29 TVOIT-VOIDT.  "removed Retrofit
+        MOVE: tvoit-voidt(35) TO gs_outtab2-znme1. "inserted Retrofit
+      ELSE.
+*        WRITE 29 TEXT-006.   "removed Retrofit
+        MOVE: text-006 TO gs_outtab2-znme1. "inserted Retrofit
+      ENDIF.
+    ENDIF.
+    IF PAR_ECHT NE SPACE.
+      DELETE PAYR.
+    ENDIF.
+*>>>>inserted Retrofit
+    APPEND gs_outtab2 TO gt_outtab2.
+    CLEAR gs_outtab2.
+*<<<<inserted Retrofit
+  ENDSELECT.
+*>>>>removed Retrofit
+*  ULINE.
+*  WRITE:
+*    / TEXT-007.
+*  ULINE.
+*  WRITE:
+*    / TEXT-008.
+*  ULINE.
+*<<<<removed Retrofit
+  LOOP AT TAB_PCEC.
+    PCEC = TAB_PCEC.
+*>>>>removed Retrofit
+*    WRITE:
+*      / PCEC-STAPL,
+*     10 PCEC-CHECL.
+*<<<<removed Retrofit
+*>>>>inserted Retrofit
+    MOVE: pcec-stapl TO gs_outtab3-stapl,
+          pcec-checl TO gs_outtab3-checl1.
+*<<<<inserted Retrofit
+    IF TAB_PCEC-STAPL EQ HLP_ERSTER_STAPEL
+      AND HLP_ERSTER_SCHECK NE PCEC-CHECF.
+      PCEC-CHECL = HLP_ERSTER_SCHECK.
+      CALL FUNCTION 'SUBTRACT_N_FROM_CHECK_NUMBER'
+        EXPORTING
+          I_PCEC = PCEC
+          I_N    = 1
+        IMPORTING
+          E_PCEC = PCEC.
+    ELSE.
+      PCEC-CHECL = SPACE.
+    ENDIF.
+*    WRITE:              "removed Retrofit
+*     25 PCEC-CHECL.     "removed Retrofit
+    MOVE: pcec-checl TO gs_outtab3-checl2. "removed Retrofit
+    IF PAR_ECHT NE SPACE.
+      UPDATE PCEC.
+    ENDIF.
+*>>>>inserted Retrofit
+    APPEND gs_outtab3 TO gt_outtab3.
+    CLEAR gs_outtab3.
+*<<<<inserted Retrofit
+  ENDLOOP.
+  CALL FUNCTION 'DEQUEUE_EFPCEC'
+       EXPORTING
+            ZBUKR   = PAR_ZBUK
+            HBKID   = PAR_HBKI
+            HKTID   = PAR_HKTI.
+  CALL FUNCTION 'DEQUEUE_EFPAYR'
+       EXPORTING
+            ZBUKR   = PAR_ZBUK
+            HBKID   = PAR_HBKI
+            HKTID   = PAR_HKTI.
+*>>>>inserted Retrofit
+  PERFORM display_list1.
+*&---------------------------------------------------------------------*
+*&      Form  display_list1
+*&---------------------------------------------------------------------*
+*       Preparing ALV display
+*&---------------------------------------------------------------------*
+FORM display_list1 .
+
+  DATA :  lt_fieldcat_list1 TYPE slis_t_fieldcat_alv,
+          ls_layout_list1   TYPE slis_layout_alv,
+          lt_eventtab_list1 TYPE slis_t_event.
+
+  ADD 1 TO gv_counter.
+* To Build the Field Catalog
+  PERFORM set_field_catalog USING    gc_struc1
+                            CHANGING lt_fieldcat_list1.
+
+* To change the fields settings
+  PERFORM fieldcat_change_alv CHANGING lt_fieldcat_list1.
+
+* To build the Events Table
+  PERFORM eventtab_build_alv  USING    gv_counter
+                              CHANGING lt_eventtab_list1.
+
+* To build the Layout
+  PERFORM layout_build_alv USING gv_counter CHANGING ls_layout_list1.
+
+  CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+    EXPORTING
+      i_callback_program = gv_repid
+      is_layout          = ls_layout_list1
+      it_fieldcat        = lt_fieldcat_list1
+      it_events          = lt_eventtab_list1
+    TABLES
+      t_outtab           = gt_outtab2
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.                    " display_list1
+
+*&---------------------------------------------------------------------*
+*&      Form  SET_FIELD_CATALOG
+*&---------------------------------------------------------------------*
+* Subroutine used to build Fieldcatalog Structure.
+*----------------------------------------------------------------------*
+*      -->  IS_STRUC          Field Catlog Structure
+*      <--  XT_FIELDCATALOG   Field Catlog table
+*----------------------------------------------------------------------*
+FORM set_field_catalog
+          USING     is_struct          TYPE dd02l-tabname
+          CHANGING  xt_fieldcatalog TYPE slis_t_fieldcat_alv."#EC CALLED
+
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_program_name         = gv_repid
+      i_structure_name       = is_struct
+    CHANGING
+      ct_fieldcat            = xt_fieldcatalog
+    EXCEPTIONS
+      inconsistent_interface = 1
+      program_error          = 2
+      OTHERS                 = 3.
+  IF sy-subrc <> 0.
+    MESSAGE ID   sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.                    " SET_FIELD_CATALOG
+
+*&---------------------------------------------------------------------*
+*&      Form  FIELDCAT_CHANGE_ALV
+*&---------------------------------------------------------------------*
+* Subroutine used to build Fieldcatalog for first list.
+*----------------------------------------------------------------------*
+*
+*      <--  XT_FIELDCAT_BPHI   Field Catlog table
+*----------------------------------------------------------------------*
+FORM fieldcat_change_alv
+     CHANGING  xt_fieldcat_list1 TYPE slis_t_fieldcat_alv.  "#EC CALLED
+
+  DATA: ls_fcat   TYPE slis_fieldcat_alv,       "Work area for xt_fcat
+        lv_text   TYPE pifobjtext.              "data element text
+
+  CLEAR: ls_fcat,
+         lv_text.
+* To modify Field Catalog in order to disable the change of column
+* positions and to change the col heading
+
+  LOOP AT xt_fieldcat_list1 INTO ls_fcat.
+
+    CASE ls_fcat-fieldname.
+      WHEN 'CHECK_NUM'.
+        CALL FUNCTION 'PAK_GET_SHORTTEXT_DTEL'
+          EXPORTING
+            i_elem_key   = 'CHECT'
+            i_language   = sy-langu
+          IMPORTING
+            e_short_text = lv_text.
+        ls_fcat-col_pos   = gc_colpos1.
+        ls_fcat-seltext_l = lv_text.
+        ls_fcat-ddictxt   = gc_value_l.
+      WHEN 'ZNME1'.
+        ls_fcat-col_pos   = gc_colpos2.
+        ls_fcat-seltext_l = text-011.
+        ls_fcat-ddictxt   = gc_value_l.
+      WHEN 'ZALDT'.
+        ls_fcat-col_pos   = gc_colpos3.
+        ls_fcat-seltext_l = text-012.
+        ls_fcat-ddictxt   = gc_value_l.
+      WHEN 'RWBTR'.
+        ls_fcat-col_pos   = gc_colpos4.
+        ls_fcat-seltext_l = text-013.
+        ls_fcat-ddictxt   = gc_value_l.
+        ls_fcat-no_sign = gc_value_x.
+      WHEN 'WAERS'.
+        ls_fcat-col_pos   = gc_colpos5.
+      WHEN OTHERS.
+*      do nothing
+    ENDCASE.
+
+    MODIFY xt_fieldcat_list1 FROM ls_fcat TRANSPORTING col_pos
+                                                       seltext_l
+                                                       ddictxt
+                                                       no_sign.
+    CLEAR  ls_fcat.
+
+  ENDLOOP.
+
+
+ENDFORM.                    " FIELDCAT_CHANGE_ALV
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  EVENTTAB_BUILD_ALV
+*&---------------------------------------------------------------------*
+* Subroutine to build the Events Table, The TOP-OF-PAGE Event and the
+* corresponding Subroutine to handle it is passed to this Events Table
+*----------------------------------------------------------------------*
+*      -->  IV_COUNTER         List Counter
+*      <--  XT_EVENTTAB_BPHI  Event tab
+*----------------------------------------------------------------------*
+FORM eventtab_build_alv  USING    iv_counter        TYPE  i
+                         CHANGING xt_eventtab_list1 TYPE  slis_t_event.
+
+  DATA:   ls_events TYPE slis_alv_event.
+
+  CALL FUNCTION 'REUSE_ALV_EVENTS_GET'
+    EXPORTING
+      i_list_type     = 0
+    IMPORTING
+      et_events       = xt_eventtab_list1
+    EXCEPTIONS
+      list_type_wrong = 1
+      OTHERS          = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+
+  CASE iv_counter.
+    WHEN 1.
+      READ TABLE xt_eventtab_list1 INTO ls_events WITH
+      KEY name = slis_ev_top_of_list.
+      IF sy-subrc = 0.
+        ls_events-form = gc_form_top_of_list1.
+        MODIFY xt_eventtab_list1 FROM ls_events TRANSPORTING form
+        WHERE name = slis_ev_top_of_list.
+      ENDIF.
+
+      READ TABLE xt_eventtab_list1 INTO ls_events WITH
+      KEY name = slis_ev_pf_status_set.
+      IF sy-subrc = 0.
+        ls_events-form = gc_form_pf_status.
+        MODIFY xt_eventtab_list1 FROM ls_events TRANSPORTING form
+        WHERE name = slis_ev_pf_status_set.
+      ENDIF.
+
+      READ TABLE xt_eventtab_list1 INTO ls_events WITH
+      KEY name = slis_ev_end_of_list.
+      IF sy-subrc = 0.
+        ls_events-form = gc_form_end_of_list1 .
+        MODIFY xt_eventtab_list1 FROM ls_events TRANSPORTING form
+        WHERE name = slis_ev_end_of_list.
+      ENDIF.
+
+    WHEN 2.
+      READ TABLE xt_eventtab_list1 INTO ls_events WITH
+      KEY name = slis_ev_top_of_page.
+      IF sy-subrc = 0.
+        ls_events-form = gc_form_top_of_page_list2.
+        MODIFY xt_eventtab_list1 FROM ls_events TRANSPORTING form
+        WHERE name = slis_ev_top_of_page.
+      ENDIF.
+
+    WHEN OTHERS.
+*       do nothing
+  ENDCASE.
+
+ENDFORM.                    " EVENTTAB_BUILD_ALV
+
+
+*&---------------------------------------------------------------------*
+*&      Form  LAYOUT_BUILD_ALV
+*&---------------------------------------------------------------------*
+* To set the Layout of the ALV list output for Display
+*----------------------------------------------------------------------*
+*      --> IV_COUNTER   Counter to indicate list number
+*      <-- XS_LAYOUT   Layout
+*----------------------------------------------------------------------*
+FORM layout_build_alv  USING    iv_counter TYPE i
+                       CHANGING xs_layout  TYPE slis_layout_alv.
+
+  CLEAR xs_layout.
+
+  CASE iv_counter.
+    WHEN '1'.
+      xs_layout-list_append =  gc_value_y .
+      xs_layout-min_linesize = gc_line_size.
+
+    WHEN OTHERS.
+      xs_layout-list_append =  gc_value_x .
+  ENDCASE.
+*  xs_layout-colwidth_optimize = gc_value_x. "removed Retrofit
+  xs_layout-colwidth_optimize = space. "inserted Retrofit
+
+ENDFORM.                    " LAYOUT_BUILD_ALV
+
+*&---------------------------------------------------------------------*
+*&      Form  top_of_list_list1
+*&---------------------------------------------------------------------*
+*   Handle event top of list
+*----------------------------------------------------------------------*
+FORM top_of_list_list1.                                     "#EC CALLED
+
+  CLEAR:   gt_header.
+  REFRESH: gt_header.
+  CLEAR gs_line .
+  MOVE 'H' TO gs_line-typ.
+  MOVE text-000 TO gs_line-info.
+  APPEND gs_line TO gt_header.
+
+  CLEAR gs_line .
+  IF par_echt EQ space.
+    MOVE 'H' TO gs_line-typ.
+    MOVE text-001 TO gs_line-info.
+    APPEND gs_line TO gt_header.
+  ENDIF.
+
+  CLEAR gs_line .
+  MOVE 'S' TO gs_line-typ.
+  MOVE text-002 TO gs_line-key.
+  MOVE par_zbuk TO gs_line-info.
+  APPEND gs_line TO gt_header.
+
+  CLEAR gs_line .
+  MOVE 'S' TO gs_line-typ.
+  MOVE text-003 TO gs_line-key.
+  MOVE par_hbki TO gs_line-info.
+  APPEND gs_line TO gt_header.
+
+  CLEAR gs_line .
+  MOVE 'S' TO gs_line-typ.
+  MOVE text-004 TO gs_line-key.
+  MOVE par_hkti TO gs_line-info.
+  APPEND gs_line TO gt_header.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = gt_header.
+
+ENDFORM.                    "TOP_OF_PAGE_LIST1
+
+*&---------------------------------------------------------------------*
+*&      Form  STATUS_MAIN
+*&---------------------------------------------------------------------*
+*   User defined GUI status
+*----------------------------------------------------------------------*
+FORM status_main USING iv_extab TYPE slis_t_extab.          "#EC CALLED
+
+ENDFORM.                              "STATUS_MAIN
+
+*&--------------------------------------------------------------------*
+*&      Form  END_OF_LIST_LIST1
+*&--------------------------------------------------------------------*
+*  Appends Second List at the End of First List
+*---------------------------------------------------------------------*
+FORM end_of_list_list1.                                     "#EC CALLED
+
+  PERFORM output_alv_list2_display.
+
+ENDFORM.                    "END_OF_LIST_LIST1
+
+
+*&---------------------------------------------------------------------*
+*&      Form  output_alv_list2_display
+*&---------------------------------------------------------------------*
+*      To build ALV output for second list
+*----------------------------------------------------------------------*
+FORM output_alv_list2_display.
+
+  DATA : lt_fieldcat_list2 TYPE slis_t_fieldcat_alv,"Field Catalog Table
+         ls_layout_list2 TYPE slis_layout_alv,      " Layout Structure
+         lt_eventtab_list2 TYPE slis_t_event.       " Event Table
+
+  ADD 1 TO gv_counter.
+* To Build the Field Catalog
+  PERFORM set_field_catalog USING    gc_struc2
+                            CHANGING lt_fieldcat_list2.
+
+* To change the fields settings
+  PERFORM fieldcat_change_list2_alv CHANGING lt_fieldcat_list2.
+
+* Subroutine to build the Events Table
+  PERFORM eventtab_build_alv  USING    gv_counter
+                              CHANGING lt_eventtab_list2.
+
+* Subroutine to build the Layout
+  PERFORM layout_build_alv USING    gv_counter
+                           CHANGING ls_layout_list2.
+
+  CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+    EXPORTING
+      i_callback_program = gv_repid
+      is_layout          = ls_layout_list2
+      it_fieldcat        = lt_fieldcat_list2
+      it_events          = lt_eventtab_list2
+    TABLES
+      t_outtab           = gt_outtab3
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    " OUTPUT_ALV_LIST2_DISPLAY
+
+*&---------------------------------------------------------------------*
+*&      Form  FIELDCAT_CHANGE_LIST2_ALV
+*&---------------------------------------------------------------------*
+* Subroutine used to build Fieldcatalog for first list.
+*----------------------------------------------------------------------*
+*
+*      <--  XT_FIELDCAT_LIST2   Field Catlog table
+*----------------------------------------------------------------------*
+FORM fieldcat_change_list2_alv
+     CHANGING  xt_fieldcat_list2 TYPE slis_t_fieldcat_alv.  "#EC CALLED
+
+  DATA: ls_fcat   TYPE slis_fieldcat_alv.       "Work area for xt_fcat
+
+
+  CLEAR: ls_fcat.
+
+* To modify Field Catalog in order to change the col heading
+
+  LOOP AT xt_fieldcat_list2 INTO ls_fcat.
+    CASE ls_fcat-fieldname.
+      WHEN 'CHECL1'.
+        ls_fcat-seltext_l = text-010.
+        ls_fcat-ddictxt   = gc_value_l.
+      WHEN 'CHECL2'.
+        ls_fcat-seltext_l = text-014.
+        ls_fcat-ddictxt   = gc_value_l.
+      WHEN OTHERS.
+*       do nothing
+    ENDCASE.
+    MODIFY xt_fieldcat_list2 FROM ls_fcat TRANSPORTING seltext_l
+                                                       ddictxt.
+
+    CLEAR  ls_fcat.
+
+  ENDLOOP.
+ENDFORM.                    " FIELDCAT_CHANGE_LIST2_ALV
+*&---------------------------------------------------------------------*
+*&      Form  top_of_page_list2
+*&---------------------------------------------------------------------*
+*   Handle event top of page for first list
+*----------------------------------------------------------------------*
+FORM top_of_page_list2.                                     "#EC CALLED
+
+  CLEAR: gt_header.
+  REFRESH: gt_header.
+  CLEAR gs_line .
+  MOVE 'H' TO gs_line-typ.
+  MOVE text-007 TO gs_line-info.
+  APPEND gs_line TO gt_header.
+
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = gt_header.
+
+ENDFORM.                    "TOP_OF_PAGE_LIST2
+*<<<<inserted Retrofit
+
+*Text elements
+*----------------------------------------------------------
+* 000 Deleted check information
+* 001 T e s t   R u n
+* 002 Company Code
+* 003 Bank
+* 004 Account
+* 005 Check number                Check recipient                     Date              Amount paid
+* 006 Voided
+* 007 Corrected check lots
+* 008 Lot      Prev.status    New status
+* 009 Payment run
+* 010 Old Status
+* 011 Check recipient
+* 012 Date
+* 013 Amount Paid
+* 014 New Status
+* 105 Program Control
+
+
+*Selection texts
+*----------------------------------------------------------
+* PAR_ECHT D       Update run
+* PAR_HBKI D       House bank
+* PAR_HKTI D       Account ID
+* PAR_LAUD         Program Run Date
+* PAR_LAUI D       Identification
+* PAR_ZBUK D       Paying Company Code
+* SEL_RZAW D       Payment Method
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: FS
+*511   Company code & is not defined
+*536   Check number maintenance currently blocked by user &
+*556   Payment transfer medium file currently blocked by user &
+*572   Specify complete set of selection data
+*573   No check information found
+*574   Check lot is missing for check & & & &
+*575   Last check & and number status & are not the same
+*576   The checks of the payment run are not in connected lots
+*584   Cashed checks cannot be processed
+*597   No authorization for deleting check info in company code &
+*637   No authorization for checks from Payroll Accounting (&)
+*656   Program is not designed for printing checks online
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

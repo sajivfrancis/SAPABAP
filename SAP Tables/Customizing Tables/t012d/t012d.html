@@ -1,0 +1,424 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN""http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type"content="application/xhtml+xml;charset=ISO-8859-1" />
+<title>Dictionary object- T012D</title>
+<style type="text/css">
+  th{text-align:left}
+  .cell{
+     font-family:"Courier New", Courier, monospace;
+     color:#000;
+     font-size:12px;
+     background-color:#F2F4F7;
+  }
+  .cell td { border: thin solid #ccc; }
+</style>
+<style type="text/css">
+  .normal{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px }
+  .footer{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:12px; text-align: center }
+  h2{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:16px; font-weight:800 }
+  h3{ font-family:Arial, Helvetica, sans-serif; color:#000; font-size:14px; font-weight:800 }
+  .outerTable{
+   background-color:#E0E7ED;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-right-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+  .innerTable{
+   background-color:#F2F4F7;
+   width:100%;
+   border-top-width: thin;
+   border-right-width: thin;
+   border-bottom-width: thin;
+   border-left-width: thin;
+   border-top-style: solid;
+   border-right-style: solid;
+   border-bottom-style: solid;
+   border-left-style: solid;
+  }
+</style>
+</head>
+<body>
+  <table class="outerTable">
+    <tr>
+      <td><h2>Table: T012D</h2>
+  <h3>Description: Parameters for DMEs and foreign pmnt transactions</h3></td>
+    </tr>
+    <tr>
+      <td><!--This is where our main table begins  -->
+<table class="innerTable">
+<tr>
+  <th>Row</th>
+  <th>Field name</th>
+  <th>Position</th>
+  <th>Key</th>
+  <th>Data element</th>
+  <th>Domain</th>
+  <th>Datatype</th>
+  <th>Length</th>
+  <th>Lowercase</th>
+  <th>Domain text</th>
+</tr>
+<tr class="cell">
+  <td> 1</td>
+  <td>.INCLUDE</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>&nbsp;</td>
+  <td>0</td>
+  <td>&nbsp;</td>
+  <td>Parameters for DMEs and Foreign Payment Transactions</td>
+</tr>
+<tr class="cell">
+  <td> 2</td>
+  <td>BUKRS</td>
+  <td>2</td>
+  <td>X</td>
+  <td>BUKRS</td>
+  <td>BUKRS</td>
+  <td>CHAR</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>Company Code</td>
+</tr>
+<tr class="cell">
+  <td> 3</td>
+  <td>DTAWS</td>
+  <td>6</td>
+  <td>&nbsp;</td>
+  <td>DTAWS</td>
+  <td>DTAWS</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Instruction key for data medium exchange</td>
+</tr>
+<tr class="cell">
+  <td> 4</td>
+  <td>DTBID</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>DTBID</td>
+  <td>CHAR5</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>DME Bank Identification</td>
+</tr>
+<tr class="cell">
+  <td> 5</td>
+  <td>DTBLZ</td>
+  <td>25</td>
+  <td>&nbsp;</td>
+  <td>NUM08</td>
+  <td>NUM08</td>
+  <td>NUMC</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Numeric field length 8</td>
+</tr>
+<tr class="cell">
+  <td> 6</td>
+  <td>DTELZ</td>
+  <td>14</td>
+  <td>&nbsp;</td>
+  <td>DTELZ</td>
+  <td>BANKL</td>
+  <td>CHAR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Bank Number of the Bank Receiving the Data Medium</td>
+</tr>
+<tr class="cell">
+  <td> 7</td>
+  <td>DTFIN</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>DTFIN_012D</td>
+  <td>CHAR20</td>
+  <td>CHAR</td>
+  <td>20</td>
+  <td>&nbsp;</td>
+  <td>Company Number of Ordering Party</td>
+</tr>
+<tr class="cell">
+  <td> 8</td>
+  <td>DTGBK</td>
+  <td>11</td>
+  <td>&nbsp;</td>
+  <td>DTGBK</td>
+  <td>BANKN</td>
+  <td>CHAR</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>Account Number of the Charge Account</td>
+</tr>
+<tr class="cell">
+  <td> 9</td>
+  <td>DTGBL</td>
+  <td>28</td>
+  <td>&nbsp;</td>
+  <td>NUM08</td>
+  <td>NUM08</td>
+  <td>NUMC</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>Numeric field length 8</td>
+</tr>
+<tr class="cell">
+  <td>10</td>
+  <td>DTGIS</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>DTAT7A</td>
+  <td>CHAR3</td>
+  <td>CHAR</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>ISO Currency Code for Charge Account</td>
+</tr>
+<tr class="cell">
+  <td>11</td>
+  <td>DTGKO</td>
+  <td>12</td>
+  <td>&nbsp;</td>
+  <td>BKONT</td>
+  <td>BKONT</td>
+  <td>CHAR</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Bank Control Key</td>
+</tr>
+<tr class="cell">
+  <td>12</td>
+  <td>DTGKT</td>
+  <td>29</td>
+  <td>&nbsp;</td>
+  <td>NUM10</td>
+  <td>NUM10</td>
+  <td>NUMC</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>10 digit number</td>
+</tr>
+<tr class="cell">
+  <td>13</td>
+  <td>DTGLZ</td>
+  <td>13</td>
+  <td>&nbsp;</td>
+  <td>DTGLZ</td>
+  <td>BANKL</td>
+  <td>CHAR</td>
+  <td>15</td>
+  <td>&nbsp;</td>
+  <td>Charge Account Bank Number</td>
+</tr>
+<tr class="cell">
+  <td>14</td>
+  <td>DTKID</td>
+  <td>19</td>
+  <td>&nbsp;</td>
+  <td>DTKID</td>
+  <td>CHAR18</td>
+  <td>CHAR</td>
+  <td>18</td>
+  <td>&nbsp;</td>
+  <td>Customer ID at House Bank</td>
+</tr>
+<tr class="cell">
+  <td>15</td>
+  <td>DTLBE</td>
+  <td>8</td>
+  <td>&nbsp;</td>
+  <td>DTAR10</td>
+  <td>NUMC02</td>
+  <td>NUMC</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Area Number</td>
+</tr>
+<tr class="cell">
+  <td>16</td>
+  <td>DTLBR</td>
+  <td>27</td>
+  <td>&nbsp;</td>
+  <td>DTAR12</td>
+  <td>NUMC03</td>
+  <td>NUMC</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>SCB Industry of the Payer</td>
+</tr>
+<tr class="cell">
+  <td>17</td>
+  <td>DTLFI</td>
+  <td>26</td>
+  <td>&nbsp;</td>
+  <td>DTFNR</td>
+  <td>NUMC05</td>
+  <td>NUMC</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>DME Format Number</td>
+</tr>
+<tr class="cell">
+  <td>18</td>
+  <td>DTVTA</td>
+  <td>7</td>
+  <td>&nbsp;</td>
+  <td>DTVTA_012D</td>
+  <td>NUMC02</td>
+  <td>NUMC</td>
+  <td>2</td>
+  <td>&nbsp;</td>
+  <td>Lead Days for Date of Execution</td>
+</tr>
+<tr class="cell">
+  <td>19</td>
+  <td>DTXBB</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>DTXBB_012D</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Create Central Bank Report</td>
+</tr>
+<tr class="cell">
+  <td>20</td>
+  <td>DTXMS</td>
+  <td>9</td>
+  <td>&nbsp;</td>
+  <td>DTXMS_012D</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Forward Payment Data to the Central Bank</td>
+</tr>
+<tr class="cell">
+  <td>21</td>
+  <td>EDIPN</td>
+  <td>16</td>
+  <td>&nbsp;</td>
+  <td>EDIBANKPRN</td>
+  <td>EDI_PARNUM</td>
+  <td>CHAR</td>
+  <td>10</td>
+  <td>&nbsp;</td>
+  <td>House Bank Partner Number</td>
+</tr>
+<tr class="cell">
+  <td>22</td>
+  <td>EDISN</td>
+  <td>17</td>
+  <td>&nbsp;</td>
+  <td>EDI_ELSIGN</td>
+  <td>EDI_ELSIGN</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Type of Signature</td>
+</tr>
+<tr class="cell">
+  <td>23</td>
+  <td>HBKID</td>
+  <td>3</td>
+  <td>X</td>
+  <td>HBKID</td>
+  <td>HBKID</td>
+  <td>CHAR</td>
+  <td>5</td>
+  <td>&nbsp;</td>
+  <td>Short Key for a House Bank</td>
+</tr>
+<tr class="cell">
+  <td>24</td>
+  <td>MANDT</td>
+  <td>1</td>
+  <td>X</td>
+  <td>MANDT</td>
+  <td>MANDT</td>
+  <td>CLNT</td>
+  <td>3</td>
+  <td>&nbsp;</td>
+  <td>Client</td>
+</tr>
+<tr class="cell">
+  <td>25</td>
+  <td>XBABE</td>
+  <td>23</td>
+  <td>&nbsp;</td>
+  <td>XBABE_012D</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Payment is to be Carried Out-by Cable to Beneficiary's Bank</td>
+</tr>
+<tr class="cell">
+  <td>26</td>
+  <td>XBEGU</td>
+  <td>24</td>
+  <td>&nbsp;</td>
+  <td>XBEGU_012D</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Payment is to be Carried Out - by Cable to Beneficiary</td>
+</tr>
+<tr class="cell">
+  <td>27</td>
+  <td>XBRIE</td>
+  <td>4</td>
+  <td>&nbsp;</td>
+  <td>XBRIE_012D</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Payment is to be Carried out - by Letter</td>
+</tr>
+<tr class="cell">
+  <td>28</td>
+  <td>XDRAH</td>
+  <td>21</td>
+  <td>&nbsp;</td>
+  <td>XDRAH_012D</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Payment is to be Carried Out - By Cable</td>
+</tr>
+<tr class="cell">
+  <td>29</td>
+  <td>XKOBA</td>
+  <td>22</td>
+  <td>&nbsp;</td>
+  <td>XKOBA_012D</td>
+  <td>XFELD</td>
+  <td>CHAR</td>
+  <td>1</td>
+  <td>&nbsp;</td>
+  <td>Payment is to be Carried Out by Cable to Correspondent Bank</td>
+</tr>
+      </table>
+     </td>
+   </tr>
+   <tr>
+<td class="footer">Extracted by Mass Download version 1.4.4 - E.G.Mellodew. 1998-2019. Sap Release 740</td>
+   </tr>
+</table>
+</body>
+</html>

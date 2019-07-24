@@ -1,0 +1,4943 @@
+REPORT rfdopr10 MESSAGE-ID fr LINE-SIZE 132 NO STANDARD PAGE HEADING.
+
+TABLES:   b0sg,                                            "#EC NEEDED
+          kna1,                        "Daten auf Mandantenebene
+          knb1,                        "Daten auf Buchungskreisebene
+          knb4,                        "Zahlungsverhalten
+          knc1,                        "Verkehrszahlen
+          knc3,                        "Sonderumsätze
+          bsid,                        "Offene Posten
+          bsega.
+
+TABLES:   bhdgd,
+          t001,
+          t001s,
+          *t001s,
+          t074t,
+          t074u,
+          tbsl,
+          tbslt,                                           "#EC NEEDED
+          tcurx,
+          adrs,
+          rfpdo,
+          rfpdo1,
+          rfpdo3,
+          rfsdo,
+          faede.
+FIELD-SYMBOLS: <f1>.
+
+DATA: lo_writer TYPE REF TO cl_dopr_writer,
+      l_title_1 TYPE string,
+      l_title_part2 TYPE string,
+      l_hlp_txt TYPE c LENGTH 130,
+      l_hlp_txt1 TYPE c LENGTH 15,
+      l_hlp_string TYPE string,
+      l_raster  TYPE p,
+      l_hlp_lines TYPE i,
+      l_hlp_i TYPE i.
+
+
+*Hilfsfelder
+*---Prüfung ob mehrere Hauswährungen verarbeitet werden.
+DATA:    cfakt(3)      TYPE p,
+         checksaldo(8) TYPE p,
+         checksald1(8) TYPE p,
+         checksald2(8) TYPE p,
+         checksald3(8) TYPE p,
+         checksald4(8) TYPE p,
+         checkagobl(8) TYPE p,
+         waers LIKE t001-waers,
+         waers2        LIKE t001-waers,
+         wflag2(1)     TYPE p VALUE '0'.
+
+*---Ermittlung aktuelles Geschäftsjahr über Funktionsbaustein.
+DATA: curry LIKE bsid-gjahr.
+
+*---Ermittlung Zahlungseingang bei Zahlungen mit Skontoabzug---------*
+DATA: zvskonto(8) TYPE p,     "Zahlungsvolumen bei Zahlung mit Skonto
+      zvnetto(8)  TYPE p,              "Zahlungsvolumen bei Nettozahlung
+      zvverzug(8) TYPE p,              "Verzugstage
+      zvmalvz(10) TYPE p,              "Zahlungvolumen * Verzugstage
+                                       "KNB4-VZSxx)
+      zvtyp(1)    TYPE c,              "Skonto oder Nettozahler
+      zvper(6)    TYPE c.              "Periode letze Zahlung
+*---Zeilenanzahl fü Adressausgabe -----------------------------------*
+DATA: zeilenanzahl LIKE adrs-anzzl VALUE 7.
+
+DATA: BEGIN OF xmahn OCCURS 10.
+        INCLUDE STRUCTURE knb5.
+DATA: END OF xmahn.
+
+* Hilfsfelder
+* -----------------------------------------------------------
+DATA: char1(1)   TYPE c.
+DATA: flag1(1)   TYPE c.
+DATA: flag2(1)   TYPE c.
+DATA: rastza(1)  TYPE c.
+DATA: fltop(1)   TYPE c.
+DATA: count TYPE p.
+DATA: coun1 TYPE i.
+
+*--------------------------------------------------------------------*
+*---- 'H' =   Hilfsfelder, die jederzeit fuer Berechnungen ver-  ----*
+*---- wendet werden koennen. ----------------------------------------*
+*--------------------------------------------------------------------*
+DATA: BEGIN OF h,
+        stichtag(8),
+        offset(2) TYPE p,
+        offse1(2) TYPE p,
+        soll      LIKE knc1-um01s,
+        haben     LIKE knc1-um01h,
+        saldo     LIKE knc1-umsav,
+        sald2     LIKE knc1-umsav,
+        shbkz     LIKE knc3-shbkz,     "Sonderhauptbuchkennzeichen
+        saldv     LIKE knc3-saldv,     "Sonderhauptbuch-Saldovortrag
+        shbls     LIKE knc3-solll,     "Sonderhauptbuch-Lfd.-Saldo
+        shbsl     LIKE knc3-solll,     "Sonderhauptbuch-Lfd.-SOLL
+        shbhb     LIKE knc3-habnl,     "Sonderhauptbuch-Lfd.-HABEN
+        text(15),
+        umlow     LIKE bsid-umskz,     "Umsatzkennzeichen
+        umhig     LIKE bsid-umskz,     "Umsatzkennzeichen
+      END   OF h.
+*--------------------------------------------------------------------*
+*---- 'C' =   Zwischenergebnisse, die aus Feldern des C-Segmentes ---*
+*---- berechnet werden. ---------------------------------------------*
+*--------------------------------------------------------------------*
+DATA: BEGIN OF c,
+        saldo     TYPE p,              "Saldo
+        umkz1     LIKE knc3-shbkz,                          "SHBKZ 1
+        sums1     TYPE p,              "Sonderumsatz 1
+        umkz2     LIKE knc3-shbkz,                          "SHBKZ 2
+        sums2     TYPE p,              "Sonderumsatz 2
+        umkz3     LIKE knc3-shbkz,                          "SHBKZ 3
+        sums3     TYPE p,              "Sonderumsatz 3
+        umkz4     LIKE knc3-shbkz,                          "SHBKZ 4
+        sums4     TYPE p,              "Sonderumsatz 4
+        umkz5     LIKE knc3-shbkz,                          "SHBKZ 5
+        sums5     TYPE p,              "Sonderumsatz 5
+        umkz6     LIKE knc3-shbkz,                          "SHBKZ 6
+        sums6     TYPE p,              "Sonderumsatz 6
+        umkz7     LIKE knc3-shbkz,                          "SHBKZ 7
+        sums7     TYPE p,              "Sonderumsatz 7
+        umkz8     LIKE knc3-shbkz,                          "SHBKZ 8
+        sums8     TYPE p,              "Sonderumsatz 8
+        umkz9     LIKE knc3-shbkz,                          "SHBKZ 9
+        sums9     TYPE p,              "Sonderumsatz 9
+        umkz10    LIKE knc3-shbkz,                          "SHBKZ 10
+        sums10    TYPE p,              "Sonderumsatz 10
+        sonob     TYPE p,              "Sonstige Umsatz-Kz
+        babzg     TYPE p,              "Berechtigte Abzuege
+        uabzg     TYPE p,              "Unberechtigte Abzuege
+        kzins     TYPE p,              "Zinszahlungen
+        kumum     TYPE p,              "Umsatz
+        kumag     TYPE p,              "Kum. Jahresausgleich
+        agobli LIKE knc1-umsav,        "Gesamt-Obligo (absolut)
+        lftage(3) TYPE p,              "Langfristige Überzugstage
+        mftage(3) TYPE p,              "Mittelfristige Überzugstage
+        kftage(3) TYPE p,              "Kurzfristige Überzugstage
+        zvtyp(1)    TYPE c,            "Flag Skonto oder Nettozahler
+        zvper(6)    TYPE c,            "letze Zahlungsperiode
+        zvverzug(8) TYPE p,            "Durchschittliche Verzugst
+      END   OF c.
+*--------------------------------------------------------------------*
+*---- 'C2'=   Zwischenergebnisse, die aus Feldern des C-Segmentes ---*
+*---- berechnet werden. ---------------------------------------------*
+*--------------------------------------------------------------------*
+DATA: BEGIN OF c2 OCCURS 0,
+        bukrs     LIKE knc1-bukrs,
+        saldo     TYPE p,              "Saldo
+        umkz1     LIKE knc3-shbkz,                          "SHBKZ 1
+        sums1     TYPE p,              "Sonderumsatz 1
+        umkz2     LIKE knc3-shbkz,                          "SHBKZ 2
+        sums2     TYPE p,              "Sonderumsatz 2
+        umkz3     LIKE knc3-shbkz,                          "SHBKZ 3
+        sums3     TYPE p,              "Sonderumsatz 3
+        umkz4     LIKE knc3-shbkz,                          "SHBKZ 4
+        sums4     TYPE p,              "Sonderumsatz 4
+        umkz5     LIKE knc3-shbkz,                          "SHBKZ 5
+        sums5     TYPE p,              "Sonderumsatz 5
+        umkz6     LIKE knc3-shbkz,                          "SHBKZ 6
+        sums6     TYPE p,              "Sonderumsatz 6
+        umkz7     LIKE knc3-shbkz,                          "SHBKZ 7
+        sums7     TYPE p,              "Sonderumsatz 7
+        umkz8     LIKE knc3-shbkz,                          "SHBKZ 8
+        sums8     TYPE p,              "Sonderumsatz 8
+        umkz9     LIKE knc3-shbkz,                          "SHBKZ 9
+        sums9     TYPE p,              "Sonderumsatz 9
+        umkz10    LIKE knc3-shbkz,                          "SHBKZ 10
+        sums10    TYPE p,              "Sonderumsatz 10
+        sonob     TYPE p,              "Sonstige Umsatz-Kz
+        babzg     TYPE p,              "Berechtigte Abzuege
+        uabzg     TYPE p,              "Unberechtigte Abzuege
+        kzins     TYPE p,              "Zinszahlungen
+        kumum     TYPE p,              "Umsatz
+        kumag     TYPE p,              "Kum. Jahresausgleich
+        agobli LIKE knc1-umsav,        "Gesamt-Obligo (absolut)
+        lftage(3) TYPE p,              "Langfristige Überzugstage
+        mftage(3) TYPE p,              "Mittelfristige Überzugstage
+        kftage(3) TYPE p,              "Kurzfristige Überzugstage
+        zvtyp(1)    TYPE c,            "Flag Skonto oder Nettozahler
+        zvper(6)    TYPE c,            "letze Zahlungsperiode
+        zvverzug(8) TYPE p,            "Durchschittliche Verzugst
+      END   OF c2.
+*--------------------------------------------------------------------*
+*---- 'C3'=   Zwischenergebnisse, die aus Feldern des C-Segmentes ---*
+*---- berechnet werden. ---------------------------------------------*
+*--------------------------------------------------------------------*
+DATA: BEGIN OF c3,
+        saldo     TYPE p,              "Saldo
+        umkz1     LIKE knc3-shbkz,                          "SHBKZ 1
+        sums1     TYPE p,              "Sonderumsatz 1
+        umkz2     LIKE knc3-shbkz,                          "SHBKZ 2
+        sums2     TYPE p,              "Sonderumsatz 2
+        umkz3     LIKE knc3-shbkz,                          "SHBKZ 3
+        sums3     TYPE p,              "Sonderumsatz 3
+        umkz4     LIKE knc3-shbkz,                          "SHBKZ 4
+        sums4     TYPE p,              "Sonderumsatz 4
+        umkz5     LIKE knc3-shbkz,                          "SHBKZ 5
+        sums5     TYPE p,              "Sonderumsatz 5
+        umkz6     LIKE knc3-shbkz,                          "SHBKZ 6
+        sums6     TYPE p,              "Sonderumsatz 6
+        umkz7     LIKE knc3-shbkz,                          "SHBKZ 7
+        sums7     TYPE p,              "Sonderumsatz 7
+        umkz8     LIKE knc3-shbkz,                          "SHBKZ 8
+        sums8     TYPE p,              "Sonderumsatz 8
+        umkz9     LIKE knc3-shbkz,                          "SHBKZ 9
+        sums9     TYPE p,              "Sonderumsatz 9
+        umkz10    LIKE knc3-shbkz,                          "SHBKZ 10
+        sums10    TYPE p,              "Sonderumsatz 10
+        sonob     TYPE p,              "Sonstige Umsatz-Kz
+        babzg     TYPE p,              "Berechtigte Abzuege
+        uabzg     TYPE p,              "Unberechtigte Abzuege
+        kzins     TYPE p,              "Zinszahlungen
+        kumum     TYPE p,              "Umsatz
+        kumag     TYPE p,              "Kum. Jahresausgleich
+        agobli LIKE knc1-umsav,        "Gesamt-Obligo (absolut)
+      END   OF c3.
+
+DATA: shbetrag LIKE bsega-dmshb.       "TYPE P.
+*--------------------------------------------------------------------*
+*---- 'RTAB' = Rastertabelle fuer offene Posten ---------------------*
+*--------------------------------------------------------------------*
+DATA: BEGIN OF rtab OCCURS 30,
+        sortk(1)   TYPE c,             "0 = Summe Gesber
+                                       "1 = Summe aller Gesber
+                                       "2 = Umsatzdaten
+        bukrs LIKE bsid-bukrs,
+        gsber LIKE bsid-gsber,
+        waers LIKE bsid-waers,
+        raart TYPE c,                  "Rasterart
+                                       "1 = Netto-Faelligkeit
+                                       "2 = Skonto1-Faelligkeit
+                                       "3 = Zahlungseingang
+                                       "4 = Ueber-Faelligkeit
+        xguts TYPE c,                  "Gutschrift
+        kumum TYPE p,                  "Umsatz
+        anzah TYPE p,                  "Anzahlungen
+        opsum TYPE p,                  "Offene Posten Summe
+        rast1 TYPE p,                  "Rasterfeld 1
+        rast2 TYPE p,                  "Rasterfeld 2
+        rast3 TYPE p,                  "Rasterfeld 3
+        rast4 TYPE p,                  "Rasterfeld 4
+        rast5 TYPE p,                  "Rasterfeld 5
+        rast6 TYPE p,                  "Rasterfeld 6
+        kunnr LIKE kna1-kunnr,
+        sortl LIKE kna1-sortl,
+        land1 LIKE kna1-land1,
+      END   OF rtab.
+*--------------------------------------------------------------------*
+*---- 'RBUS' = Rastertabelle fuer Summen pro Sachbearbeiter ---------*
+*--------------------------------------------------------------------*
+DATA: BEGIN OF rbus OCCURS 30,
+        sortk(1)   TYPE c,             "0 = Summe Gesber
+                                       "1 = Summe aller Gesber
+                                       "2 = Umsatzdaten
+        bukrs LIKE bsid-bukrs,
+        gsber LIKE bsid-gsber,
+        waers LIKE bsid-waers,
+        raart TYPE c,                  "Rasterart
+                                       "1 = Netto-Faelligkeit
+                                       "2 = Skonto1-Faelligkeit
+                                       "3 = Zahlungseingang
+                                       "4 = Ueber-Faelligkeit
+        xguts TYPE c,                  "Gutschrift
+        kumum TYPE p,                  "Umsatz
+        anzah TYPE p,                  "Anzahlungen
+        opsum TYPE p,                  "Offene Posten Summe
+        rast1 TYPE p,                  "Rasterfeld 1
+        rast2 TYPE p,                  "Rasterfeld 2
+        rast3 TYPE p,                  "Rasterfeld 3
+        rast4 TYPE p,                  "Rasterfeld 4
+        rast5 TYPE p,                  "Rasterfeld 5
+        rast6 TYPE p,                  "Rasterfeld 6
+      END   OF rbus.
+*--------------------------------------------------------------------*
+*---- 'RBUK' = Rastertabelle fuer Summen pro Buchungskreis  ---------*
+*--------------------------------------------------------------------*
+DATA: BEGIN OF rbuk OCCURS 30,
+        sortk(1)   TYPE c,             "0 = Summe Gesber
+                                       "1 = Summe aller Gesber
+                                       "2 = Umsatzdaten
+        bukrs LIKE bsid-bukrs,
+        gsber LIKE bsid-gsber,
+        waers LIKE bsid-waers,
+        raart TYPE c,                  "Rasterart
+                                       "1 = Netto-Faelligkeit
+                                       "2 = Skonto1-Faelligkeit
+                                       "3 = Zahlungseingang
+                                       "4 = Ueber-Faelligkeit
+        xguts TYPE c,                  "Gutschrift
+        kumum TYPE p,                  "Umsatz
+        anzah TYPE p,                  "Anzahlungen
+        opsum TYPE p,                  "Offene Posten Summe
+        rast1 TYPE p,                  "Rasterfeld 1
+        rast2 TYPE p,                  "Rasterfeld 2
+        rast3 TYPE p,                  "Rasterfeld 3
+        rast4 TYPE p,                  "Rasterfeld 4
+        rast5 TYPE p,                  "Rasterfeld 5
+        rast6 TYPE p,                  "Rasterfeld 6
+      END   OF rbuk.
+*--------------------------------------------------------------------*
+*---- 'RSUM' = Rastertabelle pro Währung über alle Buchungskreise ---*
+*--------------------------------------------------------------------*
+DATA: BEGIN OF rsum OCCURS 30,
+        sortk(1)   TYPE c,             "0 = Summe Gesber
+                                       "1 = Summe aller Gesber
+        waers LIKE bsid-waers,
+        raart TYPE c,                  "Rasterart
+                                       "1 = Netto-Faelligkeit
+                                       "2 = Skonto1-Faelligkeit
+                                       "3 = Zahlungseingang
+                                       "4 = Ueber-Faelligkeit
+        xguts TYPE c,                  "Gutschrift
+        kumum TYPE p,                  "Umsatz
+        anzah TYPE p,                  "Anzahlungen
+        opsum TYPE p,                  "Offene Posten Summe
+        rast1 TYPE p,                  "Rasterfeld 1
+        rast2 TYPE p,                  "Rasterfeld 2
+        rast3 TYPE p,                  "Rasterfeld 3
+        rast4 TYPE p,                  "Rasterfeld 4
+        rast5 TYPE p,                  "Rasterfeld 5
+        rast6 TYPE p,                  "Rasterfeld 6
+      END   OF rsum.
+
+*--------------------------------------------------------------------*
+*---- interne Tabelle für Periodenabgrenzung-------------------------*
+*--------------------------------------------------------------------*
+RANGES: bmonat FOR rfpdo-doprbmon.
+
+*--------------------------------------------------------------------*
+*---- In die Felder RP01 bis RP05 werden dynamisch die von aussen ---*
+*---- eingegebenen Rasterpunkte uebertragen -------------------------*
+*--------------------------------------------------------------------*
+DATA: rp01(2)   TYPE p,                                     "   0
+      rp02(2)   TYPE p,                                     "  20
+      rp03(2)   TYPE p,                                     "  40
+      rp04(2)   TYPE p,                                     "  80
+      rp05(2)   TYPE p,                                     " 100
+      RP06(3)   TYPE P,                "   1
+      RP07(3)   TYPE P,                "  21
+      RP08(3)   TYPE P,                "  41
+      RP09(3)   TYPE P,                "  81
+      RP10(3)   TYPE P.                " 101
+*--------------------------------------------------------------------*
+*---- In die Felder RC01 bis RC10 werden die Rasterpunkte in --------*
+*---- charakterform abgestellt. (fuer REPLACE-Funktion in Variabler -*
+*---- Ueberschrift) -------------------------------------------------*
+*--------------------------------------------------------------------*
+DATA: rc01(4)   TYPE c,                                     "  0
+      rc02(4)   TYPE c,                                     "  20
+      rc03(4)   TYPE c,                                     "  40
+      rc04(4)   TYPE c,                                     "  80
+      rc05(4)   TYPE c,                                     " 100
+      rc06(4)   TYPE c,                                     "   1
+      rc07(4)   TYPE c,                                     "  21
+      rc08(4)   TYPE c,                                     "  41
+      rc09(4)   TYPE c,                                     "  81
+      rc10(4)   TYPE c.                                     " 101
+
+*--------------------------------------------------------------------*
+*---- Felder für Umsatzkennzeichen ----------------------------------*
+*---- für Ausweis der Sonderumsätze----------------------------------*
+*--------------------------------------------------------------------*
+DATA: humkz1    LIKE knc3-shbkz,
+      humkz2    LIKE knc3-shbkz,
+      humkz3    LIKE knc3-shbkz,
+      humkz4    LIKE knc3-shbkz,
+      humkz5    LIKE knc3-shbkz,
+      humkz6    LIKE knc3-shbkz,
+      humkz7    LIKE knc3-shbkz,
+      humkz8    LIKE knc3-shbkz,
+      humkz9    LIKE knc3-shbkz,
+      humkz10   LIKE knc3-shbkz.
+
+*---- GBZAEHL - In diesem Feld wird vermerkt, fuer wieviele Ge- ------*
+*----           schaeftsbereiche ein OP-Raster ausgegeben wird. ------*
+*----           Wird das Raster nur fuer einen Geschaeftsbereich ge- -*
+*----           druckt, so entfaellt das Summen-Raster. --------------*
+DATA: gbzaehl(3) TYPE p.
+
+*---- TOP-FLAG '1' = bei TOP-OF-PAGE Einzelpostenueberschrift ausg. --*
+*----          '2' = bei TOP-OF-PAGE Ueberschrift fuer Raster ausgeb. *
+*----          '3' = bei TOP-OF-PAGE ULINE ausgeben. -----------------*
+*----          '4' = bei TOP-OF-PAGE Stammsatzueberschrift ausgeben --*
+DATA: top-flag(1) TYPE c.                                  "#EC *
+*---- TOP-FLA2 ' ' = bei TOP-OF-PAGE Summenüberschrift ---------------*
+*----          'X' = bei TOP-OF-PAGE Ueberschrift fuer Raster ausgeb. *
+DATA: top-fla2(1) TYPE c.                                  "#EC *
+
+DATA: batch_op_header TYPE BOOLEAN.
+
+*---- SEL-STAMM  'J' = Stammsatz wird ausgewertet                     *
+*---- SEL-POSTN  'J' = Stammsatz hat Posten gerastert                 *
+*----            'N' = Stammsatz hat keine Posten gerastert           *
+*---- SEL-POST2  'J' = Stammsatz hat Posten gerastert                 *
+*----            'N' = Stammsatz hat keine Posten gerastert           *
+DATA: BEGIN OF sel,
+        stamm(1) TYPE c,
+        postn(1) TYPE c,
+        post2(1) TYPE c,
+      END   OF sel.
+
+*---- SATZART  '1' = Stammdaten --------------------------------------*
+*----          '2' = Faelligkeitsraster ------------------------------*
+*----          '3' = Einzelposten ------------------------------------*
+DATA: satzart(1) TYPE c.
+
+*---- RART  =  Erste ausgewaehlte Rasterart --------------------------*
+DATA: rart(1)    TYPE c.
+*---- TAGE  =  Tage nach denen die Posten sortiert sind --------------*
+DATA: tage(4)    TYPE p,
+*---- NTAGE =  Tage fuer Netto-Faelligkeit ---------------------------*
+      ntage(4)   TYPE p,
+*---- STAGE =  Tage fuer Skonto1-Faelligkeit -------------------------*
+      stage(4)   TYPE p,
+*---- ZTAGE =  Tage fuer voraussichtlichen Zahlungseingang -----------*
+      ztage(4)   TYPE p,
+*---- UTAGE =  Tage fuer Ueber-Faelligkeit ---------------------------*
+      utage(4)   TYPE p.
+
+*---- RASTERUU dient zur Sortierung der Einzelposten. Die Posten -----*
+*----          gemaess ihrer Rasterung die Werte '1' bis '6' ---------*
+DATA: rasteruu(1) TYPE c.
+
+DATA: BEGIN OF gb,
+        gsber  LIKE bsid-gsber,
+        waers  LIKE bsid-waers,
+      END   OF gb.
+
+*---------------------------------------------------------------------*
+*---- SAVE_FELDER ---------------------------------------------------*
+*---------------------------------------------------------------------*
+DATA: save_gsber LIKE bsid-gsber.
+DATA: save_waers LIKE bsid-gsber.
+
+*---------------------------------------------------------------------*
+*---- Variable Ueberschriften ----------------------------------------*
+*---------------------------------------------------------------------*
+DATA: BEGIN OF varueb1,
+        feld1(40)   TYPE c,
+        feld2(14)   TYPE c,
+        feld3(14)   TYPE c,
+        feld4(14)   TYPE c,
+        feld5(14)   TYPE c,
+        feld6(14)   TYPE c,
+        feld7(14)   TYPE c,
+      END   OF varueb1.
+
+DATA: BEGIN OF varueb2,
+        feld1(40)   TYPE c,
+        feld2(14)   TYPE c,
+        feld3(14)   TYPE c,
+        feld4(14)   TYPE c,
+        feld5(14)   TYPE c,
+        feld6(14)   TYPE c,
+        feld7(14)   TYPE c,
+      END   OF varueb2.
+
+DATA: varueb3(132),
+      varueb5(132),
+      vartxt1(40).
+
+*---------------------------------------------------------------------*
+*---- Variable für Ausgabe der Sonderumsätze--------------------------*
+*---------------------------------------------------------------------*
+DATA: shbbez LIKE t074t-ltext.
+DATA: asums  TYPE p.
+
+*---------------------------------------------------------------------*
+*---- Interne Tabelle für Bezeichnungen der SHBKZ---------------------*
+*---------------------------------------------------------------------*
+DATA: BEGIN OF bezshb OCCURS 10,
+        shbkz LIKE t074t-shbkz,
+        ltext LIKE t074t-ltext,
+      END OF bezshb.
+
+*---------------------------------------------------------------------*
+*---- Interne Tabelle für Zwischenspeicherung ------------------------*
+*---------------------------------------------------------------------*
+DATA: BEGIN OF blkey,
+        bukrs LIKE bsid-bukrs,
+        belnr LIKE bsid-belnr,
+        gjahr LIKE bsid-gjahr,
+        buzei LIKE bsid-buzei,
+      END   OF blkey.
+
+DATA: BEGIN OF rtage,
+        ntage LIKE ntage,
+        stage LIKE stage,
+        ztage LIKE ztage,
+        utage LIKE utage,
+     END   OF rtage.
+
+DATA: BEGIN OF hbsid OCCURS 10.
+        INCLUDE STRUCTURE bsid.
+        INCLUDE STRUCTURE bsega.
+        INCLUDE STRUCTURE rtage.
+DATA: END   OF hbsid.
+
+DATA: BEGIN OF refbl OCCURS 10.
+        INCLUDE STRUCTURE blkey.
+        INCLUDE STRUCTURE rtage.
+DATA: END   OF refbl.
+
+DATA: BEGIN OF hknb1 OCCURS 10.
+        INCLUDE STRUCTURE knb1.
+DATA: END   OF hknb1.
+
+DATA: BEGIN OF ht001 OCCURS 10.
+        INCLUDE STRUCTURE t001.
+DATA: END   OF ht001.
+
+*---Saldo der Überfälligen Posten in Hauswährung --------------------*
+DATA: uebsaldo(8) TYPE p.              "Saldo überfällige Posten
+
+*---------------------------------------------------------------------*
+*---- Interne Tabelle für Ausgabe der Obligos ------------------------*
+*---------------------------------------------------------------------*
+DATA: BEGIN OF aobligo OCCURS 12,
+        obart TYPE c,             "Flag für Obligoart 1 = Kontokorrent
+                                  "                   2 = SHBKZ
+                                  "                   3 = sonstige SHB
+        shbkz LIKE t074t-shbkz,        "SHB-Kennzeichen
+        ltext LIKE t074t-ltext,        "Bezeichnung
+        oblig TYPE p,                  "Obligobetrag
+      END OF aobligo.
+DATA: ausflag TYPE c.     "verhindert uline in Verdichtungsstufe 6
+
+*---------------------------------------------------------------------*
+*---- Declarationen für Accessibility /ALV GRID ----------------------*
+*---------------------------------------------------------------------*
+DATA: acc_mode TYPE c.
+DATA: uebtext(22) TYPE c.
+DATA: uektext(15)  TYPE c.
+DATA: tittext(100) TYPE c.
+DATA: dattext(10) TYPE c.
+
+DATA: BEGIN OF rtab_alv OCCURS 30,
+        bukrs LIKE bsid-bukrs,
+        kunnr LIKE kna1-kunnr,
+        busab LIKE knb1-busab,
+        sortl LIKE kna1-sortl,
+        land1 LIKE kna1-land1,
+        gsber LIKE bsid-gsber,
+        waers LIKE bsid-waers,
+        raart LIKE rf140-raart,        "Rasterart
+        shkzg LIKE bsid-shkzg,
+        kumum LIKE rf140-kumumhw,      "Umsatz
+        anzah LIKE rf140-anzbthw,      "Anzahlungen
+        opsum LIKE rf140-gsaldd,       "Offene Posten Summe
+        rast1 LIKE rf140-rast1,        "Rasterfeld 1
+        rast2 LIKE rf140-rast2,        "Rasterfeld 2
+        rast3 LIKE rf140-rast3,        "Rasterfeld 3
+        rast4 LIKE rf140-rast4,        "Rasterfeld 4
+        rast5 LIKE rf140-rast5,        "Rasterfeld 5
+        rast6 LIKE rf140-rast6,        "Rasterfeld 6
+        adrs1 like adrs-line0,                                 "1253468
+        adrs2 like adrs-line0,                                 "1253468
+        adrs3 like adrs-line0,                                 "1253468
+        adrs4 like adrs-line0,                                 "1253468
+      END   OF rtab_alv.
+
+DATA: gd_no_anred type boolean.                                "1320031
+
+*"General Data
+TYPE-POOLS: slis.
+DATA: g_repid LIKE sy-repid,
+      g_grid_title TYPE  lvc_title.
+*"Callback
+DATA: g_user_command TYPE slis_formname VALUE 'USER_COMMAND',
+      g_top_of_page  TYPE slis_formname VALUE 'TOP_OF_PAGE'.   "1613289
+*"Variants
+DATA: gs_variant LIKE disvariant,
+      g_save.
+*"ALV HEADER
+DATA: gt_listheader  type slis_t_listheader,                   "1613289
+      gs_listheader  type slis_listheader.                     "1613289
+* Global structure of list
+* fieldcatalog
+DATA:   ls_fieldcat TYPE slis_fieldcat_alv.
+DATA:   gt_fieldcat TYPE slis_t_fieldcat_alv WITH HEADER LINE.   "#EC *
+
+DATA:   g_tabname TYPE slis_tabname VALUE 'RTAB_ALV'.
+
+*---------------------------------------------------------------------*
+*---- FIELD-GROUPS                            ------------------------*
+*---------------------------------------------------------------------*
+FIELD-GROUPS:
+          header,
+          stammdaten,
+          op-raster,                                       "#EC *
+          einzelposten.
+
+INSERT
+  knb1-bukrs                           " Buchungskreis
+  knb1-busab                           " Sachbearbeiter
+  uebsaldo                             " Saldo überfällige Posten
+  kna1-kunnr                           " Kontonummer
+  satzart                              " Satzart
+  rtab-sortk                           " Sortkz fuer Tabelle RTAB
+                                       " '0' = normale Eintraege
+                                       " '1' = Summeneintraege
+  gb                                   " Geschaeftsbereich
+                                       " - GB-GSBER
+                                       " - GB-WAERS
+  rasteruu         " Kennzeichen fuer Detailposten bzw Raster
+  rtab-xguts       " Flag für Forderungen und Gutschrift
+*---------------- ab hier nur fuer Einzelposten ----------------------*
+  tage                                 " Rastertage  fuer Detailposten
+  bsid-umskz                           " Umsatzkennzeichen
+  bsid-blart                           " Belegart
+  bsid-belnr                           " Belegnummer
+  bsid-buzei                           " Belegzeile
+INTO header.
+
+INSERT
+* Addressdaten
+  adrs-line0                           " 1. Zeile Adressenaufbereitung
+  adrs-line1                           " 2. "     "
+  adrs-line2                           " 3. "     "
+  adrs-line3                           " 4. "     "
+  adrs-line4                           " 5. "     "
+  adrs-line5                           " 6. "     "
+  adrs-line6                           " 7. "     "
+* Umsatzdaten
+  c-kumum                              " Umsatz
+  c-babzg                              " Berechtigt. Abzuege
+  c-uabzg                              " Unberechtigt. Abzuege
+  c-kzins                              " Zinszahlungen
+  c-kumag                              " Kum. Jahresausgleich
+* Warenkreditversicherung
+  knb1-vrsnr                           " Vertragsnummer
+  knb1-vrbkz                           " Institutsnummer
+  knb1-vlibb                           " Versicherungssumme
+  knb1-verdt                           " Gültig bis
+  knb1-vrszl                           " Ziel-Monate
+  knb1-vrspr                           " Selbstbeiteiligung in %
+* Obligos
+  c-saldo                              " Saldo ohne SHB-Vorgänge
+  c-umkz1                                                   "SHBKZ 1
+  c-sums1                              "Sonderumsatz 1
+  c-umkz2                                                   "SHBKZ 2
+  c-sums2                              "Sonderumsatz 2
+  c-umkz3                                                   "SHBKZ 3
+  c-sums3                              "Sonderumsatz 3
+  c-umkz4                                                   "SHBKZ 4
+  c-sums4                              "Sonderumsatz 4
+  c-umkz5                                                   "SHBKZ 5
+  c-sums5                              "Sonderumsatz 5
+  c-umkz6                                                   "SHBKZ 6
+  c-sums6                              "Sonderumsatz 6
+  c-umkz7                                                   "SHBKZ 7
+  c-sums7                              "Sonderumsatz 7
+  c-umkz8                                                   "SHBKZ 8
+  c-sums8                              "Sonderumsatz 8
+  c-umkz9                                                   "SHBKZ 9
+  c-sums9                              "Sonderumsatz 9
+  c-umkz10                                                  "SHBKZ 10
+  c-sums10                             "Sonderumsatz 10
+  c-sonob                              " Sonst. Obligen
+* Kreditkontrollbereichsdaten
+  c-agobli                             " Absolutes Gesamtobligo
+* Zahlungdaten
+  c-zvtyp                              "Flag Skonto oder Nettozahler
+  c-zvper                              "letze Zahlungsperiode
+  c-zvverzug                           "Durchschittliche Verzugstage
+  knb1-zterm                           "Zahlungsbedingung
+  knb1-xverr                           "Zahlungsverrechnung
+INTO stammdaten.
+
+INSERT
+  rtab-raart                           "Rasterart
+  rtab-kumum                           "Umsatz
+  rtab-anzah                           "Anzahlungen
+  rtab-opsum                           "Offene Posten Summe
+  rtab-rast1                           "Rasterfeld 1
+  rtab-rast2                           "Rasterfeld 2
+  rtab-rast3                           "Rasterfeld 3
+  rtab-rast4                           "Rasterfeld 4
+  rtab-rast5                           "Rasterfeld 5
+  rtab-rast6                           "Rasterfeld 6
+  rtab-kunnr
+  rtab-sortl
+  rtab-land1
+  rtab-gsber
+INTO op-raster.
+
+INSERT
+  bsid-budat                           " Buchungsdatum
+  bsid-bldat                           " Belegdatum
+  bsid-cpudt                           " CPU-Datum
+  bsid-waers                           " Wahrungsschluessel
+  bsega-netdt                          " Nettofaelligkeitsdatum
+  bsid-zfbdt                           " Zahlungsfristen-Basisdatum
+  bsid-bschl                           " Buchungsschluessel
+  bsid-zlsch                           " Zahlungsschluessel
+  bsid-manst                           " Mahnstufe
+  shbetrag                             " Hauswaehrungsbetrag
+  bsega-dmshb                          " Hauswaehrungsbetrag
+  bsega-wrshb                          " Fremwaehrungsbetrag
+INTO einzelposten.
+
+begin_of_block 1.
+SELECT-OPTIONS: uebesal2 FOR rfsdo-doprueb2.  "Summe überfällige Posten
+PARAMETERS:     xnurford LIKE rfpdo1-doprxnfo.
+SELECT-OPTIONS: vertage  FOR rfpdo1-doprvztg.
+PARAMETERS:     monat    LIKE rfpdo-doprbmon.
+SELECT-OPTIONS: kksaldo2 FOR rfsdo-doprsal2,    "Saldovortrag
+                agoblig2 FOR rfsdo-doprago2.    "Absolutes Obligo
+SELECT-OPTIONS: akonts   FOR knb1-akont,
+                akontp   FOR bsid-hkont.
+SELECT-OPTIONS: berabzu2 FOR rfsdo-doprbabz,
+                unbabzu2 FOR rfsdo-dopruabz,
+                zinse2   FOR rfsdo-doprkzin,
+                jhrausg2 FOR rfsdo-doprkuma.
+SELECT-OPTIONS: budat    FOR bsid-budat,
+                bldat    FOR bsid-bldat,
+                netdt    FOR bsega-netdt.
+PARAMETERS:     n_belege LIKE rfpdo-bpetnbel DEFAULT 'X',
+                stat_blg LIKE rfpdo-bpetsbel.  "Statistische Belege
+END_OF_BLOCK 1.
+
+BEGIN_OF_BLOCK 2.
+PARAMETERS: sortart  LIKE rfpdo-doprsoar DEFAULT '1',
+            verdicht LIKE rfpdo2-doprver2 DEFAULT '0',
+            rastverd LIKE rfpdo-doprrast DEFAULT '0',
+            konzvers LIKE rfpdo-dopokonz,
+            xbukrdat LIKE rfpdo3-allgbukd DEFAULT 0,
+            kausgabe LIKE rfpdo3-allgkaor.
+PARAMETERS: rart-net LIKE rfpdo-doprrnet DEFAULT ' ' NO-DISPLAY. "#EC *
+PARAMETERS: rart-skt LIKE rfpdo-doprrskt DEFAULT ' ' NO-DISPLAY. "#EC *
+PARAMETERS: rart-zhl LIKE rfpdo-doprrzhl DEFAULT ' ' NO-DISPLAY. "#EC *
+PARAMETERS: rart-ueb LIKE rfpdo-doprrueb DEFAULT 'X' NO-DISPLAY. "#EC *
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 01(30) text-026 for field rastbis1.
+SELECTION-SCREEN POSITION pos_low.
+PARAMETERS: rastbis1 LIKE rfpdo1-allgrogr DEFAULT '000'.
+PARAMETERS: rastbis2 LIKE rfpdo1-allgrogr DEFAULT '020'.
+PARAMETERS: rastbis3 LIKE rfpdo1-allgrogr DEFAULT '040'.
+PARAMETERS: rastbis4 LIKE rfpdo1-allgrogr DEFAULT '080'.
+PARAMETERS: rastbis5 LIKE rfpdo1-allgrogr DEFAULT '100'.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 01(31) text-029 FOR FIELD faktor.
+SELECTION-SCREEN POSITION pos_low.
+PARAMETERS:  faktor LIKE rfpdo-doprfakt DEFAULT '0'.
+SELECTION-SCREEN COMMENT 35(1) text-028 FOR FIELD stellen.
+PARAMETERS:  stellen LIKE rfpdo-doprfakt DEFAULT '0'.
+SELECTION-SCREEN END OF LINE.
+PARAMETERS: pzuor    LIKE rfpdo2-doprzuor DEFAULT 'X'.
+PARAMETERS: xgetausw LIKE rfpdo1-doprxgaw.
+PARAMETERS: umsatzkz LIKE rfpdo1-doprshbo. "DEFAULT 'WBSA'.
+PARAMETERS: xhitlist LIKE rfpdo1-doprhitl.
+PARAMETERS: title    LIKE rfpdo1-allgline,
+            listsep  LIKE rfpdo-allglsep,
+            mikfiche LIKE rfpdo-allgmikf.
+PARAMETERS: p_lvar LIKE gs_variant-variant DEFAULT space MODIF ID 508.
+END_OF_BLOCK 2.
+
+
+AT SELECTION-SCREEN OUTPUT.
+  IF acc_mode IS INITIAL.
+    LOOP AT SCREEN.
+      IF screen-group1 = '508'.
+        screen-active    = '0'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+AT SELECTION-SCREEN ON akonts.
+  LOOP AT akonts.
+    PERFORM alphaformat(sapfs000)
+      USING akonts-low akonts-low.
+    PERFORM alphaformat(sapfs000)
+      USING akonts-high akonts-high.
+    MODIFY akonts.
+  ENDLOOP.
+
+AT SELECTION-SCREEN ON akontp.
+  LOOP AT akontp.
+    PERFORM alphaformat(sapfs000)
+      USING akontp-low akontp-low.
+    PERFORM alphaformat(sapfs000)
+      USING akontp-high akontp-high.
+    MODIFY akontp.
+  ENDLOOP.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_lvar.
+  gs_variant-report  = sy-repid.
+  gs_variant-variant = p_lvar.
+  PERFORM f4_for_s_lvar CHANGING gs_variant.
+  p_lvar = gs_variant-variant.
+
+AT SELECTION-SCREEN.
+  IF rastbis1 GT '998'
+  OR rastbis2 GT '998'
+  OR rastbis3 GT '998'
+  OR rastbis4 GT '998'
+  OR rastbis5 GT '998'.
+    MESSAGE e381.
+  ENDIF.
+
+  IF NOT rastbis5 IS INITIAL.
+    IF  rastbis5 GT rastbis4
+    AND rastbis4 GT rastbis3
+    AND rastbis3 GT rastbis2
+    AND rastbis2 GT rastbis1.
+    ELSE.
+      MESSAGE e379.
+    ENDIF.
+  ELSE.
+    IF NOT rastbis4 IS INITIAL.
+      IF  rastbis4 GT rastbis3
+      AND rastbis3 GT rastbis2
+      AND rastbis2 GT rastbis1.
+      ELSE.
+        MESSAGE e379.
+      ENDIF.
+    ELSE.
+      IF NOT rastbis3 IS INITIAL.
+        IF  rastbis3 GT rastbis2
+        AND rastbis2 GT rastbis1.
+        ELSE.
+          MESSAGE e379.
+        ENDIF.
+      ELSE.
+        IF NOT rastbis2 IS INITIAL.
+          IF  rastbis2 GT rastbis1.
+          ELSE.
+            MESSAGE e379.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  CLEAR bezshb.
+  REFRESH bezshb.
+  CONDENSE umsatzkz NO-GAPS.
+  IF NOT umsatzkz(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+1(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+1(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+2(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+2(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+3(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+3(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+4(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+4(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+5(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+5(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+6(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+6(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+7(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+7(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+8(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+8(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+  IF NOT umsatzkz+9(1) IS INITIAL.
+    CLEAR char1.
+    MOVE umsatzkz+9(1) TO char1.
+    PERFORM shbkz_pruefen.
+  ENDIF.
+
+  IF NOT acc_mode IS INITIAL.
+    verdicht = '6'.
+  ENDIF.
+
+  IF verdicht = '6'.
+    sortart  = '1'.
+    xbukrdat = '2'.
+  ENDIF.
+
+
+INITIALIZATION.
+  get_frame_title: 1, 2.
+  monat = '16'.
+  CALL FUNCTION 'GET_ACCESSIBILITY_MODE'
+    IMPORTING
+      accessibility     = acc_mode
+    EXCEPTIONS
+      its_not_available = 1
+      OTHERS            = 2.
+  IF sy-subrc <> 0.
+*   MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+  IF NOT acc_mode IS INITIAL.
+    g_repid = sy-repid.
+  ENDIF.
+
+START-OF-SELECTION.
+
+  COMMIT WORK.
+  copy: akonts to dd_akont, akontp to dd_hkont.
+
+  SELECT * FROM t001 APPENDING TABLE ht001
+    WHERE bukrs IN dd_bukrs.
+
+*- Standardseitenkopf fuellen ---------------------------------------*
+  MOVE '0'      TO bhdgd-inifl.
+  MOVE sy-linsz TO bhdgd-lines.
+  MOVE sy-uname TO bhdgd-uname.
+  MOVE sy-repid TO bhdgd-repid.
+  MOVE sy-title TO bhdgd-line1.
+  MOVE title    TO bhdgd-line2.
+  MOVE '    '   TO bhdgd-bukrs.
+  MOVE mikfiche TO bhdgd-miffl.
+  MOVE listsep  TO bhdgd-separ.
+  MOVE 'BUKRS'  TO bhdgd-domai.
+*- OP-Raster und Ueberschriften aufbereiten -------------------------*
+  PERFORM raster_aufbau.
+  PERFORM shb_kennzeichen.
+
+*- Layout falls ACCESSIBILITY_MODE aktiv ----------------------------*
+  MOVE:  sy-repid TO gs_variant-report.                        "1554718
+  MOVE:  p_lvar   TO gs_variant-variant.                       "1554718
+
+  IF n_belege <> space.
+    n_belege = 'X'.
+    b0sg-xstan = 'X'.
+  ELSE.
+    b0sg-xstan = ' '.
+  ENDIF.
+
+  IF stat_blg <> space.
+    stat_blg = 'X'.
+    b0sg-xstas = 'X'.
+  ENDIF.
+
+  IF monat IS INITIAL
+  OR monat GT '16'.
+    monat = '16'.
+  ENDIF.
+  bmonat-low    = '1'.
+  bmonat-high   = monat.
+  bmonat-option = 'BT'.
+  bmonat-sign   = 'I'.
+  APPEND bmonat.
+
+GET kna1.
+  CLEAR adrs.
+  MOVE-CORRESPONDING kna1 TO adrs.                         "#EC ENHOK
+  if not acc_mode IS INITIAL.                                  "1320031
+    clear gd_no_anred.                                         "1320031
+    if adrs-anred IS initial.                                  "1320031
+      gd_no_anred = 'X'.                                       "1320031
+    endif.                                                     "1320031
+    clear adrs-name2.                                          "1320031
+    clear adrs-name3.                                          "1320031
+    clear adrs-name4.                                          "1320031
+    clear adrs-pfach.                                          "1320031
+    clear adrs-pstl2.                                          "1320031
+    clear adrs-pfort.                                          "1320031
+  endif.
+  MOVE zeilenanzahl TO adrs-anzzl.
+  CALL FUNCTION 'ADDRESS_INTO_PRINTFORM'
+    EXPORTING
+      adrswa_in  = adrs
+    IMPORTING
+      adrswa_out = adrs.
+  if not acc_mode IS INITIAL.                                  "1320031
+    if gd_no_anred = 'X'.                                      "1320031
+      adrs-line3 = adrs-line2.                                 "1320031
+      adrs-line2 = adrs-line1.                                 "1320031
+      adrs-line1 = adrs-line0.                                 "1320031
+      clear adrs-line0.                                        "1320031
+    endif.                                                     "1320031
+  endif.                                                       "1320031
+
+  IF NOT konzvers IS INITIAL.
+    CLEAR checksaldo.
+    CLEAR checksald1.
+    CLEAR checksald2.
+    CLEAR checksald3.
+    CLEAR checksald4.
+    CLEAR checkagobl.
+    CLEAR waers2.
+    CLEAR wflag2.
+    CLEAR   hbsid.
+    REFRESH hbsid.
+    CLEAR   refbl.
+    REFRESH refbl.
+    sel-stamm  = 'N'.
+    sel-postn  = 'N'.
+    sel-post2  = 'N'.
+    CLEAR   rtab.
+    REFRESH rtab.
+    CLEAR   hknb1.
+    REFRESH hknb1.
+    CLEAR   c2.
+    REFRESH c2.
+    CLEAR   c3.
+  ENDIF.
+
+GET knb1.
+* Lfd. Geschaeftsjahr gemaess Stichtag besorgen ---------------------*
+  CHECK akonts.
+  IF konzvers IS INITIAL.
+    CLEAR checksaldo.
+    CLEAR checksald1.
+    CLEAR checksald2.
+    CLEAR checksald3.
+    CLEAR checksald4.
+    CLEAR checkagobl.
+    CLEAR hbsid.
+    REFRESH hbsid.
+    CLEAR refbl.
+    REFRESH refbl.
+    sel-stamm = 'N'.
+    sel-postn = 'N'.
+    CLEAR   rtab.
+    REFRESH rtab.
+  ENDIF.
+  CLEAR c.
+  CLEAR h-saldo.
+  CLEAR h-sald2.
+  CLEAR: zvverzug,zvper,zvtyp.
+  CLEAR: gb,
+         rasteruu,
+         tage.
+
+* laufendes Geschäftsjahr ermitteln
+* ---------------------------------
+  CALL FUNCTION 'GET_CURRENT_YEAR'
+    EXPORTING
+      bukrs = knb1-bukrs
+      date  = dd_stida
+    IMPORTING
+      curry = curry.
+  READ TABLE ht001 WITH KEY bukrs = knb1-bukrs.
+  t001 = ht001.
+  IF  NOT waers2 IS INITIAL
+  AND waers2 NE t001-waers.
+    wflag2 = '1'.
+  ENDIF.
+  waers2 = t001-waers.
+
+GET knb4.
+* Ermittlung Zahlungseingang bei Zahlungen mit Skontoabzug-----------*
+  IF knb1-xzver <> space. "Daten über Zahlungsverhalten aufgezeichnet?
+    PERFORM payment_forecast.
+  ENDIF.
+  MOVE knb4-jah01      TO zvper+2(4).
+  MOVE knb4-mon01      TO zvper(2).
+  c-zvtyp     = zvtyp.
+  c-zvper     = zvper.
+  c-zvverzug  = zvverzug.
+
+GET knc1.
+  CHECK: knc1-gjahr = curry.
+  PERFORM cfaktor.
+  IF cfakt NE 0.
+    checksald1 = checksald1 + knc1-babzg / cfakt.
+    checksald2 = checksald2 + knc1-uabzg / cfakt.
+    checksald3 = checksald3 + knc1-kzins / cfakt.
+    checksald4 = checksald4 + knc1-kumag / cfakt.
+  ELSE.
+    checksald1 = checksald1 + knc1-babzg.
+    checksald2 = checksald2 + knc1-uabzg.
+    checksald3 = checksald3 + knc1-kzins.
+    checksald4 = checksald4 + knc1-kumag.
+  ENDIF.
+* aktuellen Saldo ermitteln (fuer CHECK auf Saldo) ------------------*
+  PERFORM saldo_aktuell.
+  PERFORM kum_werte.
+  sel-stamm = 'J'.
+
+GET knc3.
+  CHECK knc3-gjahr = curry.
+*  Errechnen Sonderumsatz-Salden, Gesamtsaldo ------------------------*
+*  Trend, Umsatz pro Gesch.Bereich -----------------------------------*
+  PERFORM sonder_umsaetze.
+  sel-stamm = 'J'.
+
+GET bsid.
+  IF konzvers IS INITIAL.
+    CHECK checksald1 IN berabzu2.
+    CHECK checksald2 IN unbabzu2.
+    CHECK checksald3 IN zinse2.
+    CHECK checksald4 IN jhrausg2.
+    CHECK checksaldo IN kksaldo2.
+    CHECK: checkagobl IN agoblig2.
+  ENDIF.
+  CHECK akontp.
+  CASE bsid-bstat.
+    WHEN ' '.
+      CHECK n_belege EQ 'X'.
+    WHEN 'S'.
+      CHECK stat_blg EQ 'X'.
+    WHEN OTHERS.
+      EXIT.
+  ENDCASE.
+
+* Einzelposten werden nur dann weiterverarbeitet, wenn ueberhaupt ---*
+* ein OP-Raster gewuenscht wird. ------------------------------------*
+  CHECK rastverd < '2'.
+
+* Bei SORTART = '2' werden nur Belege verarbeitet, welche in Fremd- -*
+* waehrung gebucht sind ---------------------------------------------*
+  IF sortart  = '2'.
+    CHECK bsid-waers NE t001-waers.
+  ENDIF.
+
+  CHECK bsid-budat LE dd_stida.
+
+  CLEAR faede.
+  MOVE-CORRESPONDING bsid TO faede.                        "#EC ENHOK
+  faede-koart = 'D'.
+
+  CALL FUNCTION 'DETERMINE_DUE_DATE'                       "#EC *
+    EXPORTING
+      i_faede = faede
+    IMPORTING
+      e_faede = faede
+    EXCEPTIONS
+      OTHERS  = 1.
+
+  bsega-netdt = faede-netdt.
+
+* TAGE gemaess Rasterart ermitteln -----------------------------------*
+* Netto-Faelligkeit --------------------------------------------------*
+  ntage = faede-netdt - dd_stida.
+* Ueber-Faelligkeit --------------------------------------------------*
+  utage = dd_stida - faede-netdt.
+* Skonto1-Faelligkeit ------------------------------------------------*
+  stage = faede-sk1dt - dd_stida.
+* Voraussichtlicher Zahlungseingang-----------------------------------*
+  ztage = faede-sk1dt - dd_stida + zvverzug.
+  IF NOT pzuor    IS INITIAL
+  OR NOT konzvers IS INITIAL.
+    PERFORM einzelposten_save.
+  ELSE.
+* die Einzelposten werden nach den Tagen der ersten Rasterart --------*
+* sortiert -----------------------------------------------------------*
+    IF rart-net = 'X'.
+      tage = ntage.
+    ELSE.
+      IF rart-skt = 'X'.
+        tage = stage.
+      ELSE.
+        IF rart-zhl = 'X'.
+          tage = ztage.
+        ELSE.
+          IF rart-ueb = 'X'.
+            tage = utage.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+
+    CASE bsid-umsks.
+*--------------- Anzahlungen sammeln ---------------------------------*
+*--------------- auch wenn nicht von aussen abgegrenzt ---------------*
+      WHEN 'A'.
+        CLEAR rtab.
+        IF bsid-bstat NE 'S'.
+          MOVE: bsid-bukrs TO rtab-bukrs,
+                '0'      TO rtab-sortk,
+                bsid-gsber TO rtab-gsber,
+                rart     TO rtab-raart.
+          IF sortart = '2'.
+            MOVE bsid-waers TO rtab-waers.
+            MOVE bsega-wrshb TO rtab-anzah.
+          ELSE.
+            IF NOT konzvers IS INITIAL.
+              MOVE t001-waers TO rtab-waers.
+              MOVE bsega-dmshb TO rtab-anzah.
+            ELSE.
+              MOVE bsega-dmshb TO rtab-anzah.
+            ENDIF.
+          ENDIF.
+          CLEAR rtab-xguts.
+          IF NOT xgetausw IS INITIAL.
+            IF bsega-dmshb LT 0.
+              rtab-xguts = 'X'.
+            ENDIF.
+          ENDIF.
+          MOVE:
+          kna1-kunnr TO rtab-kunnr,
+          kna1-sortl TO rtab-sortl,
+          kna1-land1 TO rtab-land1.
+          COLLECT rtab.
+*--------------- Summieren ueber alle Geschaeftsbereiche -------------*
+          MOVE: '1'      TO rtab-sortk,
+                '**'     TO rtab-gsber.
+          COLLECT rtab.
+        ENDIF.
+    ENDCASE.
+
+    CHECK: budat,
+           bldat,
+           netdt.
+    sel-postn = 'J'.
+
+    IF sortart = '1'.
+      IF konzvers IS INITIAL .
+        PERFORM posten_rastern USING space.
+        MOVE space    TO gb-waers.
+      ELSE.
+        PERFORM posten_rastern USING t001-waers.
+        MOVE t001-waers TO gb-waers.
+      ENDIF.
+    ELSE.
+      PERFORM posten_rastern USING bsid-waers.
+      MOVE bsid-waers TO gb-waers.
+    ENDIF.
+
+*----- Saldoberechnung Überfälligkeitsprüfung
+    IF  utage GT '0'
+    AND utage IN vertage.
+      IF NOT xnurford IS INITIAL.
+        IF bsega-dmshb GT '0'.         "Falls keine Habenpositionen
+          h-sald2        = h-sald2        + bsega-dmshb.
+        ENDIF.                         "bei der berechnung berück-
+      ELSE.                            "sichtigt werden sollen
+        h-sald2        = h-sald2        + bsega-dmshb.
+      ENDIF.
+    ENDIF.                             "hier die Sterne entfernen
+
+*---- nur bei Verdichtungsstufe '0' werden EINZELPOSTEN extrahiert --*
+    IF verdicht = '0'.
+      IF  utage GT '0'
+      AND utage IN vertage.
+        PERFORM einzelposten_sichern.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+GET knb1 LATE.
+  IF konzvers IS INITIAL.
+    CHECK checksald1 IN berabzu2.
+    CHECK checksald2 IN unbabzu2.
+    CHECK checksald3 IN zinse2.
+    CHECK checksald4 IN jhrausg2.
+    CHECK checksaldo IN kksaldo2.
+    CHECK: checkagobl IN agoblig2.
+    IF NOT pzuor IS INITIAL.
+      PERFORM einzelposten_link.
+      PERFORM einzelposten_proc.
+    ENDIF.
+    CLEAR uebsaldo.
+
+* Bei SORTART = '2' werden nur dann Stammsatzdaten ausgegeben, wenn -*
+* auch Einzelposten gerastert wurden. -------------------------------*
+    IF sortart = '2'.
+      CHECK sel-postn = 'J'.
+    ENDIF.
+    IF NOT kausgabe IS INITIAL.
+      CHECK sel-postn = 'J'.
+    ENDIF.
+
+*----- Modifikation für Überfälligkeitsprüfung
+    PERFORM cfaktor.
+    IF cfakt NE 0.
+      checksaldo = h-sald2        / cfakt.
+    ELSE.
+      checksaldo = h-sald2.
+    ENDIF.
+    CHECK checksaldo     IN uebesal2.
+
+    IF NOT xhitlist IS INITIAL.
+*----- Multiplikation um richtige Sortierung zu erreichen
+      uebsaldo = checksaldo * -1.
+    ENDIF.
+
+*---- nur bei Verdichtungsstufe '0' werden EINZELPOSTEN extrahiert --*
+    IF verdicht = '0'.
+      PERFORM einzelposten_extract.
+    ENDIF.
+
+    CLEAR: gb,
+           rasteruu,
+           tage.
+    MOVE '1' TO satzart.
+* Stammdaten extrahieren ---------------------------------------------*
+    CLEAR bsid.
+    EXTRACT stammdaten.
+* OP-Raster extrahieren ----------------------------------------------*
+    SORT rtab ASCENDING.
+
+    LOOP AT rtab.
+      MOVE:     '2'    TO satzart,
+            rtab-gsber TO gb-gsber,
+            rtab-waers TO gb-waers,
+            rtab-raart TO rasteruu.
+      EXTRACT op-raster.
+    ENDLOOP.
+  ELSE.
+    hknb1 = knb1.
+    APPEND hknb1.
+    MOVE-CORRESPONDING c TO c2.
+    c2-bukrs = knb1-bukrs.
+    APPEND c2.
+  ENDIF.
+
+GET kna1 LATE.
+  IF NOT konzvers IS INITIAL.
+    CLEAR h-sald2.
+    IF wflag2 IS INITIAL.
+      CHECK checksald1 IN berabzu2.
+      CHECK checksald2 IN unbabzu2.
+      CHECK checksald3 IN zinse2.
+      CHECK checksald4 IN jhrausg2.
+      CHECK checksaldo IN kksaldo2.
+      CHECK: checkagobl IN agoblig2.
+    ENDIF.
+    IF NOT pzuor IS INITIAL.
+      PERFORM einzelposten_link.
+    ENDIF.
+    CLEAR uebsaldo.
+
+    CLEAR sel-post2.
+    LOOP AT hknb1.
+      knb1 = hknb1.
+      LOOP AT c2
+        WHERE bukrs = knb1-bukrs.
+        CLEAR c.
+        MOVE-CORRESPONDING c2 TO c.
+        EXIT.
+      ENDLOOP.
+      PERFORM summ_c3.
+      CLEAR sel-postn.
+      PERFORM einzelposten_proc.
+
+* Bei SORTART = '2' werden nur dann Stammsatzdaten ausgegeben, wenn -*
+* auch Einzelposten gerastert wurden. -------------------------------*
+      IF sortart = '2'.
+        IF sel-postn NE 'J'.
+          DELETE hknb1.
+        ENDIF.
+      ENDIF.
+      IF NOT kausgabe IS INITIAL.
+        IF sel-postn NE 'J'.
+          DELETE hknb1.
+        ENDIF.
+      ENDIF.
+      IF sel-postn =  'J'.
+        sel-post2 = 'J'.
+      ENDIF.
+    ENDLOOP.
+
+*----- Modifikation für Überfälligkeitsprüfung
+    PERFORM cfaktor.
+    IF cfakt NE 0.
+      checksaldo = h-sald2 / cfakt.
+    ELSE.
+      checksaldo = h-sald2.
+    ENDIF.
+    CHECK checksaldo     IN uebesal2.
+
+    IF NOT xhitlist IS INITIAL.
+*----- Multiplikation um richtige Sortierung zu erreichen
+      uebsaldo = checksaldo * -1.
+    ENDIF.
+
+    IF sortart = '2'.
+      CHECK sel-post2 = 'J'.
+    ENDIF.
+    IF NOT kausgabe IS INITIAL.
+      CHECK sel-post2 = 'J'.
+    ENDIF.
+
+    LOOP AT hknb1.
+      knb1 = hknb1.
+      LOOP AT c2
+        WHERE bukrs = knb1-bukrs.
+        CLEAR c.
+        MOVE-CORRESPONDING c2 TO c.
+        EXIT.
+      ENDLOOP.
+*---- nur bei Verdichtungsstufe '0' werden EINZELPOSTEN extrahiert --*
+      IF verdicht = '0'.
+        PERFORM einzelposten_extract.
+      ENDIF.
+
+      CLEAR: gb,
+             rasteruu,
+             tage.
+      MOVE '1' TO satzart.
+* Stammdaten extrahieren ---------------------------------------------*
+      CLEAR bsid.
+      EXTRACT stammdaten.
+* OP-Raster extrahieren ----------------------------------------------*
+      SORT rtab ASCENDING.
+
+      LOOP AT rtab
+        WHERE bukrs = knb1-bukrs.
+        MOVE:     '2'    TO satzart,
+              rtab-gsber TO gb-gsber,
+              rtab-waers TO gb-waers,
+              rtab-raart TO rasteruu.
+        EXTRACT op-raster.
+        CLEAR rtab-bukrs.
+        COLLECT rtab.
+      ENDLOOP.
+    ENDLOOP.
+
+    CLEAR knb1.
+* Bei SORTART = '2' werden nur dann Stammsatzdaten ausgegeben, wenn -*
+* auch Einzelposten gerastert wurden. -------------------------------*
+    CLEAR c.
+    IF wflag2 IS INITIAL.
+      MOVE-CORRESPONDING c3 TO c.
+    ENDIF.
+
+    CLEAR: gb,
+           rasteruu,
+           tage.
+    MOVE '1' TO satzart.
+* Stammdaten extrahieren ---------------------------------------------*
+    CLEAR bsid.
+    EXTRACT stammdaten.
+* OP-Raster extrahieren ----------------------------------------------*
+    SORT rtab ASCENDING.
+
+    LOOP AT rtab
+      WHERE bukrs = knb1-bukrs.
+      MOVE:     '2'    TO satzart,
+            rtab-gsber TO gb-gsber,
+            rtab-waers TO gb-waers,
+            rtab-raart TO rasteruu.
+      EXTRACT op-raster.
+    ENDLOOP.
+  ENDIF.
+  CLEAR adrs.
+
+END-OF-SELECTION.
+
+
+*---------------------------------------------------------------------*
+*        Aufbereitung                                                 *
+*---------------------------------------------------------------------*
+  CREATE OBJECT lo_writer.
+
+  CLEAR   rtab.
+  REFRESH rtab.
+  IF konzvers = space.
+    SORT BY  knb1-bukrs
+             knb1-busab
+             uebsaldo
+             kna1-kunnr
+             satzart
+             rtab-sortk
+             gb
+             rasteruu
+             rtab-xguts
+             tage
+             bsid-umskz
+             bsid-blart
+             bsid-belnr
+             bsid-buzei.
+  ELSE.
+    SORT BY  uebsaldo
+             kna1-kunnr
+             knb1-bukrs
+             knb1-busab
+             satzart
+             rtab-sortk
+             gb
+             rasteruu
+             rtab-xguts
+             tage
+             bsid-umskz
+             bsid-blart
+             bsid-belnr
+             bsid-buzei.
+  ENDIF.
+
+  LOOP.
+    AT FIRST.
+      IF konzvers = 'X'.
+        MOVE '0000' TO bhdgd-werte.
+        PERFORM new-section(rsbtchh0).
+      ENDIF.
+    ENDAT.
+
+    IF konzvers IS INITIAL.
+      AT NEW knb1-bukrs.
+        MOVE knb1-bukrs    TO bhdgd-grpin(4).     "<= Micro-Fiche Info
+        MOVE knb1-bukrs    TO bhdgd-bukrs.
+        MOVE bhdgd-bukrs TO bhdgd-werte.
+        PERFORM new-section(rsbtchh0).
+        CLEAR   rbuk.
+        REFRESH rbuk.
+        READ TABLE ht001 WITH KEY bukrs = knb1-bukrs.
+        t001 = ht001.
+        IF waers EQ space.
+          MOVE t001-waers TO waers.
+        ENDIF.
+
+*-  Betraege in    gemaess Skalierung aufbereiten --------------------*
+        CLEAR h-text.
+        IF faktor(1) GT '0'.
+          MOVE '1' TO h-text.
+          WHILE sy-index LT 10 AND sy-index LE faktor(1).
+            ASSIGN h-text+sy-index(1) TO <f1>.
+            MOVE '0' TO <f1>.
+          ENDWHILE.
+        ENDIF.
+
+        MOVE t001-waers TO h-text+10.
+        CONDENSE h-text.
+        l_hlp_txt = h-text.
+
+        DO 15 TIMES.
+          h-offset = 15 - sy-index.
+          ASSIGN h-text+h-offset(1) TO <f1>.
+          IF <f1> = space.
+            MOVE  '-' TO <f1>.
+          ELSE.
+            ASSIGN <f1>+1 TO <f1>.
+            MOVE space TO <f1>.
+            EXIT.
+          ENDIF.
+        ENDDO.
+
+        IF sortart = '1'.
+          MOVE text-607 TO l_title_part2.
+          REPLACE '$SKAL'  WITH l_hlp_txt   INTO l_title_part2.
+        ELSE.
+          IF rastverd < '2'.
+            MOVE text-665 TO l_title_part2.
+          ELSE.
+            MOVE text-607 TO l_title_part2.
+            REPLACE '$SKAL'  WITH l_hlp_txt   INTO l_title_part2.
+          ENDIF.
+        ENDIF.
+        WRITE dd_stida TO h-stichtag DD/MM/YY.
+        REPLACE '$STIDA' WITH h-stichtag INTO l_title_part2.
+      ENDAT.
+
+      AT NEW knb1-busab.
+        MOVE knb1-busab  TO bhdgd-grpin+4(2).   "<= Micro-Fiche Info
+        CLEAR   rbus.
+        REFRESH rbus.
+        SELECT SINGLE * FROM t001s WHERE bukrs EQ knb1-bukrs
+                                     AND busab EQ knb1-busab.
+        MOVE text-056 TO varueb5.
+        REPLACE '$BUK' WITH knb1-bukrs    INTO varueb5.
+        REPLACE '$SAB' WITH knb1-busab    INTO varueb5.
+        REPLACE '$SBZ' WITH t001s-sname   INTO varueb5.
+        flag2 = 'X'.
+      ENDAT.
+
+      AT NEW kna1-kunnr.
+        MOVE kna1-kunnr  TO bhdgd-grpin+6(10).  "<= Micro-Fiche Info
+        CLEAR gbzaehl.
+        save_gsber = '§§§§'.                                "#EC *
+        save_waers = '§§§§§'.                               "#EC *
+*-- Nur bei Verdichtungsstufe < 2 erfolgt Seitenvorschub pro Konto ---*
+        IF verdicht < '2'.
+          NEW-PAGE.
+*---- Es bleibt Platz fuer ein Raster --------------------------------*
+          RESERVE 5 LINES.
+        ENDIF.
+        top-flag = '0'.
+
+*-- Bei Verdichtungsstufe '2' und Ausgabe von OP-Rastern muss Platz --*
+*-- fuer Stamminfo inclusive Ueberschrift bleiben, weil kein Seiten- -*
+*-- vorschub bei neuem Konto erfolgt. --------------------------------*
+        IF verdicht = '2' AND rastverd < '2'.
+          RESERVE 10 LINES.
+        ENDIF.
+
+*-- Bei Verdichtungsstufe '2'  o h n e  Ausgabe von OP-Rastern muss --*
+*-- Platz fuer Stamminfo ohne Ueberschrift bleiben, weil kein Seiten- *
+*-- vorschub bei neuem Konto erfolgt. --------------------------------*
+*-- Die Ueberschrift wird einmal bei TOP-OF-PAGE ausgegeben. ---------*
+*-- TOP-FLAG = '4' ---------------------------------------------------*
+        IF verdicht = '2' AND rastverd = '2'.
+          RESERVE  7 LINES.
+        ENDIF.
+      ENDAT.
+    ELSE.
+      AT NEW kna1-kunnr.
+        flag2 = 'X'.
+        MOVE kna1-kunnr  TO bhdgd-grpin(10).  "<= Micro-Fiche Info
+
+        IF sortart = '1'.
+          MOVE text-670 TO l_title_part2.
+        ELSE.
+          IF rastverd < '2'.
+            MOVE text-665 TO l_title_part2.
+          ELSE.
+            MOVE text-670 TO l_title_part2.
+          ENDIF.
+        ENDIF.
+        WRITE dd_stida TO h-stichtag DD/MM/YY.
+        REPLACE '$STIDA' WITH h-stichtag INTO l_title_part2.
+
+      ENDAT.
+
+      AT NEW knb1-bukrs.
+        CLEAR   rbuk.
+        REFRESH rbuk.
+        CLEAR gbzaehl.
+        MOVE knb1-bukrs    TO bhdgd-grpin+10(4).  "<= Micro-Fiche Info
+
+        IF NOT knb1-bukrs IS INITIAL.
+          READ TABLE ht001 WITH KEY bukrs = knb1-bukrs.
+          t001 = ht001.
+          IF waers EQ space.
+            MOVE t001-waers TO waers.
+          ENDIF.
+        ENDIF.
+      ENDAT.
+
+      AT NEW knb1-busab.
+        CLEAR   rbus.
+        REFRESH rbus.
+        IF  NOT knb1-bukrs IS INITIAL
+        AND NOT knb1-busab IS INITIAL.
+          MOVE knb1-busab  TO bhdgd-grpin+14(2).   "<= Micro-Fiche Info
+          SELECT SINGLE * FROM t001s WHERE bukrs EQ knb1-bukrs
+                                       AND busab EQ knb1-busab.
+          MOVE text-056 TO varueb5.
+          REPLACE '$BUK' WITH knb1-bukrs    INTO varueb5.
+          REPLACE '$SAB' WITH knb1-busab    INTO varueb5.
+          REPLACE '$SBZ' WITH t001s-sname   INTO varueb5.
+        ENDIF.
+      ENDAT.
+    ENDIF.
+
+    AT NEW satzart.
+      CASE satzart.
+        WHEN '2'.                      "Raster
+          IF acc_mode IS INITIAL.
+            IF rtab-sortk < '2'.
+              IF rastverd < '2'.
+                IF verdicht < '3'.
+                  IF  NOT konzvers IS INITIAL
+                  AND NOT knb1-bukrs IS INITIAL.
+                    CHECK xbukrdat NE '2'.
+                  ENDIF.
+
+*-------- Wenn ein neues Raster beginnt, muessen mindestens noch -----*
+*-------- 9 Zeilen Platz haben. --------------------------------------*
+                  top-flag = '3'.
+                  RESERVE 9 LINES.
+                  l_title_1 = text-513.
+                  REPLACE '&1' WITH knb1-bukrs INTO l_title_1.
+                  REPLACE '&2' WITH knb1-busab INTO l_title_1.
+                  REPLACE '&3' WITH kna1-kunnr INTO l_title_1.
+                  REPLACE '&4' WITH h-stichtag INTO l_title_1.
+                  lo_writer->new_table( id_type = '2' id_title = l_title_1 ).
+                  lo_writer->title_write( ).
+                  varueb1-feld2 = text-500.
+                  lo_writer->add_header_field( text-520 ).
+                  lo_writer->add_header_field( text-522 ).
+                  lo_writer->add_header_field( text-524 ).
+                  lo_writer->add_header_field( text-525 ).
+                  lo_writer->add_header_field( text-526 ).
+                  lo_writer->add_header_field( varueb1-feld2 ).
+                  lo_writer->add_header_field( varueb1-feld3 ).
+                  lo_writer->add_header_field( varueb1-feld4 ).
+                  lo_writer->add_header_field( varueb1-feld5 ).
+                  lo_writer->add_header_field( varueb1-feld6 ).
+                  lo_writer->add_header_field( varueb1-feld7 ).
+                  lo_writer->add_header_field( '' ).
+                  lo_writer->add_header_field( text-523 ).
+                  lo_writer->add_header_field( '' ).
+                  lo_writer->add_header_field( '' ).
+                  lo_writer->add_header_field( '' ).
+                  lo_writer->add_header_field( varueb2-feld2 ).
+                  lo_writer->add_header_field( varueb2-feld3 ).
+                  lo_writer->add_header_field( varueb2-feld4 ).
+                  lo_writer->add_header_field( varueb2-feld5 ).
+                  lo_writer->add_header_field( varueb2-feld6 ).
+                  lo_writer->add_header_field( varueb2-feld7 ).
+                  lo_writer->ruler_write( ).
+                ENDIF.
+              ENDIF.
+            ELSE.
+              IF rastverd < '2'.
+                IF verdicht < '3'.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+            IF rtab-sortk < '2'.
+              IF rastverd < '2'.
+                IF verdicht = '6'
+                AND fltop   = space.
+                  count = count + '1'.                     "#EC *
+                  IF count GT '1'.
+                    NEW-PAGE.
+                  ENDIF.
+*-------- Wenn ein neues Raster beginnt, muessen mindestens noch -----*
+*-------- 9 Zeilen Platz haben. --------------------------------------*
+                  IF verdicht = '6'.
+                    IF rastverd = '0'.
+                      MOVE text-531 TO varueb1-feld1.          "1177814
+                    ELSE.
+                      MOVE text-702 TO varueb1-feld1.          "1177814
+                    ENDIF.
+                  ENDIF.
+                  top-flag = '3'.
+                  RESERVE 9 LINES.
+                  IF konzvers IS INITIAL.
+                    CONCATENATE varueb5 ',' INTO l_hlp_txt.
+                  ELSE.
+                    CONCATENATE text-220 ',' INTO l_hlp_txt.
+                  ENDIF.
+                  CONCATENATE l_hlp_txt l_title_part2 INTO l_title_1
+                    SEPARATED BY space.
+
+                  lo_writer->new_table( id_type = '4' id_title = l_title_1 ).
+                  lo_writer->title_write( ).
+                  varueb1-feld2 = text-500.
+                  lo_writer->add_header_field( text-700 ).
+                  lo_writer->add_header_field( text-703 ).
+                  lo_writer->add_header_field( varueb1-feld1 ). "1177814
+                  lo_writer->add_header_field( text-525 ).
+                  lo_writer->add_header_field( varueb1-feld2 ).
+                  lo_writer->add_header_field( varueb1-feld3 ).
+                  lo_writer->add_header_field( varueb1-feld4 ).
+                  lo_writer->add_header_field( varueb1-feld5 ).
+                  lo_writer->add_header_field( varueb1-feld6 ).
+                  lo_writer->add_header_field( varueb1-feld7 ).
+                  lo_writer->add_header_field( text-701 ).
+                  lo_writer->add_header_field( text-704 ).
+                  lo_writer->add_header_field( '' ).
+                  lo_writer->add_header_field( '' ).
+                  lo_writer->add_header_field( varueb2-feld2 ).
+                  lo_writer->add_header_field( varueb2-feld3 ).
+                  lo_writer->add_header_field( varueb2-feld4 ).
+                  lo_writer->add_header_field( varueb2-feld5 ).
+                  lo_writer->add_header_field( varueb2-feld6 ).
+                  lo_writer->add_header_field( varueb2-feld7 ).
+                  lo_writer->ruler_write( ).
+                  fltop = 'X'.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        WHEN '3'.                      "Einzelposten
+          top-flag = '1'.                                      "1506729
+
+          CONCATENATE text-547 text-110 knb1-bukrs text-111 knb1-busab text-112 kna1-kunnr
+             text-548 h-stichtag INTO l_title_1 SEPARATED BY space.
+          lo_writer->new_table( id_type = '3' id_title = l_title_1 ).
+          lo_writer->title_write( ).
+          lo_writer->add_header_field( text-530 ).
+          lo_writer->add_header_field( text-531 ).
+          lo_writer->add_header_field( text-532 ).
+          lo_writer->add_header_field( text-533 ).
+          lo_writer->add_header_field( text-534 ).
+          lo_writer->add_header_field( text-535 ).
+          lo_writer->add_header_field( text-536 ).
+          lo_writer->add_header_field( text-537 ).
+          lo_writer->add_header_field( text-538 ).
+          lo_writer->add_header_field( text-539 ).
+          lo_writer->add_header_field( text-540 ).
+          lo_writer->add_header_field( text-541 ).
+          lo_writer->add_header_field( text-542 ).
+          lo_writer->add_header_field( text-543 ).
+          lo_writer->add_header_field( text-544 ).
+          lo_writer->add_header_field( text-545 ).
+          lo_writer->add_header_field( text-546 ).
+          lo_writer->ruler_write( ).
+
+      ENDCASE.
+    ENDAT.
+
+    AT stammdaten.                     "Satzart '1'
+      IF verdicht < '3'.
+        DETAIL.
+
+        IF  NOT konzvers IS INITIAL
+        AND NOT knb1-bukrs IS INITIAL.
+          IF  xbukrdat = '2'
+          AND verdicht > '0'.
+            CHECK 1 = 2.
+          ENDIF.
+        ENDIF.
+
+        IF  NOT konzvers   IS INITIAL
+        AND NOT knb1-bukrs IS INITIAL
+        AND xbukrdat = '2'.
+        ELSE.
+        ENDIF.
+        IF konzvers IS INITIAL.
+          CONCATENATE
+            text-110 knb1-bukrs
+            text-111 knb1-busab
+            text-112 kna1-kunnr
+            INTO l_hlp_txt SEPARATED BY space.
+          CONCATENATE l_hlp_txt l_title_part2 INTO l_title_1
+            SEPARATED BY space.
+        ELSE.
+          IF knb1-bukrs IS INITIAL.
+            CONCATENATE
+              text-112 kna1-kunnr
+              INTO l_hlp_txt SEPARATED BY space.
+            CONCATENATE l_hlp_txt l_title_part2 INTO l_title_1
+              SEPARATED BY space.
+
+          ELSE.
+            CONCATENATE
+              text-112 kna1-kunnr
+              text-110 knb1-bukrs
+              text-111 knb1-busab
+              INTO l_hlp_txt SEPARATED BY space.
+            CONCATENATE l_hlp_txt l_title_part2 INTO l_title_1
+              SEPARATED BY space.
+          ENDIF.
+        ENDIF.
+
+        CALL METHOD lo_writer->new_table
+          EXPORTING
+            id_title = l_title_1
+            id_type  = '1'.
+
+        top-flag = '4'.                                        "1506729
+        lo_writer->add_group_header_field( text-550 ).
+        lo_writer->add_header_field( text-551 ).
+        lo_writer->add_header_field( text-552 ).
+        lo_writer->add_header_field( text-553 ).
+        lo_writer->add_header_field( text-554 ).
+        lo_writer->add_header_field( text-555 ).
+        lo_writer->add_header_field( text-556 ).
+        lo_writer->add_header_field( text-557 ).
+        lo_writer->add_header_field( text-558 ).
+        lo_writer->add_header_field( text-559 ).
+        lo_writer->add_header_field( text-560 ).
+        CLEAR top-flag.
+        RESERVE 10 LINES.
+        lo_writer->title_write( ).
+        lo_writer->ruler_write( ).
+
+        PERFORM anschrift.
+      ENDIF.
+    ENDAT.
+
+    AT op-raster.                      "Satzart '2'
+      IF verdicht < '3'
+      OR verdicht = '6'.
+        PERFORM raster_ausgabe.
+      ENDIF.
+*-- Summen fuer hoehere Gruppenstufen bilden --------------------------*
+      IF acc_mode IS INITIAL.
+        PERFORM sum_busab_bukrs_total.
+      ENDIF.
+    ENDAT.
+
+    AT einzelposten.                   "Satzart '3'
+      RESERVE 2 LINES.
+      PERFORM einzelposten_ausgabe.
+    ENDAT.
+
+    AT END OF rasteruu.
+      IF satzart = '3'.
+        lo_writer->row_open( ).
+        lo_writer->format_total( ).
+        CASE rasteruu.
+          WHEN '1'.
+            MOVE text-052 TO vartxt1.
+            REPLACE '$BIS' WITH rc01 INTO vartxt1.
+            WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                           CURRENCY t001-waers.
+            CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+            lo_writer->write_inserted_line( l_hlp_txt ).
+            lo_writer->row_close( ib_inserted_line = abap_true ).
+            lo_writer->uline( ).
+          WHEN '2'.
+            IF NOT rc02 IS INITIAL.
+              MOVE text-053 TO vartxt1.
+              REPLACE '$VON' WITH rc06 INTO vartxt1.
+              REPLACE '$BIS' WITH rc02 INTO vartxt1.
+              WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                             CURRENCY t001-waers.
+              CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+              lo_writer->write_inserted_line( l_hlp_txt ).
+              lo_writer->row_close( ib_inserted_line = abap_true ).
+              lo_writer->uline( ).
+            ELSE.
+              MOVE text-054 TO vartxt1.
+              REPLACE '$VON' WITH rc06 INTO vartxt1.
+              WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                             CURRENCY t001-waers.
+              CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+              lo_writer->write_inserted_line( l_hlp_txt ).
+              lo_writer->row_close( ib_inserted_line = abap_true ).
+              lo_writer->uline( ).
+            ENDIF.
+          WHEN '3'.
+            IF NOT rc03 IS INITIAL.
+              MOVE text-053 TO vartxt1.
+              REPLACE '$VON' WITH rc07 INTO vartxt1.
+              REPLACE '$BIS' WITH rc03 INTO vartxt1.
+              WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                             CURRENCY t001-waers.
+              CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+              lo_writer->write_inserted_line( l_hlp_txt ).
+              lo_writer->row_close( ib_inserted_line = abap_true ).
+              lo_writer->uline( ).
+            ELSE.
+              MOVE text-054 TO vartxt1.
+              REPLACE '$VON' WITH rc07 INTO vartxt1.
+              WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                             CURRENCY t001-waers.
+              CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+              lo_writer->write_inserted_line( l_hlp_txt ).
+              lo_writer->row_close( ib_inserted_line = abap_true ).
+              lo_writer->uline( ).
+            ENDIF.
+          WHEN '4'.
+            IF NOT rc04 IS INITIAL.
+              MOVE text-053 TO vartxt1.
+              REPLACE '$VON' WITH rc08 INTO vartxt1.
+              REPLACE '$BIS' WITH rc04 INTO vartxt1.
+              WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                             CURRENCY t001-waers.
+              CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+              lo_writer->write_inserted_line( l_hlp_txt ).
+              lo_writer->row_close( ib_inserted_line = abap_true ).
+              lo_writer->uline( ).
+            ELSE.
+              MOVE text-054 TO vartxt1.
+              REPLACE '$VON' WITH rc08 INTO vartxt1.
+              WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                             CURRENCY t001-waers.
+              CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+              lo_writer->write_inserted_line( l_hlp_txt ).
+              lo_writer->row_close( ib_inserted_line = abap_true ).
+              lo_writer->uline( ).
+            ENDIF.
+          WHEN '5'.
+            IF NOT rc05 IS INITIAL.
+              MOVE text-053 TO vartxt1.
+              REPLACE '$VON' WITH rc09 INTO vartxt1.
+              REPLACE '$BIS' WITH rc05 INTO vartxt1.
+              WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                             CURRENCY t001-waers.
+              CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+              lo_writer->write_inserted_line( l_hlp_txt ).
+              lo_writer->row_close( ib_inserted_line = abap_true ).
+              lo_writer->uline( ).
+            ELSE.
+              MOVE text-054 TO vartxt1.
+              REPLACE '$VON' WITH rc09 INTO vartxt1.
+              WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                             CURRENCY t001-waers.
+              CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+              lo_writer->write_inserted_line( l_hlp_txt ).
+              lo_writer->row_close( ib_inserted_line = abap_true ).
+              lo_writer->uline( ).
+            ENDIF.
+          WHEN '6'.
+            MOVE text-054 TO vartxt1.
+            REPLACE '$VON' WITH rc10 INTO vartxt1.
+            WRITE sum(shbetrag) TO l_hlp_txt1(12)
+                           CURRENCY t001-waers.
+            CONCATENATE vartxt1 l_hlp_txt1 INTO l_hlp_txt SEPARATED BY space.
+            lo_writer->write_inserted_line( l_hlp_txt ).
+            lo_writer->row_close( ib_inserted_line = abap_true ).
+            lo_writer->uline( ).
+          WHEN OTHERS.
+            WRITE sum(shbetrag) TO l_hlp_txt(12)
+                           CURRENCY t001-waers.
+            lo_writer->write_inserted_line( l_hlp_txt ).
+            lo_writer->row_close( ib_inserted_line = abap_true ).
+            lo_writer->uline( ).
+        ENDCASE.
+      ENDIF.
+    ENDAT.
+
+    AT END OF satzart.
+      IF satzart = '2'.
+        IF rastverd < '2'.
+          IF verdicht < '3'.
+            IF  NOT konzvers IS INITIAL
+            AND NOT knb1-bukrs IS INITIAL
+            AND xbukrdat = '2'
+            AND verdicht > '0'.
+            ELSE.
+              IF ( lo_writer->md_is_table_open = abap_true ) .
+                lo_writer->uline( ).
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDAT.
+
+    IF acc_mode IS INITIAL.
+      IF konzvers IS INITIAL.
+        AT END OF knb1-busab.
+          CLEAR flag2.
+          MOVE space     TO bhdgd-grpin+6. "<= Micro-Fiche Info
+          IF verdicht < '4'
+          OR verdicht = '6'.
+            DESCRIBE TABLE rbus LINES coun1.
+            IF verdicht = '6'.
+              IF coun1 GT 0.
+                IF ( lo_writer->md_is_table_open = abap_true ) .
+                  lo_writer->table_close( ).
+                ENDIF.
+              ENDIF.
+            ENDIF.
+            NEW-PAGE.
+            MOVE text-051 TO varueb3.
+            REPLACE '$BUK' WITH knb1-bukrs    INTO varueb3.
+            REPLACE '$SAB' WITH knb1-busab    INTO varueb3.
+            REPLACE '$SBZ' WITH t001s-sname   INTO varueb3.
+            top-flag = '2'.
+            PERFORM raster_ausgabe_busab.
+          ENDIF.
+          CLEAR t001s.
+          CLEAR fltop.
+        ENDAT.
+
+        AT END OF knb1-bukrs.
+          MOVE space     TO bhdgd-grpin+4. "<= Micro-Fiche Info
+          IF verdicht < '5'
+          OR verdicht = '6'.
+            NEW-PAGE.
+            MOVE text-050 TO varueb3.
+            REPLACE '$BUK' WITH knb1-bukrs    INTO varueb3.
+            top-flag = '2'.
+            PERFORM raster_ausgabe_bukrb.
+          ENDIF.
+          CLEAR fltop.
+        ENDAT.
+      ELSE.
+        AT END OF knb1-busab.
+          CLEAR t001s.
+        ENDAT.
+
+        AT END OF knb1-bukrs.
+          MOVE space     TO bhdgd-grpin+14. "<= Micro-Fiche Info
+        ENDAT.
+
+        AT END OF kna1-kunnr.
+          MOVE space       TO bhdgd-grpin+10.      "<= Micro-Fiche Info
+          IF verdicht = '6'.
+            IF ausflag = 'X'.
+              CLEAR ausflag.
+            ENDIF.
+          ENDIF.
+        ENDAT.
+      ENDIF.
+    ENDIF.
+
+    AT LAST.
+      CLEAR flag2.
+      MOVE space       TO bhdgd-grpin. "<= Micro-Fiche Info
+      MOVE '    '      TO bhdgd-bukrs.
+      MOVE bhdgd-bukrs TO bhdgd-werte.
+      IF ( lo_writer->md_is_table_open = abap_true ) .
+        top-flag = '0'.
+        lo_writer->table_close( ).
+      ENDIF.
+      PERFORM new-section(rsbtchh0).
+      MOVE text-055 TO varueb3.
+      top-flag = '2'.
+      IF sortart = '1'.
+        MOVE text-609 TO l_title_part2.
+      ELSE.
+        MOVE text-665 TO l_title_part2.
+      ENDIF.
+      REPLACE '$STIDA' WITH h-stichtag INTO l_title_part2.
+      IF acc_mode IS INITIAL.
+        PERFORM raster_ausgabe_total.
+      ELSE.
+        PERFORM raster_ausgabe_alv_grid.
+      ENDIF.
+    ENDAT.
+  ENDLOOP.
+
+  IF sy-pagno = 0.                     "Keine Liste ausgegeben
+    CALL FUNCTION 'POPUP_NO_LIST'.
+  ENDIF.
+
+TOP-OF-PAGE.
+  IF acc_mode IS INITIAL.
+*- Standard-Seitenkopf drucken --------------------------------------*
+    PERFORM batch-heading(rsbtchh0).
+
+*-- ab der zweiten Seite pro Konto Ueberschrift fuer Einzelposten ---*
+    DETAIL.
+    CASE top-flag.
+
+      WHEN '1'.
+
+* create title
+        WRITE dd_stida TO h-stichtag DD/MM/YY.
+        CONCATENATE text-547 text-110 knb1-bukrs text-111 knb1-busab text-112 kna1-kunnr
+           text-548 h-stichtag INTO l_title_1 SEPARATED BY space.
+
+* write table header for line items
+        lo_writer->new_table( id_type = '3' id_title = l_title_1 ).
+        lo_writer->title_write( ).
+        lo_writer->add_header_field( text-530 ).
+        lo_writer->add_header_field( text-531 ).
+        lo_writer->add_header_field( text-532 ).
+        lo_writer->add_header_field( text-533 ).
+        lo_writer->add_header_field( text-534 ).
+        lo_writer->add_header_field( text-535 ).
+        lo_writer->add_header_field( text-536 ).
+        lo_writer->add_header_field( text-537 ).
+        lo_writer->add_header_field( text-538 ).
+        lo_writer->add_header_field( text-539 ).
+        lo_writer->add_header_field( text-540 ).
+        lo_writer->add_header_field( text-541 ).
+        lo_writer->add_header_field( text-542 ).
+        lo_writer->add_header_field( text-543 ).
+        lo_writer->add_header_field( text-544 ).
+        lo_writer->add_header_field( text-545 ).
+        lo_writer->add_header_field( text-546 ).
+        lo_writer->ruler_write( ).
+
+*-- Ueberschriften fuer Listenteil 2 ausgeben -----------------------*
+      WHEN '2'.
+        IF verdicht = '6'.
+          IF flag2 IS INITIAL.
+            MOVE text-102 TO varueb1-feld1.
+            MOVE text-106 TO varueb2-feld1.
+          ENDIF.
+        ENDIF.
+
+* create title
+
+        IF top-fla2 IS INITIAL.
+          CONCATENATE varueb3 ',' INTO l_hlp_string.
+          CONCATENATE l_hlp_string l_title_part2 INTO l_title_1 SEPARATED BY space.
+        ELSE.
+          IF konzvers IS INITIAL.
+            CONCATENATE varueb5 ',' INTO l_hlp_string.
+            CONCATENATE l_hlp_string l_title_part2 INTO l_title_1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-220 ',' INTO l_hlp_string.
+            CONCATENATE l_hlp_string l_title_part2 INTO l_title_1 SEPARATED BY space.
+          ENDIF.
+        ENDIF.
+
+        CLEAR batch_op_header.                                 "1474786
+        IF NOT top-fla2 IS INITIAL.                            "1474786
+          batch_op_header = 'X'.                               "1474786
+        ENDIF.                                                 "1474786
+
+        IF batch_op_header = 'X'.
+* print title and header for BATCH OP LINES
+          IF verdicht = '6'.
+            IF rastverd = '0'.
+              MOVE text-531 TO varueb1-feld1.                  "1177814
+            ELSE.
+              MOVE text-702 TO varueb1-feld1.                  "1177814
+            ENDIF.
+          ENDIF.
+
+          lo_writer->new_table( id_type = '4' id_title = l_title_1 ).
+          lo_writer->title_write( ).
+          varueb1-feld2 = text-500.
+          lo_writer->add_header_field( text-700 ).
+          lo_writer->add_header_field( text-703 ).
+          lo_writer->add_header_field( varueb1-feld1 ).        "1177814
+          lo_writer->add_header_field( text-525 ).
+          lo_writer->add_header_field( varueb1-feld2 ).
+          lo_writer->add_header_field( varueb1-feld3 ).
+          lo_writer->add_header_field( varueb1-feld4 ).
+          lo_writer->add_header_field( varueb1-feld5 ).
+          lo_writer->add_header_field( varueb1-feld6 ).
+          lo_writer->add_header_field( varueb1-feld7 ).
+          lo_writer->add_header_field( text-701 ).
+          lo_writer->add_header_field( text-704 ).
+          lo_writer->add_header_field( '' ).
+          lo_writer->add_header_field( '' ).
+          lo_writer->add_header_field( varueb2-feld2 ).
+          lo_writer->add_header_field( varueb2-feld3 ).
+          lo_writer->add_header_field( varueb2-feld4 ).
+          lo_writer->add_header_field( varueb2-feld5 ).
+          lo_writer->add_header_field( varueb2-feld6 ).
+          lo_writer->add_header_field( varueb2-feld7 ).
+          lo_writer->ruler_write( ).
+        ELSE.
+* print title and header
+
+          lo_writer->new_table( id_type = '2' id_title = l_title_1 ).
+          lo_writer->title_write( ).
+          varueb1-feld2 = text-500.
+          lo_writer->add_header_field( text-520 ).
+          lo_writer->add_header_field( text-522 ).
+          lo_writer->add_header_field( text-524 ).
+          lo_writer->add_header_field( text-525 ).
+          lo_writer->add_header_field( text-526 ).
+          lo_writer->add_header_field( varueb1-feld2 ).
+          lo_writer->add_header_field( varueb1-feld3 ).
+          lo_writer->add_header_field( varueb1-feld4 ).
+          lo_writer->add_header_field( varueb1-feld5 ).
+          lo_writer->add_header_field( varueb1-feld6 ).
+          lo_writer->add_header_field( varueb1-feld7 ).
+          lo_writer->add_header_field( '' ).
+          lo_writer->add_header_field( text-523 ).
+          lo_writer->add_header_field( '' ).
+          lo_writer->add_header_field( '' ).
+          lo_writer->add_header_field( '' ).
+          lo_writer->add_header_field( varueb2-feld2 ).
+          lo_writer->add_header_field( varueb2-feld3 ).
+          lo_writer->add_header_field( varueb2-feld4 ).
+          lo_writer->add_header_field( varueb2-feld5 ).
+          lo_writer->add_header_field( varueb2-feld6 ).
+          lo_writer->add_header_field( varueb2-feld7 ).
+          lo_writer->ruler_write( ).
+        ENDIF.
+
+      WHEN '3'.
+*-- Ueberschrift fuer Stammsatzinformationen ------------------------*
+      WHEN '4'.
+* create header
+        CONCATENATE text-549 text-110 knb1-bukrs text-111 knb1-busab text-112 kna1-kunnr
+           l_title_part2 INTO l_title_1 SEPARATED BY space.
+
+* write table header for line items
+        lo_writer->new_table( id_type = '1' id_title = l_title_1 ).
+        lo_writer->title_write( ).
+        lo_writer->add_group_header_field( text-550 ).
+        lo_writer->add_header_field( text-551 ).
+        lo_writer->add_header_field( text-552 ).
+        lo_writer->add_header_field( text-553 ).
+        lo_writer->add_header_field( text-554 ).
+        lo_writer->add_header_field( text-555 ).
+        lo_writer->add_header_field( text-556 ).
+        lo_writer->add_header_field( text-557 ).
+        lo_writer->add_header_field( text-558 ).
+        lo_writer->add_header_field( text-559 ).
+        lo_writer->add_header_field( text-560 ).
+        lo_writer->uline( ).
+        lo_writer->ruler_write( ).
+
+    ENDCASE.
+    clear batch_op_header.
+  ENDIF.
+
+*---------------------------------------------------------------------*
+*       FORM CFAKTOR                                                  *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM cfaktor.
+  IF t001-waers NE tcurx-currkey.
+    SELECT SINGLE * FROM tcurx WHERE currkey = t001-waers.
+    IF sy-subrc NE 0.
+      tcurx-currkey = t001-waers.
+      cfakt = 100.
+    ELSE.
+      cfakt = 1.
+      DO tcurx-currdec TIMES.
+        cfakt = cfakt * 10.
+      ENDDO.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    "CFAKTOR
+
+*---------------------------------------------------------------------*
+*       FORM RASTER_AUFBAU                                            *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM raster_aufbau.
+* Erste ausgewaehlte Rasterarte sichern ------------------------------*
+  IF rart-net = 'X'.
+    rart = '1'.
+  ELSE.
+    IF rart-skt = 'X'.
+      rart = '2'.
+    ELSE.
+      IF rart-zhl = 'X'.
+        rart = '3'.
+      ELSE.
+        IF rart-ueb = 'X'.
+          rart = '4'.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+* Obergrenze Intervall -----------------------------------------------*
+  rp01 = rastbis1.
+  rp02 = rastbis2.
+  rp03 = rastbis3.
+  rp04 = rastbis4.
+  rp05 = rastbis5.
+
+* Untergrenze Intervall -----------------------------------------------*
+
+  rp06 = rp01 + 1.
+  IF NOT rp02 IS INITIAL.
+    rp07 = rp02 + 1.
+  ENDIF.
+  IF NOT rp03 IS INITIAL.
+    rp08 = rp03 + 1.
+  ENDIF.
+  IF NOT rp04 IS INITIAL.
+    rp09 = rp04 + 1.
+  ENDIF.
+  IF NOT rp05 IS INITIAL.
+    rp10 = rp05 + 1.
+  ENDIF.
+
+* Rasterpunkte in Charakterform für REPLACE.
+  WRITE: rp01 TO rc01.
+  IF NOT rp02 IS INITIAL.
+    WRITE: rp02 TO rc02.
+    MOVE text-202 TO varueb2-feld3.
+  ENDIF.
+  IF NOT rp03 IS INITIAL.
+    WRITE: rp03 TO rc03.
+    MOVE text-203 TO varueb2-feld4.
+  ENDIF.
+  IF NOT rp04 IS INITIAL.
+    WRITE: rp04 TO rc04.
+    MOVE text-204 TO varueb2-feld5.
+  ENDIF.
+  IF NOT rp05 IS INITIAL.
+    WRITE: rp05 TO rc05.
+    MOVE text-205 TO varueb2-feld6.
+  ENDIF.
+  IF NOT rp06 IS INITIAL.
+    WRITE: rp06 TO rc06.
+    MOVE text-206 TO varueb1-feld3.
+  ENDIF.
+  IF NOT rp07 IS INITIAL.
+    WRITE: rp07 TO rc07.
+    MOVE text-207 TO varueb1-feld4.
+  ENDIF.
+  IF NOT rp08 IS INITIAL.
+    WRITE: rp08 TO rc08.
+    MOVE text-208 TO varueb1-feld5.
+  ENDIF.
+  IF NOT rp09 IS INITIAL.
+    WRITE: rp09 TO rc09.
+    MOVE text-209 TO varueb1-feld6.
+  ENDIF.
+  IF NOT rp10 IS INITIAL.
+    WRITE: rp10 TO rc10.
+    MOVE text-210 TO varueb1-feld7.
+  ENDIF.
+
+* Variable ersetzen --------------------------------------------------*
+  IF verdicht = '6'.
+    IF rastverd = '0'.
+      MOVE text-171 TO varueb1-feld1.
+      MOVE text-169 TO varueb2-feld1.
+    ELSE.
+      MOVE text-168 TO varueb1-feld1.
+      MOVE text-169 TO varueb2-feld1.
+    ENDIF.
+  ELSE.
+    MOVE text-102 TO varueb1-feld1.
+    MOVE text-106 TO varueb2-feld1.
+  ENDIF.
+  MOVE text-201 TO varueb2-feld2.
+
+  REPLACE 'RP01' WITH rc01 INTO varueb2.                    "bis   0
+  REPLACE 'RP02' WITH rc02 INTO varueb2.                    "bis  20
+  REPLACE 'RP03' WITH rc03 INTO varueb2.                    "bis  40
+  REPLACE 'RP04' WITH rc04 INTO varueb2.                    "bis  80
+  REPLACE 'RP05' WITH rc05 INTO varueb2.                    "bis 100
+  REPLACE 'RP06' WITH rc06 INTO varueb1.                    "von   1
+  REPLACE 'RP07' WITH rc07 INTO varueb1.                    "von  21
+  REPLACE 'RP08' WITH rc08 INTO varueb1.                    "von  41
+  REPLACE 'RP09' WITH rc09 INTO varueb1.                    "von  81
+  REPLACE 'RP10' WITH rc10 INTO varueb1.                    "von 101
+ENDFORM.                    "RASTER_AUFBAU
+
+*---------------------------------------------------------------------*
+*       FORM SALDO_AKTUELL                                            *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM saldo_aktuell.
+  ADD knc1-um01s THEN knc1-um02s UNTIL knc1-um16s GIVING h-soll
+      ACCORDING TO bmonat.
+  ADD knc1-um01h THEN knc1-um02h UNTIL knc1-um16h GIVING h-haben
+      ACCORDING TO bmonat.
+  h-saldo  = h-soll - h-haben + knc1-umsav.
+* aktueller Saldo = Teil des Gesamtobligos --------------------------*
+  c-agobli = h-saldo.
+  IF cfakt NE 0.
+    checksaldo = checksaldo + h-saldo / cfakt.
+    checkagobl = checkagobl + c-agobli / cfakt.
+  ELSE.
+    checksaldo = checksaldo + h-saldo.
+    checkagobl = checkagobl + c-agobli.
+  ENDIF.
+  c-saldo  = h-saldo.
+ENDFORM.                    "SALDO_AKTUELL
+
+*---------------------------------------------------------------------*
+*       FORM KUM_WERTE                                                *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM kum_werte.
+* Berechtigte Abzuege ------------------------------------------------*
+  c-babzg  = knc1-babzg.
+* Unberechtigte Abzuege ----------------------------------------------*
+  c-uabzg  = knc1-uabzg.
+* Zinszahlung --------------------------------------------------------*
+  c-kzins  = knc1-kzins.
+* Jahresumsatz -------------------------------------------------------*
+  ADD knc1-um01u THEN knc1-um02u UNTIL knc1-um16u GIVING c-kumum
+      ACCORDING TO bmonat.
+* Kum. Jahresausgleich -----------------------------------------------*
+  c-kumag  = knc1-kumag.
+  IF sortart = '1' . "Ausgabe kum Kum.Umsatz wenn Hauswährung gewünscht.
+* Kum. Umsatz---------------------------------------------------------*
+    CLEAR rtab.
+    MOVE: knc1-bukrs TO rtab-bukrs.
+* Satz für Ausgabe des kummulieten Umsatzes auf Summenebene.
+* (Summe pro Sachbearbeiter und Buchungskreis)
+    MOVE: '2' TO rtab-sortk,
+    '** '   TO rtab-gsber,
+    c-kumum TO rtab-kumum.
+    MOVE:
+    kna1-kunnr TO rtab-kunnr,
+    kna1-sortl TO rtab-sortl,
+    kna1-land1 TO rtab-land1.
+    COLLECT rtab.
+  ENDIF.
+ENDFORM.                    "KUM_WERTE
+
+*---------------------------------------------------------------------*
+*       FORM SONDER_UMSAETZE                                          *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM sonder_umsaetze.
+* Errechnen Sonderumsatz-Salden, Gesamtsaldo ------------------------*
+*---------- Trend, Umsatz pro Gesch.Bereich -------------------------*
+  h-shbls = knc3-solll - knc3-habnl.
+*-- Gesamt-Obligo ----------------------------------------------------*
+  c-agobli = knc3-saldv + h-shbls.
+  PERFORM cfaktor.
+  IF cfakt NE 0.
+    checkagobl = checkagobl + c-agobli / cfakt.
+  ELSE.
+    checkagobl = checkagobl + c-agobli.
+  ENDIF.
+*-- Sonderumsatz-Salden ----------------------------------------------*
+  CASE knc3-shbkz.
+    WHEN humkz1.
+      c-umkz1 = knc3-shbkz.
+      c-sums1 = c-sums1 + knc3-saldv + h-shbls.
+    WHEN humkz2.
+      c-umkz2 = knc3-shbkz.
+      c-sums2 = c-sums2 + knc3-saldv + h-shbls.
+    WHEN humkz3.
+      c-umkz3 = knc3-shbkz.
+      c-sums3 = c-sums3 + knc3-saldv + h-shbls.
+    WHEN humkz4.
+      c-umkz4 = knc3-shbkz.
+      c-sums4 = c-sums4 + knc3-saldv + h-shbls.
+    WHEN humkz5.
+      c-umkz5 = knc3-shbkz.
+      c-sums5 = c-sums5 + knc3-saldv + h-shbls.
+    WHEN humkz6.
+      c-umkz6 = knc3-shbkz.
+      c-sums6 = c-sums6 + knc3-saldv + h-shbls.
+    WHEN humkz7.
+      c-umkz7 = knc3-shbkz.
+      c-sums7 = c-sums7 + knc3-saldv + h-shbls.
+    WHEN humkz8.
+      c-umkz8 = knc3-shbkz.
+      c-sums8 = c-sums8 + knc3-saldv + h-shbls.
+    WHEN humkz9.
+      c-umkz9 = knc3-shbkz.
+      c-sums9 = c-sums9 + knc3-saldv + h-shbls.
+    WHEN humkz10.
+      c-umkz10 = knc3-shbkz.
+      c-sums10 = c-sums10 + knc3-saldv + h-shbls.
+    WHEN OTHERS.
+      c-sonob = c-sonob + knc3-saldv + h-shbls.
+  ENDCASE.
+
+ENDFORM.                    "SONDER_UMSAETZE
+
+
+*---------------------------------------------------------------------*
+*       FORM POSTEN_RASTERN                                           *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM posten_rastern USING  posten_waers.
+  IF rart-net = 'X'.
+    IF sortart = '1'.
+      PERFORM r USING ntage '1' bsega-dmshb     posten_waers.
+    ELSE.
+      PERFORM r USING ntage '1' bsega-wrshb     posten_waers.
+    ENDIF.
+  ENDIF.
+
+  IF rart-skt = 'X'.
+    IF sortart = '1'.
+      PERFORM r USING stage '2' bsega-dmshb     posten_waers.
+    ELSE.
+      PERFORM r USING stage '2' bsega-wrshb     posten_waers.
+    ENDIF.
+  ENDIF.
+  IF rart-zhl = 'X'.
+    IF sortart = '1'.
+      PERFORM r USING ztage '3' bsega-dmshb     posten_waers.
+    ELSE.
+      PERFORM r USING ztage '3' bsega-wrshb     posten_waers.
+    ENDIF.
+  ENDIF.
+  IF rart-ueb = 'X'.
+    IF sortart = '1'.
+      PERFORM r USING utage '4' bsega-dmshb     posten_waers.
+    ELSE.
+      PERFORM r USING utage '4' bsega-wrshb     posten_waers.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    "POSTEN_RASTERN
+
+*---------------------------------------------------------------------*
+*       FORM R                                                        *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM r USING r_tage r_art r_betrag r_waers.
+  CLEAR rtab.
+  MOVE: bsid-bukrs TO rtab-bukrs,
+        '0'        TO rtab-sortk,
+        bsid-gsber TO rtab-gsber,
+        r_waers    TO rtab-waers,
+        r_art      TO rtab-raart,
+        r_betrag   TO rtab-opsum,
+        kna1-kunnr TO rtab-kunnr,
+        kna1-sortl TO rtab-sortl,
+        kna1-land1 TO rtab-land1.
+
+  IF r_tage <= rp01.
+    MOVE: r_betrag TO rtab-rast1.
+    IF r_art = rart.
+      MOVE  '1'    TO rasteruu.
+    ENDIF.
+  ELSE.
+    IF r_tage <= rp02
+    OR rp07 IS INITIAL.
+      MOVE: r_betrag TO rtab-rast2.
+      IF r_art = rart.
+        MOVE  '2'    TO rasteruu.
+      ENDIF.
+    ELSE.
+      IF r_tage <= rp03
+      OR rp08 IS INITIAL.
+        MOVE: r_betrag TO rtab-rast3.
+        IF r_art = rart.
+          MOVE  '3'    TO rasteruu.
+        ENDIF.
+      ELSE.
+        IF r_tage <= rp04
+        OR rp09 IS INITIAL.
+          MOVE: r_betrag TO rtab-rast4.
+          IF r_art = rart.
+            MOVE  '4'    TO rasteruu.
+          ENDIF.
+        ELSE.
+          IF r_tage <= rp05
+          OR rp10 IS INITIAL.
+            MOVE: r_betrag TO rtab-rast5.
+            IF r_art = rart.
+              MOVE  '5'    TO rasteruu.
+            ENDIF.
+          ELSE.
+            MOVE: r_betrag TO rtab-rast6.
+            IF r_art = rart.
+              MOVE  '6'    TO rasteruu.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  CLEAR rtab-xguts.
+  IF NOT xgetausw IS INITIAL.
+    IF bsega-dmshb LT 0.
+      rtab-xguts = 'X'.
+    ENDIF.
+  ENDIF.
+  COLLECT rtab.
+* Summieren ueber alle Geschaeftsbereiche ---------------------------*
+* aber nur wenn SORTART = '1' ----------------------------------------*
+  MOVE: '1'      TO rtab-sortk,
+        '**'     TO rtab-gsber.
+  COLLECT rtab.
+
+ENDFORM.                    "R
+
+*---------------------------------------------------------------------*
+*       FORM ANSCHRIFT                                                *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM anschrift.
+  DEFINE address_line.
+    if not adrs-line&2 is initial.
+      lo_writer->row_open( ).
+      concatenate text-113 '(&1):' into l_hlp_txt.
+      lo_writer->single_write_field( l_hlp_txt ).
+      lo_writer->single_write_field( adrs-line&2(35) ).
+      lo_writer->row_close( ).
+    endif.
+  END-OF-DEFINITION.
+
+  IF NOT knb1-bukrs IS INITIAL.
+    PERFORM mahndaten.
+    IF NOT konzvers IS INITIAL.
+      CHECK xbukrdat = 0.
+    ENDIF.
+  ENDIF.
+  PERFORM obligos.
+
+  IF konzvers IS INITIAL
+  OR knb1-bukrs IS INITIAL.
+* <<<<<<<<<<<<<<<<<< Anschrift >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    lo_writer->section_write( text-113 ).
+    lo_writer->format_normal( ).
+    address_line: 1 0, 2 1, 3 2, 4 3, 5 4, 6 5, 7 6, 8 7, 9 8, 10 9.
+    lo_writer->uline( ).
+  ENDIF.
+
+* <<<<<<<<<<<< Obligos >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  IF NOT ( aobligo IS INITIAL ) .
+    lo_writer->section_write( text-116 ).
+    lo_writer->format_normal( ).
+
+    LOOP AT aobligo FROM 1 TO 12.
+      shbbez = aobligo-ltext.
+      asums  = aobligo-oblig.
+      lo_writer->row_open( ).
+      CONCATENATE shbbez text-161 INTO l_hlp_txt.
+      lo_writer->single_write_field( l_hlp_txt ).
+      WRITE asums TO l_hlp_txt(12)
+                     CURRENCY t001-waers
+                     NO-ZERO
+                     ROUND faktor
+                     DECIMALS stellen.
+      lo_writer->single_write_field( l_hlp_txt(12) ).
+      lo_writer->row_close( ).
+    ENDLOOP.
+
+    lo_writer->uline( ).
+  ENDIF.
+
+* <<<<<<<<<<<<<<<<<<<< Umsatzdaten >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+  lo_writer->section_write( text-115 ).
+  lo_writer->format_normal( ).
+
+  lo_writer->row_open( ).
+  lo_writer->single_write_field( text-122 ).
+  WRITE c-kumum TO l_hlp_txt(12)
+                 CURRENCY t001-waers
+                 NO-ZERO
+                 ROUND faktor
+                 DECIMALS stellen.
+  lo_writer->single_write_field( l_hlp_txt(12) ).
+  lo_writer->row_close( ).
+
+  lo_writer->row_open( ).
+  lo_writer->single_write_field( text-123 ).
+  WRITE c-babzg TO l_hlp_txt(12)
+                 CURRENCY t001-waers
+                 NO-ZERO
+                 ROUND faktor
+                 DECIMALS stellen.
+  lo_writer->single_write_field( l_hlp_txt(12) ).
+  lo_writer->row_close( ).
+
+  lo_writer->row_open( ).
+  lo_writer->single_write_field( text-124 ).
+  WRITE c-uabzg TO l_hlp_txt(12)
+                 CURRENCY t001-waers
+                 NO-ZERO
+                 ROUND faktor
+                 DECIMALS stellen.
+  lo_writer->single_write_field( l_hlp_txt(12) ).
+  lo_writer->row_close( ).
+
+  lo_writer->row_open( ).
+  lo_writer->single_write_field( text-125 ).
+  WRITE c-kzins TO l_hlp_txt(12)
+                 CURRENCY t001-waers
+                 NO-ZERO
+                 ROUND faktor
+                 DECIMALS stellen.
+  lo_writer->single_write_field( l_hlp_txt(12) ).
+  lo_writer->row_close( ).
+
+  lo_writer->row_open( ).
+  lo_writer->single_write_field( text-126 ).
+  WRITE c-kumag TO l_hlp_txt(12)
+                 CURRENCY t001-waers
+                 NO-ZERO
+                 ROUND faktor
+                 DECIMALS stellen.
+  lo_writer->single_write_field( l_hlp_txt(12) ).
+  lo_writer->row_close( ).
+
+  IF konzvers IS INITIAL
+  OR ( NOT ( knb1-bukrs IS INITIAL ) ).
+
+    lo_writer->uline( ).
+
+* <<<<<<<<<<<<<<< Zahlungsdaten >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    lo_writer->section_write( text-127 ).
+    lo_writer->format_normal( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-157 ).
+    lo_writer->single_write_field( knb1-zterm ).
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-162 ).
+    lo_writer->single_write_field( knb1-xverr ).
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-158 ).
+*...Logic changed because the TEXT-155/156 were cut off        "1082200
+    CASE c-zvtyp.
+      WHEN 'S'.
+        concatenate knb1-zterm text-155 into l_hlp_txt SEPARATED BY space.
+      WHEN 'N'.
+        concatenate knb1-zterm text-156 into l_hlp_txt SEPARATED BY space.
+      WHEN OTHERS.
+        WRITE knb1-zterm TO l_hlp_txt.
+    ENDCASE.
+    lo_writer->single_write_field( l_hlp_txt ).
+    CLEAR l_hlp_txt.
+*...Logic changed because the TEXT-155/156 were cut off        "1082200
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-159 ).
+    WRITE c-zvverzug TO l_hlp_txt(12)
+                   NO-ZERO.
+    lo_writer->single_write_field( l_hlp_txt(12) ).
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-160 ).
+    WRITE c-zvper TO l_hlp_txt(12)
+                   NO-ZERO.
+    lo_writer->single_write_field( l_hlp_txt(12) ).
+    lo_writer->row_close( ).
+    lo_writer->uline( ).
+
+* <<<<<<<<<<<<<<<<< Warenkreditversicherung >>>>>>>>>>>>>>>>>>>>>>>>>
+
+    lo_writer->section_write( text-114 ).
+    lo_writer->format_normal( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-130 ).
+    lo_writer->single_write_field( knb1-vrsnr ).
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-131 ).
+    lo_writer->single_write_field( knb1-vrbkz ).
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-132 ).
+    WRITE knb1-vlibb TO l_hlp_txt(12)
+                   CURRENCY t001-waers
+                   NO-ZERO
+                   ROUND faktor
+                   DECIMALS stellen.
+    lo_writer->single_write_field( l_hlp_txt(12) ).
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-133 ).
+    WRITE knb1-verdt TO l_hlp_txt(10)
+                  DD/MM/YY
+                  NO-ZERO.
+    lo_writer->single_write_field( l_hlp_txt(10) ).
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-134 ).
+    WRITE knb1-vrszl TO l_hlp_txt(12)
+              NO-ZERO.
+    lo_writer->single_write_field( l_hlp_txt(12) ).
+    lo_writer->row_close( ).
+
+    lo_writer->row_open( ).
+    lo_writer->single_write_field( text-135 ).
+    WRITE knb1-vrspr TO l_hlp_txt(12)
+              NO-ZERO.
+    lo_writer->single_write_field( l_hlp_txt(12) ).
+    lo_writer->row_close( ).
+    IF NOT ( xmahn IS INITIAL ).
+      lo_writer->uline( ).
+    ENDIF.
+
+* <<<<<<<<<<<<<<<<<<<<< Mahndaten >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    IF NOT ( xmahn IS INITIAL ).
+      lo_writer->section_write( text-129 ).
+      lo_writer->format_normal( ).
+
+      lo_writer->row_open( ).
+      LOOP AT xmahn.
+        IF sy-tabix LE 1.                                      "1116577
+          CLEAR l_hlp_txt1.
+          l_hlp_txt1(1) = sy-tabix.
+          IF sy-tabix EQ 1.
+            CONCATENATE text-136 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-671 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ENDIF.
+          CONCATENATE l_hlp_txt1 ':' INTO l_hlp_txt.
+          lo_writer->single_write_field( l_hlp_txt ).
+          lo_writer->single_write_field( xmahn-maber ).
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lo_writer->row_close( ).
+
+      lo_writer->row_open( ).
+      LOOP AT xmahn.
+        IF sy-tabix LE 1.                                      "1116577
+          CLEAR l_hlp_txt1.
+          l_hlp_txt1(1) = sy-tabix.
+          IF sy-tabix EQ 1.
+            CONCATENATE text-137 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-672 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ENDIF.
+          CONCATENATE l_hlp_txt1 ':' INTO l_hlp_txt.
+          lo_writer->single_write_field( l_hlp_txt ).
+          WRITE xmahn-mahna TO l_hlp_txt1 NO-ZERO.
+          lo_writer->single_write_field( l_hlp_txt1(13) ).
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lo_writer->row_close( ).
+
+      lo_writer->row_open( ).
+      LOOP AT xmahn.
+        IF sy-tabix LE 1.                                      "1116577
+          CLEAR l_hlp_txt1.
+          l_hlp_txt1(1) = sy-tabix.
+          IF sy-tabix EQ 1.
+            CONCATENATE text-138 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-673 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ENDIF.
+          CONCATENATE l_hlp_txt1 ':' INTO l_hlp_txt.
+          lo_writer->single_write_field( l_hlp_txt ).
+          WRITE xmahn-knrma TO l_hlp_txt1 NO-ZERO.
+          lo_writer->single_write_field( l_hlp_txt1(13) ).
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lo_writer->row_close( ).
+
+      lo_writer->row_open( ).
+      LOOP AT xmahn.
+        IF sy-tabix LE 1.                                      "1116577
+          CLEAR l_hlp_txt1.
+          l_hlp_txt1(1) = sy-tabix.
+          IF sy-tabix EQ 1.
+            CONCATENATE text-139 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-674 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ENDIF.
+          CONCATENATE l_hlp_txt1 ':' INTO l_hlp_txt.
+          lo_writer->single_write_field( l_hlp_txt ).
+          IF NOT ( xmahn-madat IS INITIAL ).
+            CLEAR l_hlp_txt1.                                  "1473476
+            WRITE xmahn-madat TO l_hlp_txt1(10)                "1473476
+                  DD/MM/YY                                     "1473476
+                  NO-ZERO.                                     "1473476
+            lo_writer->single_write_field( l_hlp_txt1 ).
+          ELSE.
+            lo_writer->single_write_field( '' ).
+          ENDIF.
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lo_writer->row_close( ).
+
+      lo_writer->row_open( ).
+      LOOP AT xmahn.
+        IF sy-tabix LE 1.                                      "1116577
+          CLEAR l_hlp_txt1.
+          l_hlp_txt1(1) = sy-tabix.
+          IF sy-tabix EQ 1.
+            CONCATENATE text-140 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-675 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ENDIF.
+          CONCATENATE l_hlp_txt1 ':' INTO l_hlp_txt.
+          lo_writer->single_write_field( l_hlp_txt ).
+          WRITE xmahn-mahns TO l_hlp_txt1 NO-ZERO.
+          lo_writer->single_write_field( l_hlp_txt1 ).
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lo_writer->row_close( ).
+
+      lo_writer->row_open( ).
+      LOOP AT xmahn.
+        IF sy-tabix LE 1.                                      "1116577
+          CLEAR l_hlp_txt1.
+          l_hlp_txt1(1) = sy-tabix.
+          IF sy-tabix EQ 1.
+            CONCATENATE text-141 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-676 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ENDIF.
+          CONCATENATE l_hlp_txt1 ':' INTO l_hlp_txt.
+          lo_writer->single_write_field( l_hlp_txt ).
+          IF NOT xmahn-busab IS INITIAL.
+            SELECT SINGLE * FROM t001s INTO *t001s
+                                     WHERE bukrs EQ xmahn-bukrs
+                                     AND   busab EQ xmahn-busab.
+            WRITE *t001s-sname TO l_hlp_txt.                   "1116577
+            CLEAR *t001s.
+          ELSE.
+            WRITE t001s-sname TO  l_hlp_txt.                   "1116577
+          ENDIF.
+          lo_writer->single_write_field( l_hlp_txt(30) ).      "1116577
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lo_writer->row_close( ).
+
+      lo_writer->row_open( ).
+      LOOP AT xmahn.
+        IF sy-tabix LE 1.                                      "1116577
+          CLEAR l_hlp_txt1.
+          l_hlp_txt1(1) = sy-tabix.
+          IF sy-tabix EQ 1.
+            CONCATENATE text-142 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-677 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ENDIF.
+          CONCATENATE l_hlp_txt1 ':' INTO l_hlp_txt.
+          lo_writer->single_write_field( l_hlp_txt ).
+          WRITE xmahn-mansp TO l_hlp_txt1 NO-ZERO.
+          lo_writer->single_write_field( l_hlp_txt1(13) ).
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lo_writer->row_close( ).
+
+      lo_writer->row_open( ).
+      LOOP AT xmahn.
+        IF sy-tabix LE 1.                                      "1116577
+          CLEAR l_hlp_txt1.
+          l_hlp_txt1(1) = sy-tabix.
+          IF sy-tabix EQ 1.
+            CONCATENATE text-143 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ELSE.
+            CONCATENATE text-678 l_hlp_txt1 INTO l_hlp_txt1 SEPARATED BY space.
+          ENDIF.
+          CONCATENATE l_hlp_txt1 ':' INTO l_hlp_txt.
+          lo_writer->single_write_field( l_hlp_txt ).
+          WRITE xmahn-gmvdt TO l_hlp_txt1 NO-ZERO.
+          lo_writer->single_write_field( l_hlp_txt1(13) ).
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDLOOP.
+      lo_writer->row_close( ).
+
+    ENDIF.
+
+    CLEAR xmahn.
+    REFRESH xmahn.
+
+  ENDIF.
+
+  lo_writer->table_close( ).
+
+  IF rastverd = '2'.
+    SKIP 1.
+  ENDIF.
+ENDFORM.                    "ANSCHRIFT
+
+*---------------------------------------------------------------------*
+*       FORM RASTER_AUSGABE                                           *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM raster_ausgabe.
+* Bei Verdichtung der Geschaeftsbereiche nur das Summenraster ausgeben*
+  IF rastverd = '1'.                   "AND VERDICHT > 0.
+    CHECK rtab-sortk = '1'.
+  ENDIF.
+
+* Das Summen-Raster wird nur ausgegeben, wenn mehr als ein Geschaefts-*
+* bereich vorhanden ist. ---------------------------------------------*
+  IF rtab-sortk = '1' AND rastverd NE '1'.
+    CHECK gbzaehl > 1.
+  ENDIF.
+
+  IF  NOT konzvers IS INITIAL
+  AND NOT knb1-bukrs IS INITIAL.
+    CHECK xbukrdat NE '2'.
+  ENDIF.
+
+  IF rtab-sortk NE '2'.
+    IF verdicht NE '6'.
+* Bei der ersten Rasterart       , Anzahlungen usw. ausgeben ---------*
+      IF rasteruu = rart.
+        IF gb-gsber NE '**'.
+          gbzaehl = gbzaehl + 1.
+        ENDIF.
+        IF gb-gsber NE save_gsber
+        OR gb-waers NE save_waers.
+          MOVE gb-gsber TO save_gsber.
+          MOVE gb-waers TO save_waers.
+        ENDIF.
+        RESERVE 5 LINES.
+
+        IF gb-gsber NE '**'.
+          lo_writer->format_subtotal( ).
+        ELSE.
+          lo_writer->format_total( ).
+        ENDIF.
+
+        top-flag = '2'.
+
+        IF sortart = '1' AND konzvers IS INITIAL.
+          lo_writer->row_open( ).
+          lo_writer->single_write_field( gb-gsber ).
+          lo_writer->single_write_field( '' ).
+          WRITE rtab-anzah TO l_hlp_txt(11)
+                           CURRENCY t001-waers
+                           ROUND faktor
+                           DECIMALS stellen.
+          lo_writer->single_write_field( l_hlp_txt(11) ).
+          WRITE rtab-opsum TO l_hlp_txt(12)
+                           CURRENCY t001-waers
+                           ROUND faktor
+                           DECIMALS stellen.
+          lo_writer->single_write_field( l_hlp_txt(12) ).
+        ELSE.
+          lo_writer->row_open( ).
+          lo_writer->single_write_field( gb-gsber ).
+          lo_writer->single_write_field( gb-waers ).
+          WRITE rtab-anzah TO l_hlp_txt(11)
+                           CURRENCY gb-waers
+                           ROUND faktor
+                           DECIMALS stellen.
+          lo_writer->single_write_field( l_hlp_txt(11) ).
+          WRITE rtab-opsum TO l_hlp_txt(12)
+                           CURRENCY gb-waers
+                           ROUND faktor
+                           DECIMALS stellen.
+          lo_writer->single_write_field( l_hlp_txt(12) ).
+        ENDIF.
+      ENDIF.
+
+      CASE rasteruu.
+        WHEN '1'.                                                  " Net-Fae
+          lo_writer->single_write_field( i_field = text-019 i_abs_position = 5 ).
+        WHEN '2'.                                                  " Skt-Fae
+          lo_writer->single_write_field( i_field = text-020 i_abs_position = 5 ).
+        WHEN '3'.                                                  " Zhl-Ein
+          lo_writer->single_write_field( i_field = text-021 i_abs_position = 5 ).
+        WHEN '4'.                                                  " Ueb-Fae
+          lo_writer->single_write_field( i_field = text-022 i_abs_position = 5 ).
+      ENDCASE.
+    ELSE.
+      IF verdicht = '6'.
+        IF acc_mode IS INITIAL.
+          RESERVE 5 LINES.
+          top-flag = '2'.
+          top-fla2 = 'X'.
+          ausflag = 'X'.
+          lo_writer->row_open( ).
+          lo_writer->format_normal( ).
+          lo_writer->single_write_field( rtab-kunnr ).
+          lo_writer->single_write_field( rtab-sortl ).
+          IF rastverd = '1'.
+            lo_writer->single_write_field( rtab-land1 ).
+          ELSE.
+            lo_writer->single_write_field( rtab-gsber ).
+          ENDIF.
+          IF sortart = '1' AND konzvers IS INITIAL.
+            WRITE rtab-opsum TO l_hlp_txt(12)
+                             CURRENCY t001-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(12) ).
+          ELSE.
+            WRITE rtab-opsum TO l_hlp_txt(12)
+                             CURRENCY gb-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(12) ).
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    IF acc_mode IS INITIAL.
+      IF sortart = '1' AND konzvers IS INITIAL.
+        DO 6 TIMES VARYING l_raster FROM rtab-rast1 NEXT rtab-rast2.
+          WRITE l_raster TO l_hlp_txt(13)
+                         CURRENCY t001-waers NO-ZERO
+                         ROUND faktor DECIMALS stellen.
+          lo_writer->single_write_field( l_hlp_txt(13) ).
+        ENDDO.
+      ELSE.
+        DO 6 TIMES VARYING l_raster FROM rtab-rast1 NEXT rtab-rast2.
+          WRITE l_raster TO l_hlp_txt(13)
+                         CURRENCY gb-waers NO-ZERO
+                         ROUND faktor DECIMALS stellen.
+          lo_writer->single_write_field( l_hlp_txt(13) ).
+        ENDDO.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  IF NOT acc_mode IS INITIAL.
+    IF rastverd = '0'.
+      CHECK rtab-sortk = '0'.
+    ENDIF.
+    CLEAR rtab_alv.
+    MOVE-CORRESPONDING rtab TO rtab_alv.
+    rtab_alv-adrs1 = adrs-line0.                               "1253468
+    rtab_alv-adrs2 = adrs-line1.                               "1253468
+    rtab_alv-adrs3 = adrs-line2.                               "1253468
+    rtab_alv-adrs4 = adrs-line3.                               "1253468
+    IF NOT xgetausw IS INITIAL.
+      IF rtab-xguts IS INITIAL.
+        rtab_alv-shkzg = 'S'.
+      ELSE.
+        rtab_alv-shkzg = 'H'.
+      ENDIF.
+    ENDIF.
+    IF rtab-waers IS INITIAL.
+      rtab_alv-waers = t001-waers.
+    ENDIF.
+    IF rtab-raart = 4.
+      rtab_alv-raart = 6.
+    ENDIF.
+    IF      konzvers IS INITIAL
+    AND NOT knb1-bukrs IS INITIAL.
+      rtab_alv-bukrs = knb1-bukrs.
+    ENDIF.
+    IF NOT rtab_alv-bukrs IS INITIAL.
+      rtab_alv-busab = knb1-busab.
+    ENDIF.
+    MOVE c-kumum TO rtab_alv-kumum.
+    IF NOT rtab_alv IS INITIAL.
+      APPEND rtab_alv.
+    ENDIF.
+  ENDIF.
+  CLEAR top-fla2.
+ENDFORM.                    "RASTER_AUSGABE
+
+*---------------------------------------------------------------------*
+*       FORM SUM_BUSAB_BUKRS_TOTAL                                    *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM sum_busab_bukrs_total.
+  IF rtab-sortk = '0'.
+    IF       konzvers   IS INITIAL
+    OR ( NOT konzvers   IS INITIAL
+    AND  NOT rtab-bukrs IS INITIAL ) .
+*-- Summen pro Sachbearbeiter ----------------------------------------*
+      MOVE-CORRESPONDING rtab TO rbus.
+      MOVE: knb1-bukrs TO  rbus-bukrs,
+            gb-gsber TO  rbus-gsber,
+            gb-waers TO  rbus-waers.
+      COLLECT rbus.
+*-- Gesamtsumme ueber alle Geschaeftsbereiche pro Sachbearb. ---------*
+*-- ermitteln, aber nur bei SORTART = '1' ----------------------------*
+      MOVE: knb1-bukrs TO  rbus-bukrs,
+            '**'     TO  rbus-gsber,
+            '1'      TO  rbus-sortk.
+      COLLECT rbus.
+
+*-- Summen pro Buchungskreis -----------------------------------------*
+      MOVE-CORRESPONDING rtab TO rbuk.
+      MOVE: knb1-bukrs TO  rbuk-bukrs,
+            gb-gsber   TO  rbuk-gsber,
+            gb-waers   TO  rbuk-waers.
+      COLLECT rbuk.
+*-- Gesamtsumme ueber alle Geschaeftsbereiche und Sachbearb. ---------*
+*-- ermitteln, aber nur bei SORTART = '1' ----------------------------*
+      MOVE: knb1-bukrs TO  rbuk-bukrs,
+            '**'       TO  rbuk-gsber,
+            '1'        TO  rbuk-sortk.
+      COLLECT rbuk.
+    ENDIF.
+
+*-- Summen fuer Listenteil 2 ermitteln -------------------------------*
+    MOVE: knb1-bukrs TO  rtab-bukrs,
+          gb-gsber TO  rtab-gsber,
+          gb-waers TO  rtab-waers.
+    COLLECT rtab.
+
+*-- Gesamtsumme ueber alle Buchungs- und Geschaeftsbereiche ----------*
+*-- ermitteln, aber nur bei SORTART = '1' ----------------------------*
+    IF       konzvers   IS INITIAL
+    OR ( NOT konzvers   IS INITIAL
+    AND      rtab-bukrs IS INITIAL ) .
+      MOVE-CORRESPONDING rtab TO rsum.
+      IF sortart = '1' AND konzvers IS INITIAL.
+        MOVE: t001-waers TO  rsum-waers.
+      ENDIF.
+      MOVE: '1'        TO  rsum-sortk.
+      COLLECT rsum.
+    ENDIF.
+  ENDIF.
+
+  IF  rtab-sortk = '2'.
+*-- Gesamtumsatz ueber alle Geschaeftsbereiche pro Sachbearb. --------*
+*-- ermitteln, aber nur bei SORTART = '1' ----------------------------*
+    IF sortart = '1'.
+      MOVE-CORRESPONDING rtab TO rbus.
+      MOVE: knb1-bukrs TO  rbus-bukrs,
+            gb-gsber   TO  rbus-gsber,
+            gb-waers   TO  rbus-waers,
+            '2'        TO  rbus-sortk.
+      COLLECT rbus.
+    ENDIF.
+
+*-- Gesamtumsatz ueber alle Geschaeftsbereiche und Sachbearb. --------*
+*-- ermitteln, aber nur bei SORTART = '1' ----------------------------*
+    IF sortart = '1'.
+      MOVE-CORRESPONDING rtab TO rbuk.
+      MOVE: knb1-bukrs TO  rbuk-bukrs,
+            gb-gsber   TO  rbuk-gsber,
+            gb-waers   TO  rbuk-waers,
+            '2'        TO  rbuk-sortk.
+      COLLECT rbuk.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    "SUM_BUSAB_BUKRS_TOTAL
+
+*---------------------------------------------------------------------*
+*       FORM EINZELPOSTEN_AUSGABE                                     *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM einzelposten_ausgabe.
+
+  lo_writer->format_normal( ).
+  lo_writer->row_open( ).
+  lo_writer->single_write_field( knb1-bukrs ).
+  lo_writer->single_write_field( gb-gsber ).
+
+  WRITE tage TO l_hlp_txt(8).
+  lo_writer->single_write_field( l_hlp_txt(8) ).
+  lo_writer->single_write_field( bsid-umskz ).
+  lo_writer->single_write_field( bsid-blart ).
+  lo_writer->single_write_field( bsid-belnr ).
+
+  WRITE bsid-buzei TO l_hlp_txt(3).
+  lo_writer->single_write_field( l_hlp_txt(3) ).
+
+  WRITE bsega-netdt TO l_hlp_txt(8).
+  lo_writer->single_write_field( l_hlp_txt(8) ).
+
+  WRITE bsid-zfbdt TO l_hlp_txt(8).
+  lo_writer->single_write_field( l_hlp_txt(8) ).
+
+  WRITE bsid-budat TO l_hlp_txt(8).
+  lo_writer->single_write_field( l_hlp_txt(8) ).
+
+  WRITE bsid-bldat TO l_hlp_txt(8).
+  lo_writer->single_write_field( l_hlp_txt(8) ).
+
+  lo_writer->single_write_field( bsid-bschl ).
+  lo_writer->single_write_field( bsid-zlsch ).
+
+  WRITE bsid-manst NO-ZERO TO l_hlp_txt(1).
+  lo_writer->single_write_field( l_hlp_txt(1) ).
+
+  WRITE bsega-dmshb CURRENCY t001-waers TO l_hlp_txt(21).
+  lo_writer->single_write_field( l_hlp_txt(21) ).
+  lo_writer->single_write_field( bsid-waers ).
+
+  WRITE bsega-wrshb CURRENCY bsid-waers NO-ZERO TO l_hlp_txt(20).
+  lo_writer->single_write_field( l_hlp_txt(20) ).
+
+  lo_writer->row_close( ).
+
+ENDFORM.                    "EINZELPOSTEN_AUSGABE
+
+*---------------------------------------------------------------------*
+*       FORM RASTER_AUSGABE_BUSAB                                     *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM raster_ausgabe_busab.
+  IF rastverd < '2'.
+    DETAIL.
+    SORT rbus.
+    CLEAR gbzaehl.
+    CLEAR rastza.
+    DESCRIBE TABLE rbus LINES l_hlp_lines.
+    l_hlp_i = 0.
+    LOOP AT rbus.
+      l_hlp_i = l_hlp_i + 1.
+
+* Bei Verdichtung der Geschaeftsbereiche nur das Summenraster ausgeben*
+      IF rastverd = '1'.               " AND VERDICHT > 0.
+        CHECK rbus-sortk NE '0'.
+      ENDIF.
+
+* Das Summen-Raster wird nur ausgegeben, wenn mehr als ein Geschaefts-*
+* bereich vorhanden ist. ---------------------------------------------*
+      IF rbus-sortk = '1' AND rastverd NE '1'.
+        CHECK gbzaehl GT 1.
+      ENDIF.
+
+      IF rbus-sortk NE '2'.
+        IF rbus-gsber NE '**'.
+          lo_writer->format_subtotal( ).
+        ELSE.
+          lo_writer->format_total( ).
+        ENDIF.
+
+* Bei der ersten Rasterart  Anzahlungen usw. ausgeben ----------------*
+        rastza = 'X'.
+        IF rbus-raart = rart.
+          IF rbus-gsber NE '**'.
+            gbzaehl = gbzaehl + 1.
+          ENDIF.
+          RESERVE 5 LINES.
+
+          lo_writer->row_open( ).
+          lo_writer->single_write_field( rbus-gsber ).
+          IF sortart = '1' AND konzvers IS INITIAL.
+            lo_writer->single_write_field( '' ).
+            WRITE rbus-anzah TO l_hlp_txt(11)
+                             CURRENCY t001-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(11) ).
+            WRITE rbus-opsum TO l_hlp_txt(12)
+                             CURRENCY t001-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(12) ).
+          ELSE.
+            lo_writer->single_write_field( rbus-waers ).
+            WRITE rbus-anzah TO l_hlp_txt(11)
+                             CURRENCY rbus-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(11) ).
+            WRITE rbus-opsum TO l_hlp_txt(12)
+                             CURRENCY rbus-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(12) ).
+          ENDIF.
+
+        ELSE.
+          lo_writer->row_open( ).
+        ENDIF.
+
+        CASE rbus-raart.
+          WHEN '1'.                                                 " Net-Fae
+            lo_writer->single_write_field( i_field = text-019 i_abs_position = 5 ).
+          WHEN '2'.                                                 " Skt-Fae
+            lo_writer->single_write_field( i_field = text-020 i_abs_position = 5 ).
+          WHEN '3'.                                                 " Zhl-Fae
+            lo_writer->single_write_field( i_field = text-021 i_abs_position = 5 ).
+          WHEN '4'.                                                 " Ueb-Fae
+            lo_writer->single_write_field( i_field = text-022 i_abs_position = 5 ).
+        ENDCASE.
+
+        IF sortart = '1' AND konzvers IS INITIAL.
+
+          DO 6 TIMES VARYING l_raster FROM rbus-rast1 NEXT rbus-rast2.
+            WRITE l_raster TO l_hlp_txt(13)
+                           CURRENCY t001-waers NO-ZERO
+                           ROUND faktor DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(13) ).
+          ENDDO.
+        ELSE.
+
+          DO 6 TIMES VARYING l_raster FROM rbus-rast1 NEXT rbus-rast2.
+            WRITE l_raster TO l_hlp_txt(13)
+                           CURRENCY rbus-waers NO-ZERO
+                           ROUND faktor DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(13) ).
+          ENDDO.
+        ENDIF.
+      ELSE.
+        IF rastza IS INITIAL.
+        ENDIF.
+* Ausgabe des Jahresumsatzes -----------------------------------------
+        lo_writer->format_total( ).
+        lo_writer->row_open( ).
+        CLEAR l_hlp_txt.
+        WRITE: rbus-gsber(4) TO l_hlp_txt,
+               text-166 TO l_hlp_txt+7,
+               rbus-kumum CURRENCY t001-waers TO l_hlp_txt+87(18).
+        lo_writer->write_inserted_line( l_hlp_txt ).
+        lo_writer->row_close( ib_inserted_line = abap_true ).
+      ENDIF.
+
+      AT END OF waers.
+        IF l_hlp_i < l_hlp_lines.
+          lo_writer->uline( ).
+        ELSE.
+          lo_writer->table_close( ).
+        ENDIF.
+      ENDAT.
+
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.                    "RASTER_AUSGABE_BUSAB
+
+*---------------------------------------------------------------------*
+*       FORM RASTER_AUSGABE_BUKRB                                     *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM raster_ausgabe_bukrb.
+  IF rastverd < '2'.
+    DETAIL.
+    SORT rbuk.
+    CLEAR gbzaehl.
+    CLEAR rastza.
+    DESCRIBE TABLE rbuk LINES l_hlp_lines.
+    l_hlp_i = 0.
+    LOOP AT rbuk.
+      l_hlp_i = l_hlp_i + 1.
+      NEW-LINE.
+
+* Bei Verdichtung der Geschaeftsbereiche nur das Summenraster ausgeben*
+      IF rastverd = '1'.               " AND VERDICHT > 0.
+        CHECK rbuk-sortk NE '0' .
+      ENDIF.
+
+* Das Summen-Raster wird nur ausgegeben, wenn mehr als ein Geschaefts-*
+* bereich vorhanden ist. ---------------------------------------------*
+      IF rbuk-sortk = '1' AND rastverd NE '1'.
+        CHECK gbzaehl GT 1.
+      ENDIF.
+
+      IF rbuk-gsber NE '**'.
+        lo_writer->format_subtotal( ).
+      ELSE.
+        lo_writer->format_total( ).
+      ENDIF.
+
+      IF rbuk-sortk NE '2'.
+* Bei der ersten Rasterart         Anzahlungen usw. ausgeben ---------*
+        rastza = 'X'.
+        IF rbuk-raart = rart.
+          IF rbuk-gsber NE '**'.
+            gbzaehl = gbzaehl + 1.
+          ENDIF.
+          RESERVE 5 LINES.
+          lo_writer->row_open( ).
+          lo_writer->single_write_field( rbuk-gsber ).
+          IF sortart = '1' AND konzvers IS INITIAL.
+            lo_writer->single_write_field( '' ).
+            WRITE rbuk-anzah TO l_hlp_txt(11)
+                             CURRENCY t001-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(11) ).
+            WRITE rbuk-opsum TO l_hlp_txt(12)
+                             CURRENCY t001-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(12) ).
+          ELSE.
+            lo_writer->single_write_field( rbuk-waers ).
+            WRITE rbuk-anzah TO l_hlp_txt(11)
+                             CURRENCY rbuk-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(11) ).
+            WRITE rbuk-opsum TO l_hlp_txt(12)
+                             CURRENCY rbuk-waers
+                             ROUND faktor
+                             DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(12) ).
+          ENDIF.
+        ELSE.
+          lo_writer->row_open( ).
+        ENDIF.
+
+        CASE rbuk-raart.
+          WHEN '1'.                                                 " Net-Fae
+            lo_writer->single_write_field( i_field = text-019 i_abs_position = 5 ).
+          WHEN '2'.                                                 " Skt-Fae
+            lo_writer->single_write_field( i_field = text-020 i_abs_position = 5 ).
+          WHEN '3'.                                                 " Zhl-Fae
+            lo_writer->single_write_field( i_field = text-021 i_abs_position = 5 ).
+          WHEN '4'.                                                 " Alt-Fae
+            lo_writer->single_write_field( i_field = text-022 i_abs_position = 5 ).
+        ENDCASE.
+
+        IF sortart = '1' AND konzvers IS INITIAL.
+          DO 6 TIMES VARYING l_raster FROM rbuk-rast1 NEXT rbuk-rast2.
+            WRITE l_raster TO l_hlp_txt(13)
+                           CURRENCY t001-waers NO-ZERO
+                           ROUND faktor DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(13) ).
+          ENDDO.
+        ELSE.
+          DO 6 TIMES VARYING l_raster FROM rbuk-rast1 NEXT rbuk-rast2.
+            WRITE l_raster TO l_hlp_txt(13)
+                           CURRENCY rbuk-waers NO-ZERO
+                           ROUND faktor DECIMALS stellen.
+            lo_writer->single_write_field( l_hlp_txt(13) ).
+          ENDDO.
+        ENDIF.
+      ELSE.
+* Ausgabe des Jahresumsatzes -----------------------------------------*
+        lo_writer->format_total( ).
+        lo_writer->row_open( ).
+        CLEAR l_hlp_txt.
+        WRITE: rbuk-gsber(4) TO l_hlp_txt,
+               text-166 TO l_hlp_txt+7,
+               rbuk-kumum CURRENCY t001-waers TO l_hlp_txt+87(18).
+        lo_writer->write_inserted_line( l_hlp_txt ).
+        lo_writer->row_close( ib_inserted_line = abap_true ).
+
+      ENDIF.
+
+      AT END OF waers.
+        IF l_hlp_i < l_hlp_lines.
+          lo_writer->uline( ).
+        ELSE.
+          lo_writer->table_close( ).
+        ENDIF.
+      ENDAT.
+
+    ENDLOOP.
+  ENDIF.
+ENDFORM.                    "RASTER_AUSGABE_BUKRB
+
+*---------------------------------------------------------------------*
+*       FORM RASTER_AUSGABE_TOTAL                                     *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM raster_ausgabe_total.
+  IF rastverd < '2'.
+    DETAIL.
+    REPLACE 'RP01' WITH rc01 INTO varueb2.                  "bis   0
+    REPLACE 'RP02' WITH rc02 INTO varueb2.                  "bis  20
+    REPLACE 'RP03' WITH rc03 INTO varueb2.                  "bis  40
+    REPLACE 'RP04' WITH rc04 INTO varueb2.                  "bis  80
+    REPLACE 'RP05' WITH rc05 INTO varueb2.                  "bis 100
+    REPLACE 'RP06' WITH rc06 INTO varueb1.                  "von   1
+    REPLACE 'RP07' WITH rc07 INTO varueb1.                  "von  21
+    REPLACE 'RP08' WITH rc08 INTO varueb1.                  "von  41
+    REPLACE 'RP09' WITH rc09 INTO varueb1.                  "von  81
+    REPLACE 'RP10' WITH rc10 INTO varueb1.                  "von 101
+    SORT rsum.
+
+    lo_writer->format_total( ).
+
+    LOOP AT rsum.
+
+* Bei Verdichtung der Geschaeftsbereiche nur das Summenraster ausgeben*
+      IF rastverd = '1' AND verdicht > 0.
+        CHECK rsum-sortk = '1'.
+      ENDIF.
+
+* Bei der ersten Rasterart Umsatz, Anzahlungen usw. ausgeben ---------*
+      IF rsum-raart = rart.
+        RESERVE 5 LINES.
+
+        lo_writer->row_open( ).
+        lo_writer->single_write_field( '**' ).
+        lo_writer->single_write_field( rsum-waers ).
+        WRITE rsum-anzah TO l_hlp_txt(11)
+                         CURRENCY rsum-waers
+                         ROUND faktor
+                         DECIMALS stellen.
+        lo_writer->single_write_field( l_hlp_txt(11) ).
+        WRITE rsum-opsum TO l_hlp_txt(12)
+                         CURRENCY rsum-waers
+                         ROUND faktor
+                         DECIMALS stellen.
+        lo_writer->single_write_field( l_hlp_txt(12) ).
+      ELSE.
+        lo_writer->row_open( ).
+      ENDIF.
+
+      CASE rsum-raart.
+        WHEN '1'.                                                 " Net-Fae
+          lo_writer->single_write_field( i_field = text-019 i_abs_position = 5 ).
+        WHEN '2'.                                                 " Skt-Fae
+          lo_writer->single_write_field( i_field = text-020 i_abs_position = 5 ).
+        WHEN '3'.                                                 " Zhl-Fae
+          lo_writer->single_write_field( i_field = text-021 i_abs_position = 5 ).
+        WHEN '4'.                                                 " Ueb-Fae
+          lo_writer->single_write_field( i_field = text-022 i_abs_position = 5 ).
+      ENDCASE.
+
+      DO 6 TIMES VARYING l_raster FROM rsum-rast1 NEXT rsum-rast2.
+        WRITE l_raster TO l_hlp_txt(13)
+                       CURRENCY rsum-waers NO-ZERO
+                       ROUND faktor DECIMALS stellen.
+        lo_writer->single_write_field( l_hlp_txt(13) ).
+      ENDDO.
+
+      AT END OF waers.
+        lo_writer->uline( ).
+      ENDAT.
+      lo_writer->row_close( ).
+    ENDLOOP.
+  ENDIF.
+ENDFORM.                    "RASTER_AUSGABE_TOTAL
+
+*---------------------------------------------------------------------*
+*       FORM PAYMENT_FORECAST                                         *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM payment_forecast.
+
+* Es werden die letzten 5 Zahlungseingänge berücksichtigt.
+* Summe des Zahlungsvolumens 'wenn Kunde auf Skontoabzug verzichtet'.
+  ADD knb4-agn01 THEN knb4-agn02 UNTIL knb4-agn05 GIVING zvnetto.
+
+* Summe des Zahlungsvolumens 'wenn Kunde mit maximalem Skontoabzug
+* zahlt'.
+  ADD knb4-ags01 THEN knb4-ags02 UNTIL knb4-ags05 GIVING zvskonto.
+
+  zvmalvz = 0.
+
+  IF zvskonto > zvnetto.
+*    Kunde zahlt überwiegend mit Skontoabzug.
+    zvtyp = 'S'.
+    zvmalvz = knb4-ags01 * knb4-vzs01
+            + knb4-ags02 * knb4-vzs02
+            + knb4-ags03 * knb4-vzs03
+            + knb4-ags04 * knb4-vzs04
+            + knb4-ags05 * knb4-vzs05.
+
+    IF zvskonto <> 0.
+      zvverzug = zvmalvz / zvskonto.
+    ELSE.
+      zvverzug = 0.
+    ENDIF.
+  ELSE.
+*    Kunde zahlt überwiegend netto.
+    zvtyp = 'N'.
+    zvmalvz = knb4-agn01 * knb4-vzn01
+            + knb4-agn02 * knb4-vzn02
+            + knb4-agn03 * knb4-vzn03
+            + knb4-agn04 * knb4-vzn04
+            + knb4-agn05 * knb4-vzn05.
+    IF zvnetto <> 0.
+      zvverzug = zvmalvz / zvnetto.
+    ELSE.
+      zvverzug = 0.
+    ENDIF.
+  ENDIF.                               "IF ZVSKONTO > ZVNETTO.
+
+ENDFORM.                    "PAYMENT_FORECAST
+
+*---------------------------------------------------------------------*
+*       FORM MAHNDATEN                                                *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM mahndaten.
+  CALL FUNCTION 'FOR_ALL_KNB5'
+       EXPORTING: xkunnr = kna1-kunnr
+                  xbukrs = knb1-bukrs
+       TABLES     xknb5  = xmahn
+       EXCEPTIONS key_incomplete = 1
+                  not_authorized = 2
+                  not_found      = 3.
+
+  IF sy-subrc NE 0.
+    CASE sy-subrc.
+      WHEN '1'.
+        MESSAGE e370 WITH knb1-bukrs kna1-kunnr.
+      WHEN '2'.
+        MESSAGE e371 WITH knb1-bukrs 'D' kna1-kunnr.
+    ENDCASE.
+  ENDIF.
+ENDFORM.                    "MAHNDATEN
+
+*---------------------------------------------------------------------*
+*       FORM SHB_KENNZEICHEN                                          *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM shb_kennzeichen.
+  CLEAR humkz1.
+  CLEAR humkz2.
+  CLEAR humkz3.
+  CLEAR humkz4.
+  CLEAR humkz5.
+  CLEAR humkz6.
+  CLEAR humkz7.
+  CLEAR humkz8.
+  CLEAR humkz9.
+  CLEAR humkz10.
+
+  IF NOT umsatzkz(1) IS INITIAL.
+    humkz1 = umsatzkz(1).
+  ENDIF.
+  IF NOT umsatzkz+1(1) IS INITIAL.
+    humkz2 = umsatzkz+1(1).
+  ENDIF.
+  IF NOT umsatzkz+2(1) IS INITIAL.
+    humkz3 = umsatzkz+2(1).
+  ENDIF.
+  IF NOT umsatzkz+3(1) IS INITIAL.
+    humkz4 = umsatzkz+3(1).
+  ENDIF.
+  IF NOT umsatzkz+4(1) IS INITIAL.
+    humkz5 = umsatzkz+4(1).
+  ENDIF.
+  IF NOT umsatzkz+5(1) IS INITIAL.
+    humkz6 = umsatzkz+5(1).
+  ENDIF.
+  IF NOT umsatzkz+6(1) IS INITIAL.
+    humkz7 = umsatzkz+6(1).
+  ENDIF.
+  IF NOT umsatzkz+7(1) IS INITIAL.
+    humkz8 = umsatzkz+7(1).
+  ENDIF.
+  IF NOT umsatzkz+8(1) IS INITIAL.
+    humkz9 = umsatzkz+8(1).
+  ENDIF.
+  IF NOT umsatzkz+9(1) IS INITIAL.
+    humkz10 = umsatzkz+9(1).
+  ENDIF.
+
+ENDFORM.                    "SHB_KENNZEICHEN
+
+*---------------------------------------------------------------------*
+*       FORM SHBKZ_PRUEFEN                                            *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM shbkz_pruefen.
+  CLEAR flag1.
+  SELECT * FROM tbsl
+    WHERE koart = 'D'.
+    IF NOT tbsl-xsonu IS INITIAL.
+      SELECT * FROM tbslt
+        WHERE bschl = tbsl-bschl
+        AND   umskz = char1.
+
+        flag1 = 'X'.
+      ENDSELECT.
+    ENDIF.
+  ENDSELECT.
+  IF NOT flag1 IS INITIAL.
+    SELECT SINGLE * FROM t074u
+      WHERE koart = 'D'
+      AND   umskz = char1.
+    IF NOT t074u-merkp IS INITIAL.
+      IF sy-batch IS INITIAL.
+        SET CURSOR FIELD 'UMSATZKZ'.
+      ENDIF.
+      MESSAGE w376 WITH char1 'D'.
+    ENDIF.
+
+    SELECT SINGLE * FROM t074t
+      WHERE spras = sy-langu
+      AND   koart = 'D'
+      AND   shbkz = char1.
+    IF sy-subrc = 0.
+      bezshb-shbkz = t074t-shbkz.
+      bezshb-ltext = t074t-ltext.
+      APPEND bezshb.
+    ELSE.
+      CLEAR flag1.
+    ENDIF.
+  ENDIF.
+  IF flag1 IS INITIAL.
+    IF sy-batch IS INITIAL.
+      SET CURSOR FIELD 'UMSATZKZ'.
+    ENDIF.
+    MESSAGE w375 WITH char1 'D'.
+  ENDIF.
+ENDFORM.                    "SHBKZ_PRUEFEN
+
+*---------------------------------------------------------------------*
+*       FORM OBLIGOS                                                  *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM obligos.
+  CLEAR aobligo.
+  REFRESH aobligo.
+  IF NOT c-saldo IS INITIAL.
+    CLEAR aobligo.
+    MOVE '1' TO aobligo-obart.
+    MOVE c-saldo TO aobligo-oblig.
+    WRITE text-117 TO aobligo-ltext.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums1 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz1 TO aobligo-shbkz.
+    MOVE c-sums1 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz1.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums2 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz2 TO aobligo-shbkz.
+    MOVE c-sums2 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz2.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums3 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz3 TO aobligo-shbkz.
+    MOVE c-sums3 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz3.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums4 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz4 TO aobligo-shbkz.
+    MOVE c-sums4 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz4.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums5 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz5 TO aobligo-shbkz.
+    MOVE c-sums5 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz5.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums6 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz6 TO aobligo-shbkz.
+    MOVE c-sums6 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz6.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums7 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz7 TO aobligo-shbkz.
+    MOVE c-sums7 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz7.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums8 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz8 TO aobligo-shbkz.
+    MOVE c-sums8 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz8.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums9 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz9 TO aobligo-shbkz.
+    MOVE c-sums9 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz9.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sums10 IS INITIAL.
+    CLEAR aobligo.
+    MOVE '2' TO aobligo-obart.
+    MOVE c-umkz10 TO aobligo-shbkz.
+    MOVE c-sums10 TO aobligo-oblig.
+    LOOP AT bezshb
+      WHERE shbkz = c-umkz10.
+      MOVE bezshb-ltext TO aobligo-ltext.
+    ENDLOOP.
+    APPEND aobligo.
+  ENDIF.
+  IF NOT c-sonob IS INITIAL.
+    CLEAR aobligo.
+    MOVE '3' TO aobligo-obart.
+    MOVE c-sonob TO aobligo-oblig.
+    WRITE text-152 TO aobligo-ltext.
+    APPEND aobligo.
+  ENDIF.
+  SORT aobligo.
+
+ENDFORM.                    "OBLIGOS
+
+*----- Modifikation für Überfälligkeitsprüfung
+
+FORM einzelposten_sichern.
+  CLEAR hbsid.
+  MOVE-CORRESPONDING bsid  TO hbsid.
+  MOVE-CORRESPONDING bsega TO hbsid.                       "#EC ENHOK
+  APPEND  hbsid.
+ENDFORM.                    "EINZELPOSTEN_SICHERN
+
+*---------------------------------------------------------------------*
+*       FORM EINZELPOSTEN_EXTRACT                                     *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM einzelposten_extract.
+  LOOP AT hbsid
+    WHERE bukrs = knb1-bukrs.
+    CLEAR bsid.
+    CLEAR bsega.
+    MOVE-CORRESPONDING hbsid TO bsid.
+    MOVE-CORRESPONDING hbsid TO bsega.                     "#EC ENHOK
+    IF NOT pzuor IS INITIAL.
+      tage = hbsid-utage.
+    ELSE.
+      tage = dd_stida - bsega-netdt.
+    ENDIF.
+    IF tage <= rp01.
+      MOVE  '1'    TO rasteruu.
+    ELSE.
+      IF tage <= rp02
+      OR rp07 IS INITIAL.
+        MOVE  '2'    TO rasteruu.
+      ELSE.
+        IF tage <= rp03
+        OR rp08 IS INITIAL.
+          MOVE  '3'    TO rasteruu.
+        ELSE.
+          IF tage <= rp04
+          OR rp09 IS INITIAL.
+            MOVE  '4'    TO rasteruu.
+          ELSE.
+            IF tage <= rp05.
+              MOVE  '5'    TO rasteruu.
+            ELSE.
+              MOVE  '6'    TO rasteruu.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    IF sortart = '1' .
+      MOVE space    TO gb-waers.
+    ELSE.
+      MOVE bsid-waers TO gb-waers.
+    ENDIF.
+    MOVE   '3'    TO satzart.
+    MOVE   '0'    TO rtab-sortk.
+    MOVE bsid-gsber TO gb-gsber.
+    MOVE bsega-dmshb TO shbetrag.
+*------Der Fremdwährungsbetrag soll nur Übernommen werden, wenn sich
+*----- die WÄHRUNG VON DER HAUSWÄHRUNG UNTERSCHEIDET.
+    IF bsid-waers EQ t001-waers.
+      MOVE space TO bsega-wrshb.
+    ENDIF.
+    EXTRACT einzelposten.
+  ENDLOOP.
+ENDFORM.                    "EINZELPOSTEN_EXTRACT
+
+*---------------------------------------------------------------------*
+*       FORM EINZELPOSTEN_SAVE                                        *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM einzelposten_save.
+  CLEAR hbsid.
+  CLEAR refbl.
+  MOVE-CORRESPONDING bsid  TO hbsid.
+  MOVE-CORRESPONDING bsega TO hbsid.                       "#EC ENHOK
+  MOVE ntage TO hbsid-ntage.
+  MOVE stage TO hbsid-stage.
+  MOVE ztage TO hbsid-ztage.
+  MOVE utage TO hbsid-utage.
+  APPEND hbsid.
+  MOVE-CORRESPONDING bsid  TO refbl.                       "#EC ENHOK
+  MOVE ntage TO refbl-ntage.
+  MOVE stage TO refbl-stage.
+  MOVE ztage TO refbl-ztage.
+  MOVE utage TO refbl-utage.
+  APPEND refbl.
+ENDFORM.                    "EINZELPOSTEN_SAVE
+
+*---------------------------------------------------------------------*
+*       FORM EINZELPOSTEN_LINK                                        *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM einzelposten_link.
+  SORT refbl BY bukrs belnr gjahr buzei.                       "1579685
+  LOOP AT hbsid
+    WHERE rebzg NE space.
+    READ TABLE refbl WITH KEY bukrs = hbsid-bukrs              "1579685
+                              belnr = hbsid-rebzg              "1579685
+                              gjahr = hbsid-rebzj              "1579685
+                              buzei = hbsid-rebzz              "1579685
+                              BINARY SEARCH.                   "1579685
+    IF sy-subrc = 0.                                           "1579685
+      hbsid-ntage = refbl-ntage.
+      hbsid-stage = refbl-stage.
+      hbsid-ztage = refbl-ztage.
+      hbsid-utage = refbl-utage.
+      MODIFY hbsid.
+    ENDIF.                                                     "1579685
+  ENDLOOP.
+ENDFORM.                    "EINZELPOSTEN_LINK
+
+*---------------------------------------------------------------------*
+*       FORM EINZELPOSTEN_PROC                                        *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM einzelposten_proc.
+  LOOP AT hbsid
+    WHERE bukrs = knb1-bukrs.
+    IF t001-bukrs NE knb1-bukrs.
+      READ TABLE ht001 WITH KEY bukrs = knb1-bukrs.
+      t001 = ht001.
+    ENDIF.
+    CLEAR bsid.
+    CLEAR bsega.
+    MOVE-CORRESPONDING hbsid TO bsid.
+    MOVE-CORRESPONDING hbsid TO bsega.                     "#EC ENHOK
+    ntage =  hbsid-ntage.
+    stage =  hbsid-stage.
+    ztage =  hbsid-ztage.
+    utage =  hbsid-utage.
+
+* die Einzelposten werden nach den Tagen der ersten Rasterart --------*
+* sortiert -----------------------------------------------------------*
+    IF rart-net = 'X'.
+      tage = ntage.
+    ELSE.
+      IF rart-skt = 'X'.
+        tage = stage.
+      ELSE.
+        IF rart-zhl = 'X'.
+          tage = ztage.
+        ELSE.
+          IF rart-ueb = 'X'.
+            tage = utage.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+
+    CASE bsid-umsks.
+*--------------- Anzahlungen sammeln ---------------------------------*
+*--------------- auch wenn nicht von aussen abgegrenzt ---------------*
+      WHEN 'A'.
+        CLEAR rtab.
+        IF bsid-bstat NE 'S'.
+          MOVE: bsid-bukrs TO rtab-bukrs,
+                '0'      TO rtab-sortk,
+                bsid-gsber TO rtab-gsber,
+                rart     TO rtab-raart.
+          IF sortart = '2'.
+            MOVE bsid-waers TO rtab-waers.
+            MOVE bsega-wrshb TO rtab-anzah.
+          ELSE.
+            IF NOT konzvers IS INITIAL.
+              MOVE t001-waers TO rtab-waers.
+              MOVE bsega-dmshb TO rtab-anzah.
+            ELSE.
+              MOVE bsega-dmshb TO rtab-anzah.
+            ENDIF.
+          ENDIF.
+          CLEAR rtab-xguts.
+          IF NOT xgetausw IS INITIAL.
+            IF bsega-dmshb LT 0.
+              rtab-xguts = 'X'.
+            ENDIF.
+          ENDIF.
+          MOVE:
+          kna1-kunnr TO rtab-kunnr,
+          kna1-sortl TO rtab-sortl,
+          kna1-land1 TO rtab-land1.
+          COLLECT rtab.
+*--------------- Summieren ueber alle Geschaeftsbereiche -------------*
+          MOVE: '1'      TO rtab-sortk,
+                '**'     TO rtab-gsber.
+          COLLECT rtab.
+        ENDIF.
+    ENDCASE.
+
+    CHECK: budat,
+           bldat,
+           netdt.
+    sel-postn = 'J'.
+
+    IF sortart = '1'.
+      IF konzvers IS INITIAL.
+        PERFORM posten_rastern USING space.
+        MOVE space    TO gb-waers.
+      ELSE.
+        PERFORM posten_rastern USING t001-waers.
+        MOVE t001-waers TO gb-waers.
+      ENDIF.
+    ELSE.
+      PERFORM posten_rastern USING bsid-waers.
+      MOVE bsid-waers TO gb-waers.
+    ENDIF.
+
+*----- Saldoberechnung Überfälligkeitsprüfung
+    IF  utage GT '0'
+    AND utage IN vertage.
+      IF NOT xnurford IS INITIAL.
+        IF bsega-dmshb GT '0'.         "Falls keine Habenpositionen
+          h-sald2        = h-sald2        + bsega-dmshb.
+        ENDIF.                         "bei der berechnung berück-
+      ELSE.                            "sichtigt werden sollen
+        h-sald2        = h-sald2        + bsega-dmshb.
+      ENDIF.
+    ENDIF.                             "hier die Sterne entfernen
+
+*---- nur bei Verdichtungsstufe '0' werden EINZELPOSTEN extrahiert --*
+    IF verdicht = '0'.
+      IF  utage GT '0'
+      AND utage IN vertage.
+      ELSE.
+        DELETE hbsid.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.                    "EINZELPOSTEN_PROC
+
+*---------------------------------------------------------------------*
+*       FORM SUMM_C3                                                  *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM summ_c3.
+  c3-saldo     = c3-saldo + c-saldo.
+  c3-umkz1     = c-umkz1.
+  c3-sums1     = c3-sums1 + c-sums1.
+  c3-umkz2     = c-umkz2.
+  c3-sums2     = c3-sums2 + c-sums2.
+  c3-umkz3     = c-umkz3.
+  c3-sums3     = c3-sums3 + c-sums3.
+  c3-umkz4     = c-umkz4.
+  c3-sums4     = c3-sums4 + c-sums4.
+  c3-umkz5     = c-umkz5.
+  c3-sums5     = c3-sums5 + c-sums5.
+  c3-umkz6     = c-umkz6.
+  c3-sums6     = c3-sums6 + c-sums6.
+  c3-umkz7     = c-umkz7.
+  c3-sums7     = c3-sums7 + c-sums7.
+  c3-umkz8     = c-umkz8.
+  c3-sums8     = c3-sums8 + c-sums8.
+  c3-umkz9     = c-umkz9.
+  c3-sums9     = c3-sums9 + c-sums9.
+  c3-umkz10    = c-umkz10.
+  c3-sums10    = c3-sums10 + c-sums10.
+  c3-sonob     = c3-sonob  + c-sonob.
+  c3-babzg     = c3-babzg  + c-babzg.
+  c3-uabzg     = c3-uabzg  + c-uabzg.
+  c3-kzins     = c3-kzins  + c-kzins.
+  c3-kumum     = c3-kumum  + c-kumum.
+  c3-kumag     = c3-kumag  + c-kumag.
+  c3-agobli    = c3-agobli + c-agobli.
+ENDFORM.                                                    "SUMM_C3
+
+*&--------------------------------------------------------------------*
+*&      Form  RASTER_AUSGABE_ALV_GRID
+*&--------------------------------------------------------------------*
+*       ........
+*---------------------------------------------------------------------*
+FORM raster_ausgabe_alv_grid.
+
+  tittext = text-300.
+  WRITE dd_stida TO dattext.
+  REPLACE '&' WITH dattext INTO tittext.
+  g_grid_title = tittext.
+  g_repid = sy-repid.
+  g_save = 'A'.
+  PERFORM fieldcat_init USING gt_fieldcat[].
+
+  IF title IS INITIAL.                                         "1613289
+    CLEAR g_top_of_page.                                       "1613289
+  ENDIF.                                                       "1613289
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program                = g_repid
+      i_callback_user_command           = g_user_command
+      i_callback_top_of_page            = g_top_of_page        "1613289
+      i_grid_title                      = g_grid_title
+      it_fieldcat                       = gt_fieldcat[]
+      i_default                         = 'X'
+      i_save                            =  g_save
+      is_variant                        =  gs_variant
+    TABLES
+      t_outtab                          = rtab_alv.
+
+ENDFORM.                    "RASTER_AUSGABE_ALV_GRID
+
+*&---------------------------------------------------------------------*
+*&      Form  FIELDCAT_INIT
+*&---------------------------------------------------------------------*
+*       ........
+*----------------------------------------------------------------------*
+FORM fieldcat_init
+       USING rt_fieldcat TYPE slis_t_fieldcat_alv.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'BUKRS'.
+  ls_fieldcat-ref_fieldname = 'BUKRS'.
+  ls_fieldcat-ref_tabname   = 'BSID'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'KUNNR'.
+  ls_fieldcat-ref_fieldname = 'KUNNR'.
+  ls_fieldcat-ref_tabname   = 'KNA1'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'BUSAB'.
+  ls_fieldcat-ref_fieldname = 'BUSAB'.
+  ls_fieldcat-ref_tabname   = 'KNB1'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'SORTL'.
+  ls_fieldcat-ref_fieldname = 'SORTL'.
+  ls_fieldcat-ref_tabname   = 'KNA1'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'LAND1'.
+  ls_fieldcat-ref_fieldname = 'LAND1'.
+  ls_fieldcat-ref_tabname   = 'KNA1'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'GSBER'.
+  ls_fieldcat-ref_fieldname = 'GSBER'.
+  ls_fieldcat-ref_tabname   = 'BSID'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'WAERS'.
+  ls_fieldcat-ref_fieldname = 'WAERS'.
+  ls_fieldcat-ref_tabname   = 'BSID'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'RAART'.
+  ls_fieldcat-ref_fieldname = 'RAART'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'SHKZG'.
+  ls_fieldcat-ref_fieldname = 'SHKZG'.
+  ls_fieldcat-ref_tabname   = 'BSID'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'KUMUM'.
+  ls_fieldcat-ref_fieldname = 'KUMUMHW'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'ANZAH'.
+  ls_fieldcat-ref_fieldname = 'ANZBTHW'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'OPSUM'.
+  ls_fieldcat-ref_fieldname = 'GSALDD'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  WRITE: rp01 TO rc01.
+  WRITE: rp02 TO rc02.
+  WRITE: rp03 TO rc03.
+  WRITE: rp04 TO rc04.
+  WRITE: rp05 TO rc05.
+  WRITE: rp06 TO rc06.
+  WRITE: rp07 TO rc07.
+  WRITE: rp08 TO rc08.
+  WRITE: rp09 TO rc09.
+  WRITE: rp10 TO rc10.
+
+  CLEAR uebtext.
+  CLEAR uektext.
+  uebtext = text-201.
+  uektext = text-201.
+  REPLACE 'RP01' WITH rc01 INTO uebtext.
+  REPLACE 'RP01' WITH rc01 INTO uektext.
+  CONDENSE uebtext.
+  CONDENSE uektext.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'RAST1'.
+  ls_fieldcat-ref_fieldname = 'RAST1'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-seltext_s     = uebtext.
+  ls_fieldcat-seltext_m     = uebtext.
+  ls_fieldcat-seltext_l     = uebtext.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR uebtext.
+  CLEAR uektext.
+  IF NOT rp06 IS INITIAL.
+    IF rp02 IS INITIAL.
+      uektext = text-206.
+      REPLACE 'RP06' WITH rc06 INTO uektext.
+    ELSE.
+      uebtext = text-206.
+      uektext      = rc06(3).
+      uektext+4(1) = '-'.
+    ENDIF.
+  ENDIF.
+  IF NOT rp02 IS INITIAL.
+    uebtext+11(11) = text-202.
+    IF NOT rp06 IS INITIAL.
+      uektext+6 = rc02(3).
+    ENDIF.
+  ENDIF.
+  REPLACE 'RP02' WITH rc02 INTO uebtext.
+  REPLACE 'RP06' WITH rc06 INTO uebtext.
+  CONDENSE uebtext.
+  CONDENSE uektext.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'RAST2'.
+  ls_fieldcat-ref_fieldname = 'RAST2'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-seltext_s     = uektext.
+  ls_fieldcat-seltext_m     = uebtext.
+  ls_fieldcat-seltext_l     = uebtext.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR uebtext.
+  CLEAR uektext.
+  IF NOT rp07 IS INITIAL.
+    IF rp03 IS INITIAL.
+      uektext = text-207.
+      REPLACE 'RP07' WITH rc07 INTO uektext.
+    ELSE.
+      uebtext = text-207.
+      uektext      = rc07(3).
+      uektext+4(1) = '-'.
+    ENDIF.
+  ENDIF.
+  IF NOT rp03 IS INITIAL.
+    uebtext+11(11) = text-203.
+    IF NOT rp07 IS INITIAL.
+      uektext+6 = rc03(3).
+    ENDIF.
+  ENDIF.
+
+  REPLACE 'RP03' WITH rc03 INTO uebtext.
+  REPLACE 'RP07' WITH rc07 INTO uebtext.
+  CONDENSE uebtext.
+  CONDENSE uektext.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'RAST3'.
+  ls_fieldcat-ref_fieldname = 'RAST3'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-seltext_s     = uektext.
+  ls_fieldcat-seltext_m     = uebtext.
+  ls_fieldcat-seltext_l     = uebtext.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR uebtext.
+  CLEAR uektext.
+  IF NOT rp08 IS INITIAL.
+    IF rp04 IS INITIAL.
+      uektext = text-208.
+      REPLACE 'RP08' WITH rc08 INTO uektext.
+    ELSE.
+      uebtext = text-208.
+      uektext      = rc08(3).
+      uektext+4(1) = '-'.
+    ENDIF.
+  ENDIF.
+  IF NOT rp04 IS INITIAL.
+    uebtext+11(11) = text-204.
+    IF NOT rp08 IS INITIAL.
+      uektext+6 = rc04(3).
+    ENDIF.
+  ENDIF.
+
+  REPLACE 'RP04' WITH rc04 INTO uebtext.
+  REPLACE 'RP08' WITH rc08 INTO uebtext.
+  CONDENSE uebtext.
+  CONDENSE uektext.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'RAST4'.
+  ls_fieldcat-ref_fieldname = 'RAST4'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-seltext_s     = uektext.
+  ls_fieldcat-seltext_m     = uebtext.
+  ls_fieldcat-seltext_l     = uebtext.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR uebtext.
+  CLEAR uektext.
+  IF NOT rp09 IS INITIAL.
+    IF rp05 IS INITIAL.
+      uektext = text-209.
+      REPLACE 'RP09' WITH rc09 INTO uektext.
+    ELSE.
+      uebtext = text-209.
+      uektext      = rc09(3).
+      uektext+4(1) = '-'.
+    ENDIF.
+  ENDIF.
+  IF NOT rp05 IS INITIAL.
+    uebtext+11(11) = text-205.
+    IF NOT rp09 IS INITIAL.
+      uektext+6 = rc05(3).
+    ENDIF.
+  ENDIF.
+
+  REPLACE 'RP05' WITH rc05 INTO uebtext.
+  REPLACE 'RP09' WITH rc09 INTO uebtext.
+  CONDENSE uebtext.
+  CONDENSE uektext.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'RAST5'.
+  ls_fieldcat-ref_fieldname = 'RAST5'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-seltext_s     = uektext.
+  ls_fieldcat-seltext_m     = uebtext.
+  ls_fieldcat-seltext_l     = uebtext.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR uebtext.
+  CLEAR uektext.
+  IF NOT rp10 IS INITIAL.
+    uebtext = text-210.
+    uektext = text-210.
+  ENDIF.
+  REPLACE 'RP10' WITH rc10 INTO uebtext.
+  REPLACE 'RP10' WITH rc10 INTO uektext.
+  CONDENSE uebtext.
+  CONDENSE uektext.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname       = g_tabname.
+  ls_fieldcat-fieldname     = 'RAST6'.
+  ls_fieldcat-ref_fieldname = 'RAST6'.
+  ls_fieldcat-ref_tabname   = 'RF140'.
+  ls_fieldcat-seltext_s     = uebtext.
+  ls_fieldcat-seltext_m     = uebtext.
+  ls_fieldcat-seltext_l     = uebtext.
+  ls_fieldcat-cfieldname    = 'WAERS'.
+  ls_fieldcat-no_zero       = 'X'.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+*** Address info                                               "1253468
+  uebtext = text-113.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname   = g_tabname.
+  ls_fieldcat-fieldname = 'ADRS1'.
+  uebtext+9 = '(1)'.
+  ls_fieldcat-seltext_s = uebtext.
+  ls_fieldcat-seltext_m = uebtext.
+  ls_fieldcat-seltext_l = uebtext.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname   = g_tabname.
+  ls_fieldcat-fieldname = 'ADRS2'.
+  uebtext+9 = '(2)'.
+  ls_fieldcat-seltext_s = uebtext.
+  ls_fieldcat-seltext_m = uebtext.
+  ls_fieldcat-seltext_l = uebtext.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname   = g_tabname.
+  ls_fieldcat-fieldname = 'ADRS3'.
+  uebtext+9 = '(3)'.
+  ls_fieldcat-seltext_s = uebtext.
+  ls_fieldcat-seltext_m = uebtext.
+  ls_fieldcat-seltext_l = uebtext.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+
+  CLEAR ls_fieldcat.
+  ls_fieldcat-tabname   = g_tabname.
+  ls_fieldcat-fieldname = 'ADRS4'.
+  uebtext+9 = '(4)'.
+  ls_fieldcat-seltext_s = uebtext.
+  ls_fieldcat-seltext_m = uebtext.
+  ls_fieldcat-seltext_l = uebtext.
+  APPEND ls_fieldcat TO  rt_fieldcat.
+*** Address info                                               "1253468
+
+ENDFORM.                    " FIELDCAT_INIT
+
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND
+*&---------------------------------------------------------------------*
+*       ........
+*----------------------------------------------------------------------*
+FORM user_command USING r_ucomm LIKE sy-ucomm              "#EC CALLED
+                 rs_selfield TYPE slis_selfield.
+
+  DATA: lt_seltab TYPE STANDARD TABLE OF rsparams WITH HEADER LINE.
+
+  CASE r_ucomm.
+    WHEN '&IC1'.
+      READ TABLE rtab_alv INTO rtab_alv INDEX rs_selfield-tabindex.
+
+      lt_seltab-selname = 'DD_KUNNR'.
+      lt_seltab-sign    = 'I'.
+      lt_seltab-option  = 'EQ'.
+      lt_seltab-low     = rtab_alv-kunnr.
+      APPEND lt_seltab.
+      IF NOT rtab_alv-bukrs IS INITIAL.
+        lt_seltab-selname = 'DD_BUKRS'.
+        lt_seltab-sign    = 'I'.
+        lt_seltab-option  = 'EQ'.
+        lt_seltab-low     = rtab_alv-bukrs.
+        APPEND lt_seltab.
+      ENDIF.
+      lt_seltab-selname = 'X_OPSEL'.
+      lt_seltab-sign    = 'I'.
+      lt_seltab-option  = 'EQ'.
+      lt_seltab-low     = 'X'.
+      APPEND lt_seltab.
+      lt_seltab-selname = 'PA_STIDA'.
+      lt_seltab-sign    = 'I'.
+      lt_seltab-option  = 'EQ'.
+      lt_seltab-low     = dd_stida.
+      APPEND lt_seltab.
+      lt_seltab-selname = 'X_NORM'.
+      lt_seltab-sign    = 'I'.
+      lt_seltab-option  = 'EQ'.
+      lt_seltab-low     = 'X'.
+      APPEND lt_seltab.
+      lt_seltab-selname = 'X_SHBV'.
+      lt_seltab-sign    = 'I'.
+      lt_seltab-option  = 'EQ'.
+      lt_seltab-low     = 'X'.
+      APPEND lt_seltab.
+      lt_seltab-selname = 'PA_GRID'.
+      lt_seltab-sign    = 'I'.
+      lt_seltab-option  = 'EQ'.
+      lt_seltab-low     = 'Y'.
+      APPEND lt_seltab.
+
+      SUBMIT rfitemar WITH SELECTION-TABLE lt_seltab
+                      AND  RETURN.
+  ENDCASE.
+ENDFORM.                    " USER_COMMAND
+
+*&---------------------------------------------------------------------*
+*&      Form  F4_FOR_s_lvar
+*&---------------------------------------------------------------------*
+*       ........
+*----------------------------------------------------------------------*
+FORM f4_for_s_lvar CHANGING  i_variant LIKE disvariant.
+  DATA: exit.
+  DATA: e_variant LIKE disvariant.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant    = i_variant
+      i_save        = 'A'
+    IMPORTING
+      e_exit        = exit
+      es_variant    = e_variant
+    EXCEPTIONS
+      program_error = 3
+      OTHERS        = 3.
+  IF sy-subrc = 0 AND exit = space.
+    i_variant-variant = e_variant-variant.
+  ENDIF.
+
+ENDFORM.                               " F4_FOR_s_lvar
+
+*&---------------------------------------------------------------------*
+*&      Form  TOP_OF_PAGE
+*&---------------------------------------------------------------------*
+*       Possible header for ALV Grid                           "1613289
+*----------------------------------------------------------------------*
+FORM top_of_page.                                          "#EC CALLED
+
+   CLEAR gs_listheader.
+   REFRESH gt_listheader.
+   gs_listheader-typ = 'H'.
+   gs_listheader-info = title.
+   INSERT gs_listheader INTO TABLE gt_listheader.
+   CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+     EXPORTING
+       it_list_commentary = gt_listheader.
+ENDFORM.                               " TOP_OF_PAGE
+
+*Text elements
+*----------------------------------------------------------
+* 002 Lev
+* 003 Pay
+* 004 Type
+* 005 ASls
+* 006 ADed
+* 007 UDed
+* 008 Int
+* 009 Ac
+* 010 BL
+* 011 DP
+* 012 Pa
+* 013 Su
+* 014 CLim
+* 015 TLib
+* 016 Cust
+* 017 Rel.var
+* 018 Clea
+* 019 Net
+* 020 Disc.due
+* 021 In.pmnt
+* 022 Overdue
+* 023 Days
+* 025 Trend
+* 026 Due Date Sorted List
+* 027 ,
+* 028 /
+* 029 Rounding factor/decimal places
+* 030 Sorted List Type
+* 050 Company Code $BUK Totals Sheet
+* 051 Totals Sheet: Company Code $BUK Clerk $SAB $SBZ
+* 052 Total to $BIS Days
+* 053 Total $VON to $BIS days
+* 054 Total from $VON days
+* 055 Totals Sheet: All Company Codes
+* 056 Company code $BUK Accounting clerk $SAB $SBZ
+* 100 Co    Customer                            Payment                 Sales data       Balances         Limits
+* 101 cd SS number   Customer address           Time/arrears Dunn. data Type     Amount  Type     Amount  Type       Amount
+* 102 BusA  Cur-  Down pmnt   OI total         !              !from   RP06   !from   RP07   !from   RP08   !from   RP09   !from   RP10   !
+* 103 BusA     Sales   Down pmnt    OI total         |to     RP01   |to     RP02 |to     RP03  |to     RP04  |to     RP05  |             !
+* 104 Co Bu Days  G Do Assignment Document Lin Net    BseDte Pstg   Doc.   CPU    Po P Posted     D/C amount  Curr.   D/C amount
+* 105 cd ar       L ty number     number   itm date   PytPer date   date   date   ky K from            in LC  key          in FC
+* 106       ency                               |to     RP01   |to     RP02   |to     RP03   |to     RP04   |to     RP05   |              !
+* 107 ---------------------------------------------------------------------------------- Key date $STIDA  Amounts in $SKAL ---------------
+* 108 CoCd BusA Days     G DT Doc.no.    LIm Net date BDPymt   Post dt. Doc.date PK P D    D/C amount in LC  Cur.ky   D/C amount in FC
+* 109 ---------------------------------------------------------------------------------- Key date $STIDA  List in local currency ---------
+* 110 Company Code
+* 111 Accounting Clerk
+* 112 Customer
+* 113 Address
+* 114 Export credit insurance (LC amnt)
+* 115 Sls/Pur.Data (Amnts in LC)
+* 116 Commitmts (LC Amounts)
+* 117 Open item acct
+* 118 B/Exch.:
+* 119 Down Pmnt:
+* 120 Payment Request:
+* 121 Other                         :
+* 122 Annual Sales
+* 123 Authorized Deducs :
+* 124 Unauthorized deducs:
+* 125 Interest          :
+* 126 Cumulated Clearing:
+* 127 Payment Data
+* 128 Limits
+* 129 Dunning Data
+* 130 Contract number   :
+* 131 Bank number       :
+* 132 Amount insured    :
+* 133 Valid until       :
+* 134 Target months     :
+* 135 Deductible        :
+* 136 Dunning Area
+* 137 Dunn.Procedure
+* 138 Dunn.recipient
+* 139 Last dunned on
+* 140 Dunning Level
+* 141 Dunn. Acctg Clerk
+* 142 Dunning Block
+* 143 Legal Dunn.Proc
+* 144 Total Limit      :
+* 145 Last Information :
+* 146 Control area     :
+* 147 Credit Limit:
+* 148 Exceeded on      :
+* 149 Special Commitmts
+* 150 Order value       :
+* 151 Total receivables:
+* 152 Other commitments
+* 153 Exceeded on      :
+* 154 Credit limit used:
+* 155 Cash discount taken where possible
+* 156 Net pymnt although discount possible
+* 157 Payment Terms     :
+* 158 Type              :
+* 159 Arrears in days   :
+* 160 Last payment period:
+* 161 :
+* 162 Vendor Clearing   :
+* 165 ---------------------------------------------------------------------------------- Key date $STIDA sorted items in document currency
+* 166 Ann. Sales/Pur.: LC
+* 167 No open items exist at the key date
+* 168 Customer   Sort       Cty OI Total       |              |from   RP06   |from   RP07   |from   RP08   |from   RP09   |from   RP10   |
+* 169 number     field                         |to     RP01   |to     RP02   |to     RP03   |to     RP04   |to     RP05   |              |
+* 170 ---------------------------------------------------------------------------------- Key date $STIDA  List items in local currency ---
+* 171 Cust.      Sort       BArea  OI Total    !              !Fm     RP06   !Fm     RP07   !Fm     RP08   !Fm     RP09   !Fm     RP10   !
+* 201 To     RP01
+* 202 To     RP02
+* 203 To     RP03
+* 204 To     RP04
+* 205 To     RP05
+* 206 From   RP06
+* 207 From   RP07
+* 208 From   RP08
+* 209 From   RP09
+* 210 From   RP10
+* 220 Group Version without Specification of Company Code and Clerk
+* 300 Due Date Sorted List for Key Date & in Local Currency
+* 500 From     0
+* 510 Totals Sheet across All Company Codes, Key Date &1, Sorted List in Local Currency
+* 511 Totals Sheet Company Code &1, Key Date &2, Sorted List in Local Currency
+* 513 Line Item Sorted List Company Code &1, Accounting Clerk &2, Customer &3, Key Date &4, Sorted List in Local Currency
+* 520 BusAr
+* 521 Texts 522 and 523 = Continuous text: One word split over two lines
+* 522 Curr-
+* 523 ency
+* 524 Down Payt
+* 525 OI Total
+* 526 Typ
+* 530 CoCd
+* 531 BusA
+* 532 Days
+* 533 U
+* 534 DT
+* 535 DocumentNo
+* 536 Itm
+* 537 Net Date
+* 538 IPP Date
+* 539 PostDate
+* 540 Doc.Date
+* 541 PK
+* 542 P
+* 543 Dunn.
+* 544 Dr/Cr Amnt in LC
+* 545 Curr.Key
+* 546 Dr/Cr Amnt in FC
+* 547 Line Items
+* 548 Key Date
+* 549 MasterData:
+* 550 Section
+* 551 Label 1
+* 552 Content1
+* 553 Name 2
+* 554 Content2
+* 555 Name 3
+* 556 Content3
+* 557 Name 4
+* 558 Content4
+* 559 Name 5
+* 560 Content5
+* 561 OI SortedList
+* 607 Key date $STIDA  Amounts in $SKAL
+* 609 Key Date $STIDA  List in Local Currency
+* 665 Key Date $STIDA List Items in Document Currency
+* 670 Key Date $STIDA List items in Local Currency
+* 671 DunnAr
+* 672 Proc.
+* 673 Recvr
+* 674 Last
+* 675 Level
+* 676 Clerk
+* 677 Block
+* 678 LegDun
+* 700 Customer
+* 701 Number
+* 702 Country
+* 703 Sorting
+* 704 Field
+
+
+*Selection texts
+*----------------------------------------------------------
+* AGOBLIG2         Absolute Total Liabilities
+* AKONTP         Line Item Reconciliation Acct
+* AKONTS         Master Record Recon. Account
+* BERABZU2         Authorized Deductions
+* BLDAT         Document Date
+* BUDAT         Posting Date
+* FAKTOR         Rounding Factor
+* JHRAUSG2         Accumulated yearly payments
+* KAUSGABE         Only Master Acts w/ Open Items
+* KKSALDO2         Balance
+* KONZVERS         Corporate Group Version
+* LISTSEP         Separate list
+* MIKFICHE         Print Microfiche Line
+* MONAT         Fiscal Period
+* NETDT         Net Due Date
+* N_BELEGE         Standard Documents
+* PZUOR         Assign Items
+* P_LVAR         List Variant
+* RASTBIS1         Due Date Sorted List 1
+* RASTBIS2                           2
+* RASTBIS3                           3
+* RASTBIS4                           4
+* RASTBIS5                           5
+* RASTVERD         OI list summarization (0-2)
+* SORTART         OI sorted list sorting (1,2)
+* STAT_BLG         Noted Items
+* STELLEN         Decimal Places
+* TITLE         Additional Heading
+* UEBESAL2         Balance of Overdue Items
+* UMSATZKZ         Special G/L liabilities
+* UNBABZU2         Unauthorized deductions
+* VERDICHT         Summarization Level (0-6)
+* VERTAGE         Due dates
+* XBUKRDAT         Company Code Data
+* XGETAUSW         Separate Display
+* XHITLIST         Sort by Bal.of Overdue Items
+* XNURFORD         Total of overdue receivables
+* ZINSE2         Interest
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: FR
+*370   Key for access to the dunning data is incomplete
+*371   No authorization for company code or account type or account number
+*375   Special G/L indicator & does not exist for account type &
+*376   Special G/L indicator & indicates noted items
+*379   Enter a consistent sorted list
+*381   Enter a maximum of 998 days in the sorted list upper limits
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

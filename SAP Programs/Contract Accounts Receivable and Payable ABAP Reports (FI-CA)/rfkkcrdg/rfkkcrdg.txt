@@ -1,0 +1,189 @@
+*&---------------------------------------------------------------------*
+*& Report  RFKKCRDG                                                    *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*& Testdatei für Zahlungsstapelübernahme generieren
+*&---------------------------------------------------------------------*
+
+REPORT  RFKKZEDG MESSAGE-ID >U.
+
+TABLES: FKKCRCPH, FKKCRCPP,
+        BFKKCK, BFKKCP,
+        BFKKCGR00.
+
+*--- selection screen --------------------------------------------------
+PARAMETERS:           DS_NAME LIKE RLGRAP-FILENAME
+                           DEFAULT ''.
+SELECTION-SCREEN:     SKIP.
+PARAMETERS:           P_APPLK LIKE DFKKZK-APPLK.
+SELECTION-SCREEN:     SKIP,
+                      BEGIN OF BLOCK CR WITH FRAME TITLE TEXT-001,
+                        BEGIN OF BLOCK KOPF WITH FRAME TITLE TEXT-002.
+PARAMETERS:               P_HBKID LIKE FKKCRCPH-HBKID,
+                          P_HKTID LIKE FKKCRCPH-HKTID,
+                          P_BANKS LIKE FKKCRCPH-BANKS,
+                          P_BANKL LIKE FKKCRCPH-BANKL,
+                          P_BANKN LIKE FKKCRCPH-BANKN,
+                          P_BUKRS LIKE FKKCRCPH-BUKRS  DEFAULT '0001',
+                          P_GSBER LIKE FKKCRCPH-GSBER,
+                          P_BUPLA LIKE FKKCRCPH-BUPLA.
+SELECTION-SCREEN:       END OF BLOCK KOPF,
+                        SKIP,
+                        BEGIN OF BLOCK POS WITH FRAME TITLE TEXT-003.
+PARAMETERS:               P_ZTNUM LIKE FKKCRCPP-ZTNUM,
+                          P_BUDAT LIKE FKKCRCPP-BUDAT default sy-datum,
+                          P_BETRW LIKE FKKCRCPP-BETRW default 100,
+                          P_WAERS LIKE FKKCRCPP-WAERS,
+                          p_oribt like fkkcrcpp-oribt,
+                          p_oriwa like fkkcrcpp-oriwa.
+
+SELECTION-SCREEN:       END OF BLOCK POS.
+PARAMETERS:             P_POSANZ TYPE I DEFAULT 1.
+SELECTION-SCREEN:       SKIP.
+SELECTION-SCREEN:    END OF BLOCK CR.
+*PARAMETERS:          P_REPEAT(2) TYPE N DEFAULT 1.
+
+
+*--- Contants & declarations ------------------------------------------
+
+DATA: COUNTER(2) TYPE N.
+CONSTANTS: C_LGNAME LIKE filename-fileintern             " note 1584421
+             VALUE 'FICA_DATA_TRANSFER_DIR'.             " note 1584421
+
+*--- Initialization ----------------------------------------------------
+INITIALIZATION.
+  CALL FUNCTION 'FKK_GET_APPLICATION'
+       IMPORTING
+           E_APPLK          = P_APPLK
+       EXCEPTIONS
+            NO_APPL_SELECTED = 1
+            OTHERS           = 2.
+
+*-- start ---
+START-OF-SELECTION.
+* Validate physical file name - note 1584421
+  CALL FUNCTION 'FILE_VALIDATE_NAME'           " note 1584421
+    EXPORTING
+      LOGICAL_FILENAME   = c_lgname
+    CHANGING
+      PHYSICAL_FILENAME  = ds_name
+    EXCEPTIONS
+      OTHERS             = 1.                  " note 1584421
+  IF SY-SUBRC <> 0.                            " note 1584421
+    MESSAGE e800(29) WITH ds_name.
+  ENDIF.                                       " note 1584421
+  OPEN DATASET DS_NAME FOR OUTPUT IN TEXT MODE encoding default.
+  IF SY-SUBRC NE 0.
+    MESSAGE E101 WITH DS_NAME.
+  ENDIF.
+*--- write file header ---
+  PERFORM TRANSFER_BGR00.
+*--- create data ---
+*  ZSNAME  = P_KEYZ1.
+*  DO P_REPEAT TIMES.
+*    ADD 1 TO COUNTER.
+*    IF P_REPEAT > 1.
+*      ZSNAME+10(2) = COUNTER.
+*    ENDIF.
+    PERFORM TRANSFER_TEST.
+*  ENDDO.
+  CLOSE DATASET DS_NAME.
+  MESSAGE S143 WITH DS_NAME.
+
+*&---------------------------------------------------------------------*
+*&      Form  TRANSFER_BGR00
+*&---------------------------------------------------------------------*
+*       init & write the bgr00 structure                               *
+*----------------------------------------------------------------------*
+*  -->  nodata  the nodata-character
+*----------------------------------------------------------------------*
+FORM TRANSFER_BGR00.
+  CLEAR BFKKCGR00.
+  BFKKCGR00-STYPE = '0'.
+  BFKKCGR00-MANDT = SY-MANDT.
+  BFKKCGR00-APPLK = P_APPLK.
+*  BFKKZGR00-VERSION = '461'.
+
+  TRANSFER BFKKCGR00 TO DS_NAME.
+ENDFORM.                    " TRANSFER_BGR00
+
+*&---------------------------------------------------------------------*
+*&      Form  TRANSFER_TEST
+*&---------------------------------------------------------------------*
+*       fill and transfer a test data                                  *
+*----------------------------------------------------------------------*
+FORM TRANSFER_TEST.
+*--- Header ---
+  CLEAR BFKKCK.
+  BFKKCK-STYPE = '1'.
+  BFKKCK-TBNAM = 'BFKKCK'.
+  MOVE:
+    P_HBKID   TO BFKKCK-HBKID,     "
+    P_HKTID   TO BFKKCK-HKTID,     "
+    P_BANKS   TO BFKKCK-BANKS,     "
+    P_BANKL   TO BFKKCK-BANKL,     "
+    P_BANKN   TO BFKKCK-BANKN,     "
+    P_BUKRS   TO BFKKCK-BUKRS,     "
+    P_GSBER   TO BFKKCK-GSBER,     "
+    P_BUPLA   TO BFKKCK-BUPLA.     "
+
+*---Positions ---
+  CLEAR BFKKCP.
+* MOVE-CORRESPONDING BFKKCK TO BFKKCP.
+  move:
+    '2'       to BFKKCP-STYPE,
+    'BFKKCP'  to BFKKCP-TBNAM,
+    P_ZTNUM   TO BFKKCP-ZTNUM,     "
+    P_BUDAT   TO BFKKCP-BUDAT,     "
+    P_BUDAT   TO BFKKCP-BLDAT,     "
+    P_BUDAT   TO BFKKCP-VALUT,     "
+
+    P_oriwa   TO BFKKCP-oriwa,     "
+    P_oribt   TO BFKKCP-oribt,     "
+    P_WAERS   TO BFKKCP-WAERS,  "
+    P_betrw   TO BFKKCP-betrw.  "
+
+
+*--- transfer to dataset ---
+  TRANSFER BFKKCK TO DS_NAME.
+  DO P_POSANZ TIMES.
+    TRANSFER BFKKCP TO DS_NAME.
+  ENDDO.
+ENDFORM.                    " TRANSFER_TEST
+
+*Text elements
+*----------------------------------------------------------
+* 003 Item
+* 002 Head
+* 001 Check Deposit
+
+
+*Selection texts
+*----------------------------------------------------------
+* P_ZTNUM D       Payment Medium Number
+* P_WAERS         Currency Key
+* P_POSANZ         Number of Lines
+* P_ORIWA D       Document Currency
+* P_ORIBT D       Amount Posted
+* P_HKTID D       Account ID
+* P_HBKID D       House Bank
+* P_GSBER D       Business Area
+* P_BUPLA D       Business Place
+* P_BUKRS         Company Code
+* P_BUDAT D       Posting Date
+* P_BETRW D       Amount
+* P_BANKS D       Bank Country
+* P_BANKN D       Bank Account
+* P_BANKL D       Bank Key
+* P_APPLK         Application
+* DS_NAME         File Name (Application Server)
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 29
+*800   Sequential file & could not be opened
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

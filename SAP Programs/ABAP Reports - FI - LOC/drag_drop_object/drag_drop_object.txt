@@ -1,0 +1,12 @@
+*----------------------------------------------------------------------*
+*   INCLUDE DRAG_DROP_OBJECT                                           *
+*----------------------------------------------------------------------*
+
+CLASS LCL_DRAGDROPOBJ DEFINITION.
+ PUBLIC SECTION.
+   data:  table type table of line.
+ENDCLASS.
+
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

@@ -1,0 +1,235 @@
+REPORT RFCHKD10
+  LINE-SIZE 132
+  MESSAGE-ID FIBL.
+
+TABLES:
+  PAYR,
+  PCEC.
+
+DATA:
+  G_REPID         TYPE REPID,
+  G_SUBRC         LIKE SY-SUBRC,
+  HLP_ANSWER(1)   TYPE C,
+  HLP_STAPL       LIKE PCEC-STAPL,
+  HLP_TEXT(132)   TYPE C,
+  HLP_VON_BIS(27) TYPE C.
+
+INCLUDE RFCHKI99.
+SELECTION-SCREEN SKIP 2.
+PARAMETERS:
+  PAR_ZBUK LIKE PAYR-ZBUKR MEMORY ID BUK.
+SELECTION-SCREEN SKIP.
+
+BLOCK 2.
+PARAMETERS:
+  PAR_HBKI LIKE PAYR-HBKID MEMORY ID HBK,
+  PAR_HKTI LIKE PAYR-HKTID MEMORY ID HKT.
+SELECT_OPTION_SCHECK.
+SELECTION-SCREEN END OF BLOCK 2.
+
+AT SELECTION-SCREEN.
+  IF PAR_CHKF NE SPACE AND PAR_CHKT EQ SPACE.
+    PAR_CHKT = PAR_CHKF.
+  ENDIF.
+  IF PAR_ZBUK IS INITIAL OR            "alle Parameter müssen gefüllt
+     PAR_HBKI IS INITIAL OR            "sein
+     PAR_HKTI IS INITIAL OR
+     PAR_CHKT IS INITIAL.
+    MESSAGE E572.
+  ENDIF.
+  SELECT * FROM PAYR                   "gibt es die entwerteten Schecks?
+    WHERE ICHEC EQ SPACE
+      AND ZBUKR EQ PAR_ZBUK
+      AND HBKID EQ PAR_HBKI
+      AND HKTID EQ PAR_HKTI
+      AND CHECT GE PAR_CHKT
+      AND CHECF LE PAR_CHKT.
+  ENDSELECT.
+  IF SY-SUBRC NE 0.
+    MESSAGE E573.                      "nicht gefunden
+  ENDIF.
+  IF PAYR-LAUFI+5(1) NE 'P'.
+    AUTHORITY-CHECK OBJECT 'F_PAYR_BUK'"Löschberechtigung im FI
+      ID 'BUKRS' FIELD PAR_ZBUK
+      ID 'ACTVT' FIELD '06'.
+    IF SY-SUBRC NE 0.
+      SET CURSOR FIELD 'PAR_ZBUK'.
+      MESSAGE E597 WITH PAR_ZBUK.
+    ENDIF.
+  ELSE.
+    G_REPID = SY-REPID.            "Reportberechtigung im HR
+    CALL FUNCTION 'HR_PROGRAM_CHECK_AUTHORIZATION'
+         EXPORTING
+              REPID = G_REPID
+         IMPORTING
+              SUBRC = G_SUBRC.
+    IF G_SUBRC NE 0.
+      MESSAGE E637 WITH SY-REPID.
+    ENDIF.
+  ENDIF.
+  IF PAYR-VOIDR LE 3 OR PAYR-RZAWE NE SPACE.
+    MESSAGE E580.                      "nur manuell entwertete Schecks
+  ENDIF.
+  IF PAYR-CHECF NE PAR_CHKF OR PAYR-CHECT NE PAR_CHKT.
+    PAR_CHKF = PAYR-CHECF.             "Von-Nummer korrigiert
+    PAR_CHKT = PAYR-CHECT.             "Bis-Nummer korrigiert
+    MESSAGE S578.
+  ENDIF.
+  CALL FUNCTION 'GET_CHECK_INTERVAL'
+    EXPORTING
+      I_ZBUKR   = PAR_ZBUK
+      I_HBKID   = PAR_HBKI
+      I_HKTID   = PAR_HKTI
+      I_CHECK   = PAR_CHKT
+    IMPORTING
+      E_PCEC    = PCEC
+    EXCEPTIONS
+      NOT_FOUND = 8.
+  IF SY-SUBRC NE 0.
+    MESSAGE A574 WITH PAR_ZBUK PAR_HBKI PAR_HKTI PAR_CHKT.
+  ENDIF.
+  HLP_STAPL = PCEC-STAPL.
+  CALL FUNCTION 'GET_CHECK_INTERVAL'
+    EXPORTING
+      I_ZBUKR   = PAR_ZBUK
+      I_HBKID   = PAR_HBKI
+      I_HKTID   = PAR_HKTI
+      I_CHECK   = PAR_CHKF
+    IMPORTING
+      E_PCEC    = PCEC
+    EXCEPTIONS
+      NOT_FOUND = 8.
+  IF SY-SUBRC NE 0.
+    MESSAGE A574 WITH PAR_ZBUK PAR_HBKI PAR_HKTI PAR_CHKF.
+  ENDIF.
+  IF HLP_STAPL NE PCEC-STAPL.
+    MESSAGE A540.
+  ENDIF.
+  IF PCEC-CHECL NE PAR_CHKT AND PCEC-XCHCH EQ SPACE.
+    MESSAGE E575 WITH PAR_CHKT PCEC-CHECL.
+  ENDIF.
+
+INITIALIZATION.
+  GET_TEXT: 0,1,2.
+
+START-OF-SELECTION.
+  CALL FUNCTION 'FI_ARCHIVE_CHECK_STATUS'
+       EXPORTING  I_OBJECT    = 'FI_SCHECK'
+       EXCEPTIONS IS_RUNNING  = 8
+                  NOT_DELETED = 4.
+  IF SY-SUBRC NE 0.
+    IF SY-SUBRC EQ 4.
+      SY-MSGTY = 'W'.
+    ENDIF.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+      WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+  CALL FUNCTION 'ENQUEUE_EFPCEC'
+       EXPORTING
+            ZBUKR        = PAR_ZBUK
+            HBKID        = PAR_HBKI
+            HKTID        = PAR_HKTI
+       EXCEPTIONS
+            FOREIGN_LOCK = 8.
+  IF SY-SUBRC NE 0.                    "Nummern sind durch anderen
+    MESSAGE E536 WITH SY-MSGV1.        "Benutzer gesperrt
+  ENDIF.
+  CALL FUNCTION 'ENQUEUE_EFPAYR'
+       EXPORTING
+            ZBUKR        = PAR_ZBUK
+            HBKID        = PAR_HBKI
+            HKTID        = PAR_HKTI
+       EXCEPTIONS
+            FOREIGN_LOCK = 8.
+  IF SY-SUBRC NE 0.                    "Zahlungsträgerdatei ist durch
+    MESSAGE E556 WITH SY-MSGV1.        "anderen Benutzer gesperrt
+  ENDIF.
+
+  IF PAR_CHKF EQ PAR_CHKT.
+    HLP_VON_BIS = PAR_CHKF.
+  ELSE.
+    WRITE:
+      PAR_CHKF TO HLP_VON_BIS,
+      '-'      TO HLP_VON_BIS+13,
+      PAR_CHKT TO HLP_VON_BIS+14.
+    CONDENSE HLP_VON_BIS NO-GAPS.
+  ENDIF.
+  HLP_TEXT = TEXT-001.
+  REPLACE '&' WITH HLP_VON_BIS INTO HLP_TEXT.
+  CALL FUNCTION 'POPUP_TO_CONFIRM_STEP'
+    EXPORTING
+      DEFAULTOPTION = 'Y'
+      TEXTLINE1     = HLP_TEXT
+      TEXTLINE2     = TEXT-002
+      TITEL         = TEXT-003
+    IMPORTING
+      ANSWER        = HLP_ANSWER.
+  IF HLP_ANSWER EQ 'N' OR HLP_ANSWER EQ 'A'.
+    STOP.
+  ENDIF.
+
+  DELETE PAYR.
+  IF PCEC-XCHCH EQ SPACE.
+    IF PAR_CHKF NE PCEC-CHECF.
+      PCEC-CHECL = PAR_CHKF.
+      CALL FUNCTION 'SUBTRACT_N_FROM_CHECK_NUMBER'
+        EXPORTING
+          I_PCEC = PCEC
+          I_N    = 1
+        IMPORTING
+          E_PCEC = PCEC.
+    ELSE.
+      PCEC-CHECL = SPACE.
+    ENDIF.
+    UPDATE PCEC.
+  ENDIF.
+  MESSAGE S579 WITH HLP_VON_BIS.
+
+END-OF-SELECTION.
+  CALL FUNCTION 'DEQUEUE_EFPCEC'
+       EXPORTING
+            ZBUKR   = PAR_ZBUK
+            HBKID   = PAR_HBKI
+            HKTID   = PAR_HKTI.
+  CALL FUNCTION 'DEQUEUE_EFPAYR'
+       EXPORTING
+            ZBUKR   = PAR_ZBUK
+            HBKID   = PAR_HBKI
+            HKTID   = PAR_HKTI.
+
+*Text elements
+*----------------------------------------------------------
+* 001 Check &
+* 002 Should information be deleted ?    ;
+* 003 Delete voided checks               ;
+
+
+*Selection texts
+*----------------------------------------------------------
+* PAR_CHKF D       Check number from
+* PAR_CHKT D       Check number
+* PAR_HBKI D       House bank
+* PAR_HKTI D       Account ID
+* PAR_ZBUK D       Paying company code
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: FS
+*536   Check number maintenance currently blocked by user &
+*540   Check numbers are not in the same lot
+*556   Payment transfer medium file currently blocked by user &
+*572   Specify complete set of selection data
+*573   No check information found
+*574   Check lot is missing for check & & & &
+*575   Last check & and number status & are not the same
+*578   Check numbers were corrected
+*579   Check information & successfully deleted
+*580   Only unused checks voided manually can be deleted
+*597   No authorization for deleting check info in company code &
+*637   No authorization for checks from Payroll Accounting (&)
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

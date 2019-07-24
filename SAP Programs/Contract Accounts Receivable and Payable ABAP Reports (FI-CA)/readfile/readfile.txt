@@ -1,0 +1,137 @@
+*&---------------------------------------------------------------------*
+*& Report  READFILE                                                    *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  readfile.
+
+DATA: t_fkkcolfile        LIKE fkkcolfile  OCCURS 0 WITH HEADER LINE,
+      t_fkkcolfile_header LIKE fkkcolfile_header
+                                           OCCURS 0 WITH HEADER LINE,
+      comments            LIKE fkk_comment OCCURS 0 WITH HEADER LINE,
+      text_alv(100)       TYPE c,
+      n                   TYPE i.
+
+PARAMETERS filename LIKE filename-fileintern.
+
+IF NOT filename IS INITIAL.
+  CALL FUNCTION 'AUTHORITY_CHECK_DATASET'
+       EXPORTING
+*     PROGRAM          =
+            activity         = 'READ'
+            filename         = filename
+       EXCEPTIONS
+            no_authority     = 1
+            activity_unknown = 2
+            OTHERS           = 3.
+  IF sy-subrc = 0.
+
+* >>> note 1775315
+* security enhancement (start)
+    CALL FUNCTION 'FILE_VALIDATE_NAME'
+      EXPORTING
+        logical_filename           = 'FI-CA-COL-READ'
+      CHANGING
+        physical_filename          = filename
+      EXCEPTIONS
+        logical_filename_not_found = 1
+        validation_failed          = 2
+        OTHERS                     = 3.
+    IF sy-subrc NE 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+* security enhancement (end)
+* <<< note 1775315
+
+    OPEN DATASET filename FOR INPUT IN TEXT MODE  ENCODING NON-UNICODE
+                              IGNORING CONVERSION ERRORS.
+    IF sy-subrc NE 0.
+      MESSAGE e843(>3) WITH filename.
+    ELSE.
+      READ DATASET filename INTO t_fkkcolfile_header.
+      IF sy-subrc = 0.
+        APPEND t_fkkcolfile_header.
+      ENDIF.
+      DO.
+        READ DATASET filename INTO t_fkkcolfile.
+        IF sy-subrc = 0.
+          IF t_fkkcolfile-betrw <> 0.
+            APPEND t_fkkcolfile.
+          ENDIF.
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDDO.
+      READ DATASET filename INTO t_fkkcolfile_header.
+      IF sy-subrc = 0.
+        APPEND t_fkkcolfile_header.
+      ENDIF.
+      CLOSE DATASET filename.
+      MESSAGE s515(>3) WITH filename.
+    ENDIF.
+  ENDIF.
+ELSE.
+  MESSAGE e520(>3).
+ENDIF.
+
+READ TABLE t_fkkcolfile_header INDEX 1.
+
+text_alv = text-t01.
+n = STRLEN( text_alv ).
+ADD 2 TO n.
+MOVE t_fkkcolfile_header-inkgp TO text_alv+n.
+comments = text_alv.
+APPEND comments.
+
+LOOP AT t_fkkcolfile.
+  text_alv = t_fkkcolfile-opbel.
+  n = STRLEN( text_alv ).
+  ADD 2 TO n.
+  MOVE t_fkkcolfile-inkps TO text_alv+n.
+  n = STRLEN( text_alv ).
+  ADD 2 TO n.
+  MOVE t_fkkcolfile-gpart TO text_alv+n.
+  n = STRLEN( text_alv ).
+  ADD 2 TO n.
+  MOVE t_fkkcolfile-vkont TO text_alv+n.
+  n = STRLEN( text_alv ).
+  ADD 2 TO n.
+  MOVE t_fkkcolfile-waers TO text_alv+n.
+  n = STRLEN( text_alv ).
+  ADD 2 TO n.
+  MOVE t_fkkcolfile-betrw TO text_alv+n.
+  comments = text_alv.
+  APPEND comments.
+ENDLOOP.
+
+text_alv = text-t02.
+n = STRLEN( text_alv ).
+ADD 2 TO n.
+MOVE t_fkkcolfile_header-inkgp TO text_alv+n.
+comments = text_alv.
+APPEND comments.
+
+PERFORM write_text(rfkk_alv_simple_texts) TABLES comments
+                                          USING  text-t03.
+
+*Text elements
+*----------------------------------------------------------
+* T01 Submission file for:
+* T02 Footer:
+* T03 Subm. File
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: >3
+*515   File &1 saved
+*520   No authorization to write file &1
+*843   File &1 could not be opened
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

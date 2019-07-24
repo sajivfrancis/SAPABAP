@@ -1,0 +1,280 @@
+REPORT rfbisa00 .
+
+*----------------------------------------------------------------------*
+*        Datendeklaration                                              *
+*----------------------------------------------------------------------*
+TABLES:
+    skb1.
+
+DATA:
+    xon         VALUE 'X',
+    no_prot     VALUE 'X'.
+
+DATA:
+    saprl       LIKE sy-saprl,
+    sysid       LIKE sy-sysid,
+    new_gn.
+
+DATA:
+    BEGIN OF tabtab OCCURS 3,
+        tabname     LIKE dd02l-tabname,
+        vorhanden,
+    END OF tabtab.
+
+DATA:
+    BEGIN OF rep OCCURS 700,
+        z(72),
+    END OF rep.
+CONSTANTS gc_filename                                       "n1498832
+  TYPE fileintern                                           "n1498832
+  VALUE 'FI_COPY_COMPANY_CODE_DATA_FOR_GENERAL_LEDGER_0X'.  "n1498832
+
+
+
+*eject
+*----------------------------------------------------------------------*
+*        Selektionsbild                                                *
+*----------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK bl1 WITH FRAME TITLE text-bl1.
+  PARAMETERS:
+    ds_name      LIKE  rfpdo-rfbifile OBLIGATORY.  " Dateiname
+SELECTION-SCREEN END OF BLOCK bl1.
+SELECTION-SCREEN BEGIN OF BLOCK bl4 WITH FRAME TITLE text-bl4.
+  PARAMETERS:
+    os_xon       LIKE  rfpdo-rfbioldstr.           " Alte Strukturen ?
+SELECTION-SCREEN END OF BLOCK bl4.
+SELECTION-SCREEN BEGIN OF BLOCK bl3 WITH FRAME TITLE text-bl3.
+  PARAMETERS:
+    bg_xon       LIKE  rfpdo-rfbinbgr00,               " Mappensatz ?
+    bg_group     LIKE  bgr00-group DEFAULT sy-repid    " Mappenname
+                 MODIF ID bgr,
+    bg_nodat     LIKE  bgr00-nodata MODIF ID bg,       " Nodata
+    bg_start     LIKE  bgr00-start MODIF ID bg,        " Startdatum
+    bg_xkeep     LIKE  bgr00-xkeep MODIF ID bg.        " Mappe halten
+SELECTION-SCREEN END OF BLOCK bl3.
+SELECTION-SCREEN BEGIN OF BLOCK bl2 WITH FRAME TITLE text-bl2.
+  PARAMETERS:
+    fl_dinp      TYPE  rfbidinp DEFAULT ' ',       " Direct Input
+    fl_check     LIKE  rfpdo-rfbichck DEFAULT 'X'. " Datei nur prüfen
+SELECTION-SCREEN END OF BLOCK bl2.
+*------- CALL TRANSACTION USING (interner Ansprung) -------------------*
+PARAMETERS:
+     xcall       LIKE  rfpdo-rfbicall NO-DISPLAY,  " X=CALL TRANSAC..
+     anz_mode    LIKE  rfpdo-allgazmd DEFAULT 'N'  " Alles Nichts Error
+                                      NO-DISPLAY,
+     update      LIKE  rfpdo-allgvbmd DEFAULT 'S'  " Synchron Asynchron
+                                      NO-DISPLAY.
+*------- Messagesteuerung (interner Ansprung) -------------------------*
+PARAMETERS:
+     xmsgmemo    LIKE  rfpdo-rfbicall NO-DISPLAY.  " Message ins Memory
+*------- Anlegen mit Referenz aus TSAKR (interner Ansprung) -----------*
+PARAMETERS:
+    ma_group     LIKE  bgr00-group    NO-DISPLAY,  " Mappenname
+    ma_bukrs     LIKE  tsakr-bukrs    NO-DISPLAY.  " Buchungskreis
+*------- Übernehmen Stammdaten aus anderem Buchungskreis (int. ) ------*
+PARAMETERS:
+    ue_id(8)                          NO-DISPLAY.  " Memory-ID
+SELECT-OPTIONS:
+    ue_bukrs     FOR   skb1-bukrs     NO-DISPLAY.  " Buchungskreise
+
+
+
+*eject
+*----------------------------------------------------------------------*
+*        Bildschirmmodifikation                                        *
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN.
+    CHECK screen-group1(2) = 'BG'.
+    IF bg_xon = xon.
+      screen-invisible = 0.
+      screen-input = 1.
+      screen-output = 1.
+      IF screen-group1+2 = 'R'.
+        screen-required = 1.
+      ENDIF.
+    ELSE.
+      screen-invisible = 1.
+      screen-input = 0.
+      screen-output = 0.
+      screen-required = 0.
+    ENDIF.
+    MODIFY SCREEN.
+  ENDLOOP.
+
+* begin "n1498832
+INITIALIZATION.
+
+* Informationen zu Z-Strukturen einlesen
+  PERFORM tables_lesen USING 'ZSKA1'.
+  PERFORM tables_lesen USING 'ZSKAT'.
+  PERFORM tables_lesen USING 'ZSKB1'.
+  PERFORM tables_lesen USING 'ZSKX'.
+
+* Informationen aus RFBISA02 einlesen
+  READ REPORT 'RFBISA02' INTO rep.
+  READ TABLE rep INDEX 5.
+  saprl = rep-z+30.
+  READ TABLE rep INDEX 6.
+  sysid = rep-z+30.
+  READ TABLE rep INDEX 12.
+  PERFORM tables_pruefen.
+  READ TABLE rep INDEX 13.
+  PERFORM tables_pruefen.
+  READ TABLE rep INDEX 14.
+  PERFORM tables_pruefen.
+  READ TABLE rep INDEX 15.
+  PERFORM tables_pruefen.
+  LOOP AT tabtab WHERE vorhanden = space.
+    new_gn = xon.
+    EXIT.
+  ENDLOOP.
+
+* Neugenerierung von RFBISA02 wenn notwendig.
+  IF saprl <> sy-saprl OR sysid <> sy-sysid OR new_gn = xon.
+    SUBMIT rfbisag0 AND RETURN EXPORTING LIST TO MEMORY.
+  ENDIF.
+
+* begin "n1498832
+  CALL FUNCTION 'FILE_GET_NAME'
+    EXPORTING
+      logical_filename = gc_filename
+      parameter_1      = sy-cprog
+      including_dir    = 'X'
+    IMPORTING
+      file_name        = ds_name
+    EXCEPTIONS
+      OTHERS           = 0.
+* end "n1498832
+*eject
+*----------------------------------------------------------------------*
+*        Hauptablauf                                                   *
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+
+* Report RFBISA01 aufrufen
+  SUBMIT rfbisa01 AND RETURN
+                  WITH  ds_name   =   ds_name
+                  WITH  os_xon    =   os_xon
+                  WITH  bg_xon    =   bg_xon
+                  WITH  bg_group  =   bg_group
+                  WITH  bg_nodat  =   bg_nodat
+                  WITH  bg_start  =   bg_start
+                  WITH  bg_xkeep  =   bg_xkeep
+                  WITH  fl_dinp   =   fl_dinp
+                  WITH  fl_check  =   fl_check
+                  WITH  xcall     =   xcall
+                  WITH  anz_mode  =   anz_mode
+                  WITH  update    =   update
+                  WITH  xmsgmemo  =   xmsgmemo
+                  WITH  ma_group  =   ma_group
+                  WITH  ma_bukrs  =   ma_bukrs
+                  WITH  ue_id     =   ue_id
+                  WITH  ue_bukrs  IN  ue_bukrs.
+
+
+
+*----------------------------------------------------------------------*
+*        FORM TABLES_LESEN                                             *
+*----------------------------------------------------------------------*
+*        Einlesen der vorhandenen Z-Strukturen                         *
+*----------------------------------------------------------------------*
+FORM tables_lesen USING tabname TYPE clike.
+
+* Lokale Felder
+DATA:
+    subrc       LIKE sy-subrc,
+    nametab     LIKE dntab OCCURS 1.
+
+* Nametab importieren
+  CALL FUNCTION 'NAMETAB_GET'
+       EXPORTING
+            only    = 'H'
+            tabname = tabname
+       IMPORTING
+            rc      = subrc
+       TABLES
+            nametab = nametab
+       EXCEPTIONS
+            OTHERS  = 1.
+  IF sy-subrc = 0.
+    CLEAR tabtab.
+    tabtab-tabname = tabname.
+    APPEND tabtab.
+  ENDIF.
+
+ENDFORM.                    "tables_lesen
+
+
+
+*----------------------------------------------------------------------*
+*        FORM TABLES_PRUEFEN                                           *
+*----------------------------------------------------------------------*
+*        Prüfen ob zur TABLES-Anweisung Tabelle vorhanden ist          *
+*----------------------------------------------------------------------*
+FORM tables_pruefen.
+
+  IF rep(6) = 'TABLES'.
+    tabtab = space.
+    tabtab-tabname = rep+7(6).
+    READ TABLE tabtab.
+    IF sy-subrc = 0.
+      tabtab-vorhanden = xon.
+      MODIFY tabtab INDEX sy-tabix.
+    ELSE.
+      new_gn = xon.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    "tables_pruefen
+
+
+
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+  IF  ma_bukrs IS INITIAL                                   "n1725173
+  AND ue_id    IS INITIAL.                                  "n1725173
+    CALL FUNCTION 'FILE_VALIDATE_NAME'
+      EXPORTING
+        logical_filename  = gc_filename
+        parameter_1       = sy-cprog
+    CHANGING
+      physical_filename = ds_name
+    EXCEPTIONS
+      OTHERS            = 1.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+      WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+  ENDIF.                                                    "n1725173
+* end "n1498832
+
+
+*eject
+*----------------------------------------------------------------------*
+*        Include RFBISA02 überprüfen                                   *
+*----------------------------------------------------------------------*
+
+*Text elements
+*----------------------------------------------------------
+* BL4 Selection of structures that are used
+* BL3 Session Record
+* BL2 Program Control
+* BL1 General Selections
+
+
+*Selection texts
+*----------------------------------------------------------
+* OS_XON         Structures from Release < 4.0
+* FL_DINP D       Update File Immediately
+* FL_CHECK         Check File Only
+* DS_NAME         File Path Name
+* BG_XON         File Without Session Record
+* BG_XKEEP         Hold BI Session after Process.
+* BG_START         Start Date of Batch Input Sess
+* BG_NODAT         No Data Character
+* BG_GROUP         Batch input session name
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

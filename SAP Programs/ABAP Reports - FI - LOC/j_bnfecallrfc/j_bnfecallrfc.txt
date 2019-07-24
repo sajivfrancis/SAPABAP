@@ -1,0 +1,1268 @@
+*&---------------------------------------------------------------------*
+*& Report  J_BNFECALLRFC
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  j_bnfecallrfc MESSAGE-ID j1b_nfe.
+
+DATA: lt_j_1bnferfcbatch TYPE TABLE OF j_1bnferfcbatch.
+DATA: ls_j_1bnferfcbatch TYPE j_1bnferfcbatch.
+
+* Nota Fiscal header structure -----------------------------------------
+DATA: BEGIN OF wk_header.
+        INCLUDE STRUCTURE j_1bnfdoc.
+DATA: END OF wk_header.
+* Nota Fiscal header structure - add. segment --------------------------
+DATA: BEGIN OF wk_header_add.
+        INCLUDE STRUCTURE j_1bindoc.
+DATA: END OF wk_header_add.
+* Nota Fiscal partner structure ----------------------------------------
+DATA: BEGIN OF wk_partner OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfnad.
+DATA: END OF wk_partner.
+* Nota Fiscal item structure -------------------------------------------
+DATA: BEGIN OF wk_item OCCURS 0.
+        INCLUDE STRUCTURE j_1bnflin.
+DATA: END OF wk_item.
+* Nota Fiscal item tax structure ---------------------------------------
+DATA: BEGIN OF wk_item_tax OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfstx.
+DATA: END OF wk_item_tax.
+* Nota Fiscal item structure - add. segment ----------------------------
+DATA: BEGIN OF wk_item_add OCCURS 0.
+        INCLUDE STRUCTURE j_1binlin.
+DATA: END OF wk_item_add.
+* Nota Fiscal header message structure ---------------------------------
+DATA: BEGIN OF wk_header_msg OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfftx.
+DATA: END OF wk_header_msg.
+
+* Nota Fiscal reference to header message structure -------------------
+DATA: BEGIN OF wk_refer_msg OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfref.
+DATA: END OF wk_refer_msg.
+
+DATA: wk_docnum LIKE j_1bnfdoc-docnum, " Nota Fiscal document number
+      retcode LIKE sy-subrc,           " return code indicator
+      xscreen.                         " Output on printer or screen
+
+* Nota Fiscal one-time data --------------------------------------------
+DATA: BEGIN OF wk_ot_partner OCCURS 0.
+        INCLUDE STRUCTURE j_1bnfcpd.
+DATA: END OF wk_ot_partner.
+
+* Nota Fiscal information on import documents -------------------1590946
+DATA: BEGIN OF wk_import_di OCCURS 0.                           "1590946
+        INCLUDE STRUCTURE j_1bnfimport_di.                      "1590946
+DATA: END OF wk_import_di.                                      "1590946
+
+* Nota Fiscal additions to import documents ---------------------1590946
+DATA: BEGIN OF wk_import_adi OCCURS 0.                          "1590946
+        INCLUDE STRUCTURE j_1bnfimport_adi.                     "1590946
+DATA: END OF wk_import_adi.                                     "1590946
+
+* CT-e additions - variable to store the references--------------1677119
+DATA: BEGIN OF wk_cte_docref OCCURS 0.                          "1677119
+        INCLUDE STRUCTURE j_1bcte_d_docref.                     "1677119
+DATA: END OF wk_cte_docref.                                     "1677119
+
+* CT-e additions - variable to store the resources- vehicles-----1677119
+DATA: BEGIN OF wk_cte_res OCCURS 0.                             "1677119
+        INCLUDE STRUCTURE j_1bcte_d_res.                        "1677119
+DATA: END OF wk_cte_res.                                        "1677119
+
+* Nota Fiscal Transported Volumes--------------------------------1844621
+DATA: BEGIN OF wk_trans_volumes OCCURS 0.                       "1844621
+         INCLUDE STRUCTURE j_1bnftransvol.                      "1844621
+DATA: END OF wk_trans_volumes.                                  "1844621
+
+* Nota Fiscal information on Trailer Information ----------------1844621
+DATA: BEGIN OF wk_trailer_info OCCURS 0.                        "1844621
+         INCLUDE STRUCTURE j_1bnftrailer.                       "1844621
+DATA: END OF wk_trailer_info.                                   "1844621
+
+* Nota Fiscal information on Trade Notes ------------------------1844621
+DATA: BEGIN OF wk_trade_notes OCCURS 0.                         "1844621
+         INCLUDE STRUCTURE j_1bnftradenotes.                    "1844621
+DATA: END OF wk_trade_notes.                                    "1844621
+
+* Nota Fiscal information on Free Usage Fields for Additional Information 1844621
+DATA: BEGIN OF wk_add_info OCCURS 0.                            "1844621
+         INCLUDE STRUCTURE j_1bnfadd_info.                      "1844621
+DATA: END OF wk_add_info.                                       "1844621
+
+* Nota Fiscal information on Referenced Processes----------------1844621
+DATA: BEGIN OF wk_ref_proc OCCURS 0.                            "1844621
+         INCLUDE STRUCTURE j_1bnfrefproc.                       "1844621
+DATA: END OF wk_ref_proc.                                       "1844621
+
+* Nota Fiscal information on Daily Supply of Sugarcane -----------1844621
+DATA: BEGIN OF wk_sugar_suppl OCCURS 0.                         "1844621
+         INCLUDE STRUCTURE j_1bnfsugarsuppl.                    "1844621
+DATA: END OF wk_sugar_suppl.                                    "1844621
+
+* Nota Fiscal information on Taxes and Contributions on Sugarcane 1844621
+DATA: BEGIN OF wk_sugar_deduc OCCURS 0.                         "1844621
+         INCLUDE STRUCTURE j_1bnfsugardeduc.                    "1844621
+DATA: END OF wk_sugar_deduc.                                    "1844621
+
+* Nota Fiscal information on Vehicle Details --------------------1844621
+DATA: BEGIN OF wk_vehicle OCCURS 0.                             "1844621
+         INCLUDE STRUCTURE j_1bnfvehicle.                       "1844621
+DATA: END OF wk_vehicle.                                        "1844621
+
+* Nota Fiscal information on Pharmaceutical ---------------------1844621
+DATA: BEGIN OF wk_pharmaceut OCCURS 0.                          "1844621
+         INCLUDE STRUCTURE j_1bnfpharmaceut.                    "1844621
+DATA: END OF wk_pharmaceut.                                     "1844621
+
+* Nota Fiscal information on Fuel Details------------------------1844621
+DATA: BEGIN OF wk_fuel OCCURS 0.                                "1844621
+         INCLUDE STRUCTURE j_1bnffuel.                          "1844621
+DATA: END OF wk_fuel.                                           "1844621
+
+* Nota Fiscal information on export documents -------------1933985
+DATA: BEGIN OF wk_export OCCURS 0.                        "1933985
+        INCLUDE STRUCTURE j_1bnfe_export.                 "1933985
+DATA: END OF wk_export.                                   "1933985
+
+DATA: BEGIN OF wk_nve OCCURS 0.                           "2046494
+        INCLUDE STRUCTURE j_1bnfe_s_nve.                  "2046494
+DATA: END OF wk_nve.                                      "2046494
+
+DATA: xmlh TYPE j1b_nf_xml_header.
+*--- XML Item structure
+DATA: xmli       TYPE j1b_nf_xml_item,
+      xmli_tab   TYPE j1b_nf_xml_item_tab,
+      access_key TYPE j1b_nf_xml_b1,     "structure for NF
+      xmlb       TYPE j1b_nf_xml_j,      "batch item
+      xmlb_tab   TYPE j1b_nf_xml_j_tab,  "batch item table
+      xmld_tab   TYPE j1b_nf_xml_u2_tab. "duplicata item table
+
+DATA: xmlr       TYPE j1b_nf_xml_b12,    "reference documents  V1.05
+      xmlr_tab   TYPE j1b_nf_xml_b12_tab,"reference documents  V1.05
+      ls_acckey  TYPE j_1b_nfe_access_key,
+      ls_j1bb2   TYPE j_1bb2.
+
+DATA: ls_active TYPE j_1bnfe_active,
+      ls_histtab TYPE j_1bnfe_history,
+      lv_msstat TYPE flag,
+      lv_nfenum TYPE j_1bdocnum,
+      lv_header TYPE j_1bnfdoc.
+
+DATA: call_commit TYPE flag.
+DATA: call_messaging TYPE flag.                             "1340451
+DATA: lv_contingency TYPE flag.                             "1362413
+DATA: lv_entry_deleted TYPE flag.                           "1416226
+DATA: ls_branch_info TYPE j_1bnfe_branch_info,              "1394582
+      lv_conting_1a  TYPE flag,                             "1394582
+      lv_address_checked TYPE flag.                         "1577955
+
+* >> note 1484001 : Enhancement of report J_BNFECALLRFC
+DATA: lt_docnum      TYPE TABLE OF j_1bdocnum,
+      lr_badi        TYPE REF TO   if_ex_cl_nfe_print,
+      lt_nfes_with_3 TYPE TABLE OF j_1bnferfcbatch,
+      ls_nfe_with_3  TYPE          j_1bnferfcbatch.
+* << note 1484001
+
+DATA: lv_xblnr TYPE xblnr1,                               "1715926
+      lv_vbeln TYPE vbeln_vf,                             "1715926
+      lv_rbeln TYPE re_belnr,                             "1889990
+      lv_mblnr TYPE mblnr,                                "1896354
+      lv_belnr TYPE belnr_d,                              "1715926
+      lv_gjahr TYPE gjahr,                                "1715926
+      lv_follow TYPE j_1bfollow,                          "1715926
+      ls_item TYPE j_1bnflin.                             "1715926
+
+
+ DATA lb_j_1bnfe_number                                   "2080205
+          TYPE REF TO j_1bnfe_badi_set_number.            "2080205
+ DATA lv_bildoc TYPE  vbeln_vf.                           "2080205
+
+*---------------------------------------------*
+*--- S E L E C T - O P T I O N S           ---*
+*---------------------------------------------*
+TABLES: j_1bnferfcbatch.
+SELECT-OPTIONS: so_docnm FOR j_1bnferfcbatch-docnum.
+* >> note 1484001 : Enhancement of report J_BNFECALLRFC
+TABLES: j_1bnfdoc.
+SELECT-OPTIONS: so_bukrs FOR j_1bnfdoc-bukrs,  "company code
+                so_brnch FOR j_1bnfdoc-branch, "business place
+                so_vstel FOR j_1bnfdoc-vstel.  "shipping point
+* << note 1484001
+
+
+*
+*---------------------------------------------*
+*--- S T A R T    O F    S E L E C T I O N ---*
+*---------------------------------------------*
+START-OF-SELECTION.
+
+* >> note 1484001: Enhancement of report J_BNFECALLRFC
+* 1. new selection criteria: company code, business place,
+*                            shipping point
+* 2. BAdI method to exclude NF-es from numbering and sending
+* 3. BAdI method to set order of NF-es for numbering
+
+* Switch to comitted level for DB2 for read access           "1521016
+  IF sy-dbsys = 'DB2' OR sy-dbsys = 'DB6'.                   "1521016
+    CALL FUNCTION 'DB_SET_ISOLATION_LEVEL'.                  "1521016
+  ENDIF.                                                     "1521016
+
+  TRY.                                                    "2080205
+     GET BADI lb_j_1bnfe_number.                          "2080205
+  CATCH cx_badi_not_implemented.                          "2080205
+   CLEANUP.                                               "2080205
+     CLEAR lb_j_1bnfe_number.                             "2080205
+  ENDTRY.                                                 "2080205
+
+
+  SELECT t1~mandt  AS mandt
+         t1~docnum AS docnum
+    FROM j_1bnferfcbatch AS t1 INNER JOIN j_1bnfdoc AS t2
+         ON t1~mandt  = t2~mandt AND t1~docnum = t2~docnum
+    INTO CORRESPONDING FIELDS OF TABLE lt_j_1bnferfcbatch
+    WHERE t1~docnum IN so_docnm AND
+          t2~bukrs  IN so_bukrs AND
+          t2~branch IN so_brnch AND
+          t2~vstel  IN so_vstel.
+
+* Switch to comitted off for DB2 for read access             "1521016
+  IF sy-dbsys = 'DB2' OR sy-dbsys = 'DB6'.                   "1521016
+    CALL FUNCTION 'DB_RESET_ISOLATION_TO_DEFAULT'.           "1521016
+  ENDIF.                                                     "1521016
+
+  CALL METHOD cl_exithandler=>get_instance       "#EC CI_BADI_GETINST
+      EXPORTING
+        exit_name = 'CL_NFE_PRINT'
+      CHANGING
+        instance  = lr_badi
+      EXCEPTIONS
+        OTHERS    = 9.
+
+  CALL METHOD lr_badi->exclude_nfes_from_batch
+    CHANGING
+      ct_nferfcbatch = lt_j_1bnferfcbatch.
+
+  IF NOT lt_j_1bnferfcbatch IS INITIAL.
+
+    SELECT mandt docnum FROM j_1bnfe_active INTO TABLE lt_nfes_with_3
+      FOR ALL ENTRIES IN lt_j_1bnferfcbatch
+      WHERE docnum  = lt_j_1bnferfcbatch-docnum AND
+            callrfc = 3.
+
+    IF sy-subrc = 0.
+
+      LOOP AT lt_nfes_with_3 INTO ls_nfe_with_3.
+        DELETE TABLE lt_j_1bnferfcbatch FROM ls_nfe_with_3.
+      ENDLOOP.
+
+      CALL METHOD lr_badi->set_order_for_batch
+        CHANGING
+          ct_nferfcbatch = lt_nfes_with_3.
+
+      APPEND LINES OF lt_nfes_with_3 TO lt_j_1bnferfcbatch.
+
+    ENDIF.
+
+  ENDIF.
+* << note 1484001
+
+
+  LOOP AT lt_j_1bnferfcbatch INTO ls_j_1bnferfcbatch.
+
+    CLEAR: lv_address_checked,                              "1577955
+      lv_xblnr,                                             "1777253
+      lv_vbeln,                                             "1777253
+      lv_rbeln,                                             "1889990
+      lv_mblnr,                                             "1896354
+      lv_belnr,                                             "1777253
+      lv_gjahr,                                             "1777253
+      lv_follow,                                            "1777253
+      ls_item.                                              "1777253
+*
+    CALL FUNCTION 'ENQUEUE_EJ_1BNFERFC'                     "1338694
+      EXPORTING                                             "1338694
+        docnum                     = ls_j_1bnferfcbatch-docnum "1338694
+      EXCEPTIONS                                            "1338694
+        foreign_lock               = 1                      "1338694
+        system_failure             = 2                      "1338694
+        OTHERS                     = 3                      "1338694
+          .                                                 "1338694
+* contunue only when not locked!                               "1338694
+    CHECK sy-subrc IS INITIAL.                              "1338694
+
+    call_commit = 'X'.
+* reset messing call                                           "1340451
+    CLEAR call_messaging.                                   "1340451
+* reset contingency                                         "1362413
+    CLEAR lv_contingency.                                   "1362413
+* reset entry deleted                                          "1416226
+    CLEAR lv_entry_deleted.                                 "1416226
+
+* Read NF-e before numbering for update addresss data if needed  "1577955
+    PERFORM nota_fiscal_read USING ls_j_1bnferfcbatch-docnum.    "1577955
+
+    PERFORM set_nfe_number USING ls_j_1bnferfcbatch-docnum.
+
+    IF call_commit IS INITIAL.
+      COMMIT WORK AND WAIT.
+      IF NOT sy-subrc IS INITIAL.                           "1340451
+        CLEAR call_messaging.                               "1340451
+      ENDIF.                                                "1340451
+* set date, time & user for history table at sending        "1560861
+      IF sy-datlo IS INITIAL.                               "1560861
+        ls_active-action_date = sy-datum.                   "1560861
+      ELSE.                                                 "1560861
+        ls_active-action_date = sy-datlo.                   "1560861
+      ENDIF.                                                "1560861
+      IF sy-timlo IS INITIAL.                               "1560861
+        ls_active-action_time = sy-uzeit.                   "1560861
+      ELSE.                                                 "1560861
+        ls_active-action_time = sy-timlo.                   "1560861
+      ENDIF.                                                "1560861
+      ls_active-action_user = sy-uname.                     "1560861
+    ENDIF.                                                  "1560861
+
+    IF call_messaging IS INITIAL.
+      CALL FUNCTION 'DEQUEUE_EJ_1BNFERFC'                   "1340451
+        EXPORTING                                           "1340451
+          docnum = ls_j_1bnferfcbatch-docnum.               "1340451
+* no further processing !!                                     "1340451
+      CONTINUE.                                             "1340451
+    ENDIF.                                                  "1340451
+* continue only when NOT contingency!                      "1362413
+    CHECK lv_contingency IS INITIAL.                        "1362413
+
+*    PERFORM nota_fiscal_read USING ls_j_1bnferfcbatch-docnum. "1577955
+*
+* contingency NF-e are send via the monitor report
+    CHECK wk_header-conting IS INITIAL.
+
+    PERFORM nota_fiscal_send.
+
+  ENDLOOP.
+
+* clear global tables for server determination in FUGR J_1B_NFE
+  CALL FUNCTION 'J_1B_NFE_RESET_AUTO_SERVER'.               "1394582
+
+END-OF-SELECTION.
+
+*&---------------------------------------------------------------------*
+*&      Form  set_nfe_number
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_DOCNUM   text
+*----------------------------------------------------------------------*
+FORM set_nfe_number USING p_docnum TYPE j_1bdocnum.
+  DATA: ls_j1bb2_s TYPE j_1bb2.                             "1461253
+  DATA: lv_conting_db TYPE j_1bcontingency.                 "1461253
+  DATA: lt_nast TYPE TABLE OF nast,                         "1461253
+        ls_nast TYPE nast,                                  "1461253
+        lv_objky LIKE nast-objky.                           "1461253
+
+* note 1577955: If there are any changes to the address master data
+* between creation and numbering/sending of the NF-e, the NF tables
+* have to be updated as well
+  DATA: ls_partner_address  TYPE j_1binnad,
+        ls_original_address TYPE j_1binnad,
+        lv_address_changed  TYPE flag.
+
+  DATA lv_foreignid         TYPE j_1bnfe_foreignid.       "2075541
+
+
+  CONSTANTS:  c_kappl   TYPE sna_kappl  VALUE 'NF'.         "1451253
+
+*
+  CALL FUNCTION 'J_1B_NFE_XML_RAED_ACTIVE_TAB'
+    EXPORTING
+      i_docnum = p_docnum
+    IMPORTING
+      e_acttab = ls_active
+    EXCEPTIONS
+      no_entry = 1
+      OTHERS   = 2.
+
+  IF sy-subrc <> 0.
+    sy-msgty = 'E'.                                         "1340451
+    sy-msgid = 'J1B_NFE'.                           "1340451 1530468
+    sy-msgno = '012'.                                       "1340451
+    sy-msgv1 = ls_active-docnum.                    "1340451 1530468
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'                "1340451
+      EXPORTING                                             "1340451
+        i_docnum = ls_active-docnum.                        "1340451
+    EXIT.                                                   "1340451
+  ENDIF.
+
+* only NFs with assigned FORM are relevant for NF-e processing
+  CHECK NOT ls_active-form IS INITIAL.
+* Number when CALLRFC = 3 only                             "1462133
+  IF ls_active-nfnum9 IS INITIAL AND                        "1462133
+     ls_active-callrfc = '2'.                               "1462133
+    RETURN.                                                 "1462133
+  ENDIF.                                                    "1462133
+* NF-e in contingency are already numberd after note 1300000 "1338694
+* ignore earklier stored nunmbers which are n ot yet cleared "1338694
+  CHECK ls_active-conting IS INITIAL.                       "1338694
+
+  SELECT SINGLE * FROM j_1bnfdoc INTO wk_header             "1520408
+    WHERE docnum = p_docnum.                                "1520408
+  IF NOT sy-subrc IS INITIAL.                      "1340451 "1520408
+    sy-msgty = 'E'.                                "1340451 "1520408
+    sy-msgid = '8B'.                               "1340451 "1520408
+    sy-msgno = '106'.                              "1340451 "1520408
+    sy-msgv1 = p_docnum.                           "1340451 "1520408
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'       "1340451 "1520408
+      EXPORTING                                    "1340451 "1520408
+        i_docnum = ls_active-docnum.               "1340451 "1520408
+    EXIT.                                          "1340451 "1520408
+  ENDIF.                                           "1340451 "1520408
+
+* security check for already numbered NF-e
+* for those which are numbered via the Monitor Report
+* first RFC call = 1 and switched than to 2 the
+* number is already given - Only RFC call
+  IF ls_active-nfnum9 IS INITIAL.
+  ELSE.                                                     "1297042
+
+    IF wk_header-xmlvers >= 2                               "1520408
+     or wk_header-model = '57'.                             "1661137
+      CALL FUNCTION 'J_1B_NFE_GET_TPEMIS'                   "1454408
+        EXPORTING                                           "1454408
+          i_bukrs         =  ls_active-bukrs                "1454408
+          i_branch        =  ls_active-branch               "1454408
+          i_model         =  ls_active-model                "1454408
+          i_serie         =  ls_active-serie                "1454408
+          i_conting       =  ls_active-conting "allways space here 1454408
+          i_active_service = ls_active-active_service       "1746671
+        IMPORTING                                           "1454408
+         e_tpemis        =  ls_active-tpemis                "1454408
+        EXCEPTIONS                                          "1454408
+          error           = 1                               "1454408
+          OTHERS          = 2.                              "1454408
+      IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+      MOVE ls_active-tpemis        TO ls_active-docnum9(1). "1520408
+    ENDIF.                                                  "1520408
+
+    MOVE-CORRESPONDING ls_active TO ls_acckey.      "#EC ENHOK "1297042
+*   MOVE ls_active-tpemis TO ls_acckey-docnum9(1).  "1454408,1520408
+    call_messaging = 'X'.                                   "1340451
+
+    CALL FUNCTION 'J_1B_NFE_DATA_TRANSFER'                "2076041
+      EXPORTING                                           "2076041
+        is_active         =  ls_active.                   "2076041
+
+    RETURN.                                                 "1297042
+  ENDIF.                                                    "1297042
+*
+** start note 1577955
+* check and compare address data
+* Step 1: Have header data changed?
+  lv_address_checked = 'X'.
+  CALL FUNCTION 'J_1B_NF_PARTNER_READ'
+    EXPORTING
+      partner_type                 = wk_header-partyp
+      partner_id                   = wk_header-parid
+      READ_ADDRESS                 = 'X'
+    IMPORTING
+      PARNAD                       = ls_partner_address
+    EXCEPTIONS
+      OTHERS                       = 3.
+  MOVE-CORRESPONDING wk_header TO ls_original_address.
+  MOVE wk_header-parxcpdk TO ls_original_address-xcpdk. "1514028
+  IF ls_partner_address <> ls_original_address.
+    lv_address_changed = 'X'.
+    lv_foreignid = wk_header-foreignid.                   "2075541
+    MOVE-CORRESPONDING ls_partner_address TO wk_header.
+    wk_header-foreignid = lv_foreignid.                   "2075541
+  ENDIF.
+
+* Step 2: Have partner data changed?
+  LOOP AT wk_partner.
+    CLEAR: ls_original_address, ls_partner_address.
+    CALL FUNCTION 'J_1B_NF_PARTNER_READ'
+      EXPORTING
+        partner_type                 = wk_partner-partyp
+        partner_id                   = wk_partner-parid
+        READ_ADDRESS                 = 'X'
+      IMPORTING
+        PARNAD                       = ls_partner_address
+      EXCEPTIONS
+        OTHERS                       = 3.
+    MOVE-CORRESPONDING wk_partner TO ls_original_address.
+    IF ls_partner_address <> ls_original_address.
+      lv_address_changed = 'X'.
+      MOVE-CORRESPONDING ls_partner_address TO wk_partner.
+      MODIFY wk_partner.
+    ENDIF.
+  ENDLOOP.
+* end note 1577955
+
+  CLEAR call_commit.
+*
+
+  lv_conting_db = wk_header-conting.                        "1461253
+
+
+*=========================================================
+*---------               S C A N                    -----*
+* Begin of insertion Note 1394582                   -----*
+*=========================================================
+
+*** CONTINGENCY
+  PERFORM check_contingency.
+*
+* Contingency NF-e is switched to Model 1/1A
+* are not processed
+  IF NOT lv_conting_1a IS INITIAL.
+    RETURN.
+  ENDIF.
+
+  IF wk_header-conting IS INITIAL.
+* check active servers per item !!!
+    ls_branch_info-bukrs = ls_active-bukrs.
+    ls_branch_info-branch = ls_active-branch.
+    ls_branch_info-model = ls_active-model.
+    ls_branch_info-regio = ls_active-regio.
+*
+*   Determine active server                         "1746671
+    CALL FUNCTION 'J_1BDFE_SERVER_DETERMINATION'    "1746671
+      EXPORTING                                     "1746671
+        is_branch_info          = ls_branch_info    "1746671
+      CHANGING                                      "1746671
+        cs_header               = wk_header         "1746671
+        cs_acttab               = ls_active         "1746671
+      EXCEPTIONS                                    "1746671
+        no_numbering            = 1                 "1746671
+        not_unique_server       = 2                 "1746671
+        others                  = 3.                "1746671
+*
+* no numbreing is executed - avoid DB updates
+    IF NOT sy-subrc IS INITIAL.
+      call_commit = 'X'.
+      RETURN.
+    ENDIF.
+*   Contingency reason for SCAN                             "1457197
+    IF NOT ls_active-scan_active IS INITIAL OR              "2000511
+            NOT ls_active-svc_active IS INITIAL OR          "2000511
+            NOT ls_active-svc_rs_active IS INITIAL OR       "2000511
+            NOT ls_active-svc_sp_active IS INITIAL .        "2000511
+      CALL FUNCTION 'J_1B_NFE_CONTIN_REASON_READ'           "1457197
+        EXPORTING                                           "1457197
+          is_header               = wk_header               "1457197
+        CHANGING                                            "1457197
+          cs_active               = ls_active               "1457197
+        EXCEPTIONS                                          "1457197
+          reason_not_determined   = 1                       "1457197
+          OTHERS                  = 2.                      "1457197
+
+      IF sy-subrc <> 0.                                     "1457197
+*     No handling for version 1,10                          "1457197
+      ENDIF.                                                "1457197
+    ENDIF.                                                  "1457197
+    CALL FUNCTION 'J_1B_NFE_DATA_TRANSFER'                "2060409
+      EXPORTING                                           "2060409
+        is_active       = ls_active.                      "2060409
+  ENDIF.
+*=========================================================
+*---------               S C A N                    -----*
+* End of insertion Note 1394582                     -----*
+*=========================================================
+
+* Lock trace table !!!!
+*
+* Lock J_1BNFDOC
+  CALL FUNCTION 'ENQUEUE_EJ_1BNFS'
+    EXPORTING
+      mode_j_1bnfdoc = 'S'
+      mandt          = sy-mandt
+      docnum         = p_docnum
+    EXCEPTIONS
+      foreign_lock   = 1
+      system_failure = 2
+      OTHERS         = 3.
+
+  IF sy-subrc <> 0.
+    sy-msgty = 'E'.                                         "1340451
+    sy-msgid = '8B'.                                        "1340451
+    sy-msgno = '240'.                                       "1340451
+    sy-msgv1 = wk_header-nfenum.                            "1340451
+    sy-msgv2 = wk_header-docnum.                            "1340451
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'
+      EXPORTING
+        i_docnum = ls_active-docnum.
+    EXIT.
+  ENDIF.
+
+* Lock record of J_1BNFE_ACTIVE
+  CALL FUNCTION 'ENQUEUE_E_J1BNFE'
+    EXPORTING
+      mode_j_1bnfe_active = 'E'
+      mandt               = sy-mandt
+      docnum              = p_docnum
+    EXCEPTIONS
+      foreign_lock        = 1
+      system_failure      = 2
+      OTHERS              = 3.
+  IF sy-subrc <> 0.
+    sy-msgty = 'E'.                                         "1340451
+    sy-msgid = '8B'.                                        "1340451
+    sy-msgno = '240'.                                       "1340451
+    sy-msgv1 = wk_header-nfenum.                            "1340451
+    sy-msgv2 = wk_header-docnum.                            "1340451
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'
+      EXPORTING
+        i_docnum = ls_active-docnum.
+    EXIT.
+  ENDIF.
+
+* 1715926 NF-e: Update SD/FI with NF-e number (instead of J_1BPNR)
+* 1889990 / 1896354: Update MM documents (credit memo and stock transfer)
+  READ TABLE wk_item INTO ls_item INDEX 1.                  "1715926
+  IF sy-subrc = 0.                                          "1715926
+    CALL FUNCTION 'J_1B_NFE_ENQUEUE_VBRK_BKPF'              "1715926
+      EXPORTING                                             "1715926
+        iv_bukrs        = wk_header-bukrs                   "1896354
+        iv_reftyp       = ls_item-reftyp                    "1715926
+        iv_refkey       = ls_item-refkey                    "1715926
+      IMPORTING                                             "1715926
+        ev_follow       = lv_follow                         "1715926
+        ev_rbeln        = lv_rbeln                          "1889990
+        ev_mblnr        = lv_mblnr                          "1896354
+        ev_vbeln        = lv_vbeln                          "1715926
+        ev_belnr        = lv_belnr                          "1715926
+        ev_gjahr        = lv_gjahr                          "1715926
+      EXCEPTIONS                                            "1715926
+        billing_doc_not_found       = 1                     "1715926
+        vbrk_locked                 = 2                     "1715926
+        bkpf_locked                 = 3                     "1715926
+        others                      = 4.                    "1715926
+    IF sy-subrc <> 0.                                       "1715926
+      CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'              "1715926
+        EXPORTING                                           "1715926
+          i_docnum = ls_active-docnum.                      "1715926
+      EXIT.                                                 "1715926
+    ENDIF.                                                  "1715926
+    IF lb_j_1bnfe_number IS BOUND.                          "2080205
+        CALL BADI lb_j_1bnfe_number->nfe_enqueue_bkpf       "2080205
+          EXPORTING                                         "2080205
+            iv_bukrs           =     wk_header-bukrs        "2080205
+            iv_reftyp          =     ls_item-reftyp         "2080205
+            iv_refkey          =     ls_item-refkey         "2080205
+*      iv_xblnr           =     " Reference Document Number "2080205
+          CHANGING                                          "2080205
+            ev_bildoc          =     lv_bildoc              "2080205
+            ev_belnr           =     lv_belnr               "2080205
+            ev_gjahr           =     lv_gjahr               "2080205
+            ev_follow          =     lv_follow              "2080205
+          EXCEPTIONS                                        "2080205
+            document_not_found = 1                          "2080205
+            lock_error         = 2                          "2080205
+            bkpf_locked        = 3                          "2080205
+            others             = 4.                         "2080205
+        IF sy-subrc <> 0.                                   "2080205
+          CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'          "2080205
+            EXPORTING                                       "2080205
+                i_docnum = ls_active-docnum.                "2080205
+          EXIT.                                             "2080205
+        ENDIF.                                              "2080205
+    ENDIF.                                                  "2080205
+  ENDIF.                                                    "1715926
+
+* continue only when lock was succesful
+
+* fill relevant fields for reading the print configuration
+  MOVE-CORRESPONDING ls_active TO lv_header.
+
+  CALL FUNCTION 'J_1BNF_GET_PRINT_CONF'
+    EXPORTING
+      headerdata = lv_header
+    IMPORTING
+      print_conf = ls_j1bb2
+    EXCEPTIONS
+      error      = 1
+      OTHERS     = 2.
+
+  IF sy-subrc <> 0.
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'                "1340451
+      EXPORTING                                             "1340451
+        i_docnum = ls_active-docnum.                        "1340451
+    EXIT.                                                   "1340451
+  ENDIF.
+
+  MOVE ls_j1bb2-nfenrnr TO wk_header-nfenrnr.
+
+  IF wk_header-nfenrnr IS INITIAL.
+    sy-msgty = 'E'.                                         "1340451
+    sy-msgid = 'J1B_NFE'.                           "1340451 1530468
+    sy-msgno = '048'.                                       "1340451
+    sy-msgv1 = wk_header-nftype.                            "1340451
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'                "1340451
+      EXPORTING                                             "1340451
+        i_docnum = ls_active-docnum.                        "1340451
+    EXIT.                                                   "1340451
+*                                                          "1340451
+  ELSE.
+    CALL FUNCTION 'J_1B_NF_DOCUMENT_NUMB_GET_NEXT'
+      EXPORTING
+        i_nr_range                    = wk_header-nfenrnr
+        i_subobject                   = ls_j1bb2-subobj
+      IMPORTING
+        doc_number                    = lv_nfenum
+      EXCEPTIONS
+        interval_not_found            = 1
+        number_range_not_internal     = 2
+        object_not_found              = 3
+        other_problems_with_numbering = 4
+        OTHERS                        = 5.
+    IF sy-subrc <> 0.
+      CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'              "1340451
+        EXPORTING                                           "1340451
+          i_docnum = ls_active-docnum.                      "1340451
+      EXIT.                                                 "1340451
+    ENDIF.
+  ENDIF.
+
+  MOVE-CORRESPONDING ls_active TO ls_histtab.               "#EC ENHOK
+
+* check existing key entries for history table
+  CALL FUNCTION 'J_1B_NFE_HISTORY_COUNT'
+    CHANGING
+      ch_history = ls_histtab.
+
+  MOVE lv_nfenum+1(9) TO ls_active-nfnum9.
+  MOVE lv_nfenum+1(9) TO wk_header-nfenum.
+
+
+  IF lv_vbeln IS NOT INITIAL                                "1715926
+    OR lv_rbeln IS NOT INITIAL                              "1889990
+    OR lv_mblnr IS NOT INITIAL                              "1896354
+    OR lv_bildoc IS NOT INITIAL.                            "2080205
+*   create xblnr for preceding FI/SD-documents              "1715926
+    CALL FUNCTION 'J_1B_NF_NUMBER_CONDENSE'                 "1715926
+      EXPORTING                                             "1715926
+        series     = wk_header-series                       "1715926
+        subseries  = wk_header-subser                       "1715926
+        nf_number9 = ls_active-nfnum9                       "1715926
+      IMPORTING                                             "1715926
+        ref_number = lv_xblnr.                              "1715926
+  ENDIF.                                                    "1715926
+
+
+  IF wk_header-xmlvers >= 2                                "1520408
+    OR wk_header-model = '57'.                             "1746671
+    CALL FUNCTION 'J_1B_NFE_GET_TPEMIS'                     "1454408
+      EXPORTING                                             "1454408
+       i_bukrs         =  ls_active-bukrs                   "1454408
+       i_branch        =  ls_active-branch                  "1454408
+       i_model         =  ls_active-model                   "1454408
+       i_serie         =  ls_active-serie                   "1454408
+       i_conting       =  ls_active-conting                 "1454408
+       i_active_service = ls_active-active_service          "1746671
+      IMPORTING                                             "1454408
+        e_tpemis        =  ls_active-tpemis                 "1454408
+      EXCEPTIONS                                            "1454408
+        error           = 1                                 "1454408
+        OTHERS          = 2.                                "1454408
+    IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+
+    MOVE ls_active-tpemis        TO ls_active-docnum9(1).   "1454408
+  ENDIF.                                                    "1520408
+
+  MOVE-CORRESPONDING ls_active TO ls_acckey.                "#EC ENHOK
+*  MOVE ls_active-tpemis        TO ls_acckey-docnum9(1).     "1454408
+
+  CALL FUNCTION 'J_1B_NFE_CREATE_CHECK_DIGIT'
+    CHANGING
+      c_acckey = ls_acckey.
+
+  ls_active-cdv = ls_acckey-cdv.
+
+* 1715926 NF-e: Update SD/FI with NF-e number (instead of J_1BPNR)
+* 1889990 / 1896354: Update MM documents (credit memo and stock transfer)
+  IF lv_vbeln IS NOT INITIAL                                "1715926
+    OR lv_rbeln IS NOT INITIAL                              "1889990
+    OR lv_mblnr IS NOT INITIAL                              "1896354
+    OR lv_bildoc IS NOT INITIAL.                            "2080205
+    CALL FUNCTION 'J_1B_NFE_UPDATE_XBLNR' IN UPDATE TASK    "1715926
+      EXPORTING                                             "1715926
+        iv_xblnr = lv_xblnr                                 "1715926
+        iv_rbeln = lv_rbeln                                 "1889990
+        iv_mblnr = lv_mblnr                                 "1896354
+        iv_vbeln = lv_vbeln                                 "1715926
+        iv_bukrs = wk_header-bukrs                          "1715926
+        iv_belnr = lv_belnr                                 "1715926
+        iv_gjahr = lv_gjahr.                                "1715926
+    IF sy-subrc <> 0.                                       "1715926
+      MESSAGE ID sy-msgid TYPE 'A' NUMBER sy-msgno          "1715926
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.       "1715926
+    ENDIF.                                                  "1715926
+  ENDIF.                                                    "1715926
+
+
+* create entry in NAST                                      "1467429
+  CALL FUNCTION 'J_1B_NF_DOCUMENT_PRINT' IN UPDATE TASK     "1467429
+    EXPORTING                                               "1467429
+      doc_number               = p_docnum                   "1467429
+      i_nfdoc                  = wk_header                  "1467429
+   EXCEPTIONS                                               "1467429
+     document_not_found       = 1                           "1467429
+     messaging_problem        = 2                           "1467429
+     OTHERS                   = 3                           "1467429
+            .                                               "1467429
+  IF sy-subrc <> 0.                                         "1467429
+    MESSAGE ID sy-msgid TYPE 'A' NUMBER sy-msgno            "1467429
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.       "1467429
+  ENDIF.                                                    "1467429
+
+ENHANCEMENT-POINT J_BNFECALLRFC_01 SPOTS ES_J_BNFECALLRFC_01 .
+
+* note 1577955: update NF tables with address changes
+  IF NOT lv_address_changed IS INITIAL.
+    CALL FUNCTION 'J_1B_NF_DOCUMENT_UPDATE' IN UPDATE TASK
+      EXPORTING
+        doc_number                  = wk_docnum
+        doc_header                  = wk_header
+      tables
+        doc_partner                 = wk_partner
+        doc_item                    = wk_item
+        doc_item_tax                = wk_item_tax
+        doc_header_msg              = wk_header_msg
+        doc_refer_msg               = wk_refer_msg
+        DOC_OT_PARTNER              = wk_ot_partner
+        doc_import_di               = wk_import_di              "1590946
+        doc_import_adi              = wk_import_adi             "1590946
+        doc_cte_docref              = wk_cte_docref             "1677119
+        doc_cte_res                 = wk_cte_res                "1677119
+        doc_trans_volumes           = wk_trans_volumes          "1844621
+        doc_trailer_info            = wk_trailer_info           "1844621
+        doc_trade_notes             = wk_trade_notes            "1844621
+        doc_add_info                = wk_add_info               "1844621
+        doc_ref_proc                = wk_ref_proc               "1844621
+        doc_sugar_suppl             = wk_sugar_suppl            "1844621
+        doc_sugar_deduc             = wk_sugar_deduc            "1844621
+        doc_vehicle                 = wk_vehicle                "1844621
+        doc_pharmaceut              = wk_pharmaceut             "1844621
+        doc_fuel                    = wk_fuel                   "1844621
+        doc_export                  = wk_export           "2057398
+        doc_nve                     = wk_nve                    "2046494
+      EXCEPTIONS
+        DOCUMENT_NOT_FOUND          = 1
+        UPDATE_PROBLEM              = 2
+        DOC_NUMBER_IS_INITIAL       = 3
+        OTHERS                      = 4.
+    IF sy-subrc <> 0.
+      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+      WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+  ENDIF.
+* end note 1577955
+
+*
+* deleted for SCAN - contingency check should be performed 1394582
+* before numbering                                         1394582
+** CONTINGENCY ?                                        "1362413
+*  perform check_contingency.                           "1362413
+
+  wk_header-follow = lv_follow.                              "1715926
+
+  CALL FUNCTION 'J_1B_NFE_UPDATE_ACTIVE' IN UPDATE TASK
+    EXPORTING
+      i_acttab     = ls_active
+      i_histtab    = ls_histtab
+      i_doc        = wk_header
+      i_updmode    = 'U'
+    EXCEPTIONS
+      update_error = 1
+      OTHERS       = 2.
+*
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.                                                     "1340451
+    call_messaging = 'X'.                                   "1340451
+  ENDIF.
+
+  IF lb_j_1bnfe_number IS BOUND.                          "2080205
+    CALL BADI lb_j_1bnfe_number->nfe_update_billdoc       "2080205
+      EXPORTING                                           "2080205
+        iv_bildoc =     lv_bildoc                         "2080205
+        iv_xblnr  =     lv_xblnr                          "2080205
+        iv_reftyp =     ls_item-reftyp                    "2080205
+        iv_refkey =     ls_item-refkey.                   "2080205
+  ENDIF.                                                  "2080205
+
+  CALL FUNCTION 'J_1B_NFE_RFCBATCH_DELETE' IN UPDATE TASK   "1416226
+    EXPORTING                                               "1416226
+      i_docnum = p_docnum.                                  "1416226
+  lv_entry_deleted = 'X'.                                   "1416226
+
+ENDFORM.                    "set_nfe_number
+
+*---------------------------------------------------------------------*
+*       FORM nota_fiscal_read                                         *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM nota_fiscal_read USING p_docnum TYPE j_1bdocnum.
+* get the key ----------------------------------------------------------
+  MOVE p_docnum TO wk_docnum.
+
+
+  CLEAR: xmlh, xmli, xmli_tab[] .
+
+* read the Nota Fiscal document ----------------------------------------
+  CALL FUNCTION 'J_1B_NF_DOCUMENT_READ'
+    EXPORTING
+      doc_number         = wk_docnum
+    IMPORTING
+      doc_header         = wk_header
+    TABLES
+      doc_partner        = wk_partner
+      doc_item           = wk_item
+      doc_item_tax       = wk_item_tax
+      doc_header_msg     = wk_header_msg
+      doc_refer_msg      = wk_refer_msg
+      doc_ot_partner     = wk_ot_partner                    "1240212
+      doc_import_di      = wk_import_di                     "1618780
+      doc_import_adi     = wk_import_adi                    "1618780
+      doc_cte_docref     = wk_cte_docref                    "1677119
+      doc_cte_res        = wk_cte_res                       "1677119
+      doc_trans_volumes  = wk_trans_volumes                 "1844621
+      doc_trailer_info   = wk_trailer_info                  "1844621
+      doc_trade_notes    = wk_trade_notes                   "1844621
+      doc_add_info       = wk_add_info                      "1844621
+      doc_ref_proc       = wk_ref_proc                      "1844621
+      doc_sugar_suppl    = wk_sugar_suppl                   "1844621
+      doc_sugar_deduc    = wk_sugar_deduc                   "1844621
+      doc_vehicle        = wk_vehicle                       "1844621
+      doc_pharmaceut     = wk_pharmaceut                    "1844621
+      doc_fuel           = wk_fuel                          "1844621
+      doc_export         = wk_export                      "2057398
+      doc_nve            = wk_nve                           "2046494
+    EXCEPTIONS
+      document_not_found = 1
+      docum_lock         = 2
+      OTHERS             = 3.
+
+ENDFORM.                               " NOTA_FISCAL_READ
+
+
+*&---------------------------------------------------------------------*
+*&      Form  NOTA_FISCAL_SEND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM nota_fiscal_send .
+
+
+* note 1471190: If there are any changes to the address master data
+* between creation and numbering/sending of the NF-e, the NF tables
+* have to be updated as well
+  DATA: ls_partner_address  TYPE j_1binnad,
+        ls_original_address TYPE j_1binnad,
+        lv_address_changed  TYPE flag.
+
+  DATA: lv_subrc like sy-subrc.                             "1777451
+
+  DATA lv_foreignid         TYPE j_1bnfe_foreignid.       "2075541
+
+
+* if not checked at numbering                           "1577955
+ IF lv_address_checked IS INITIAL.                      "1577955
+* check and compare address data
+* Step 1: Have header data changed?
+  CALL FUNCTION 'J_1B_NF_PARTNER_READ'
+    EXPORTING
+      partner_type                 = wk_header-partyp
+      partner_id                   = wk_header-parid
+      READ_ADDRESS                 = 'X'
+    IMPORTING
+      PARNAD                       = ls_partner_address
+    EXCEPTIONS
+      OTHERS                       = 3.
+  MOVE-CORRESPONDING wk_header TO ls_original_address.
+  MOVE wk_header-parxcpdk TO ls_original_address-xcpdk. "1514028
+  IF ls_partner_address <> ls_original_address.
+    lv_address_changed = 'X'.
+    lv_foreignid = wk_header-foreignid.                   "2075541
+    MOVE-CORRESPONDING ls_partner_address TO wk_header.
+    wk_header-foreignid = lv_foreignid.                   "2075541
+  ENDIF.
+
+* Step 2: Have partner data changed?
+  LOOP AT wk_partner.
+    CLEAR: ls_original_address, ls_partner_address.
+    CALL FUNCTION 'J_1B_NF_PARTNER_READ'
+      EXPORTING
+        partner_type                 = wk_partner-partyp
+        partner_id                   = wk_partner-parid
+        READ_ADDRESS                 = 'X'
+      IMPORTING
+        PARNAD                       = ls_partner_address
+      EXCEPTIONS
+        OTHERS                       = 3.
+    MOVE-CORRESPONDING wk_partner TO ls_original_address.
+    IF ls_partner_address <> ls_original_address.
+      lv_address_changed = 'X'.
+      MOVE-CORRESPONDING ls_partner_address TO wk_partner.
+      MODIFY wk_partner.
+    ENDIF.
+  ENDLOOP.
+* end note 1471190
+ ENDIF.                                                 "1577955
+
+  CALL FUNCTION 'J_1B_NF_MAP_TO_XML'
+   EXPORTING
+     i_nfdoc              = wk_header
+     i_acckey             = ls_acckey
+*     i_vbeln              = i_vbeln
+   IMPORTING
+     ev_msstat            = lv_msstat
+   TABLES
+     it_nflin             = wk_item
+     it_nfnad             = wk_partner
+     it_nfstx             = wk_item_tax
+     it_nfftx             = wk_header_msg
+     it_nfref             = wk_refer_msg
+     it_nfcpd             = wk_ot_partner
+*     it_vbfa              = it_vbfa
+     it_import_di         = wk_import_di                    "1590946
+     it_import_adi        = wk_import_adi                   "1590946
+     it_trans_volumes     = wk_trans_volumes                "1844621
+     it_trailer_info      = wk_trailer_info                 "1844621
+     it_trade_notes       = wk_trade_notes                  "1844621
+     it_add_info          = wk_add_info                     "1844621
+     it_ref_proc          = wk_ref_proc                     "1844621
+     it_sugar_suppl       = wk_sugar_suppl                  "1844621
+     it_sugar_deduc       = wk_sugar_deduc                  "1844621
+     it_vehicle           = wk_vehicle                      "1844621
+     it_pharmaceut        = wk_pharmaceut                   "1844621
+     it_fuel              = wk_fuel                         "1844621
+     it_export            = wk_export                     "1933985
+     it_nve               = wk_nve                        "2046494
+  EXCEPTIONS
+    rfc_failure          = 1
+    process_error        = 2                                "1469727
+    OTHERS               = 3.                               "1469727
+
+
+  lv_subrc = sy-subrc.                                      "1777451
+  IF lv_subrc <> 0.                                         "1777451
+* begin 1469727
+    IF lv_subrc = 2.                                        "1777451
+      CALL FUNCTION 'J_1B_NFE_UPDATE_ACTIVE' IN UPDATE TASK
+        EXPORTING
+          i_acttab     = ls_active
+          i_trace      = 'X'
+          i_updmode    = 'U'
+        EXCEPTIONS
+          update_error = 1
+          OTHERS       = 2.
+      COMMIT WORK.
+    ENDIF.
+* end 1469727
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'
+      EXPORTING
+        i_docnum = wk_header-docnum.
+  ENDIF.
+
+  IF lv_msstat CN ' ABCGV'.
+    sy-msgty = 'E'.
+    sy-msgid = 'J1B_NFE'.                                    "1530468
+    sy-msgno = '089'.
+    sy-msgv1 = lv_msstat.
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'
+      EXPORTING
+        i_docnum = wk_header-docnum.
+    EXIT.
+  ENDIF.
+
+* RFC failed or process error:                              "1955290
+* Next action send manually from monitor                    "1955290
+  IF lv_subrc IS NOT INITIAL AND                    "1777451 1955290
+   ( ls_active-callrfc = '2' OR                             "1955290
+     ls_active-callrfc = '3' ).                     "1777451 1955290
+     ls_active-callrfc = '1'.                               "1777451
+  ENDIF.                                                    "1777451
+
+  MOVE-CORRESPONDING ls_active TO ls_histtab.               "#EC ENHOK
+
+
+  IF lv_subrc IS INITIAL.                           "1777451 1955290
+     ls_active-scssta = '0'.
+     ls_active-msstat = lv_msstat.
+  ENDIF.                                                    "1777451
+
+* Check existing key entries for history table
+  CALL FUNCTION 'J_1B_NFE_HISTORY_COUNT'
+    CHANGING
+      ch_history = ls_histtab.
+
+* note 1471190: update NF tables with address changes
+  IF NOT lv_address_changed IS INITIAL.
+    CALL FUNCTION 'J_1B_NF_DOCUMENT_UPDATE' IN UPDATE TASK
+      EXPORTING
+        doc_number                  = wk_docnum
+        doc_header                  = wk_header
+      tables
+        doc_partner                 = wk_partner
+        doc_item                    = wk_item
+        doc_item_tax                = wk_item_tax
+        doc_header_msg              = wk_header_msg
+        doc_refer_msg               = wk_refer_msg
+        DOC_OT_PARTNER              = wk_ot_partner
+        doc_import_di               = wk_import_di              "1590946
+        doc_import_adi              = wk_import_adi             "1590946
+        doc_cte_docref              = wk_cte_docref             "1677119
+        doc_cte_res                 = wk_cte_res                "1677119
+        doc_trans_volumes           = wk_trans_volumes          "1844621
+        doc_trailer_info            = wk_trailer_info           "1844621
+        doc_trade_notes             = wk_trade_notes            "1844621
+        doc_add_info                = wk_add_info               "1844621
+        doc_ref_proc                = wk_ref_proc               "1844621
+        doc_sugar_suppl             = wk_sugar_suppl            "1844621
+        doc_sugar_deduc             = wk_sugar_deduc            "1844621
+        doc_vehicle                 = wk_vehicle                "1844621
+        doc_pharmaceut              = wk_pharmaceut             "1844621
+        doc_fuel                    = wk_fuel                   "1844621
+        doc_export                  = wk_export           "1933985
+        doc_nve                     = wk_nve              "2046494
+      EXCEPTIONS
+        DOCUMENT_NOT_FOUND          = 1
+        UPDATE_PROBLEM              = 2
+        DOC_NUMBER_IS_INITIAL       = 3
+        OTHERS                      = 4.
+    IF sy-subrc <> 0.
+      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+      WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+  ENDIF.
+* end note 1471190
+
+  CALL FUNCTION 'J_1B_NFE_UPDATE_ACTIVE' IN UPDATE TASK
+    EXPORTING
+      i_acttab     = ls_active
+      i_histtab    = ls_histtab
+      i_updmode    = 'U'
+    EXCEPTIONS
+      update_error = 1
+      OTHERS       = 2.
+
+  IF lv_entry_deleted IS INITIAL.                           "1416226
+    CALL FUNCTION 'J_1B_NFE_RFCBATCH_DELETE' IN UPDATE TASK "1340451
+      EXPORTING                                             "1340451
+        i_docnum = ls_j_1bnferfcbatch-docnum.               "1340451
+    lv_entry_deleted = 'X'.                                 "1416226
+  ENDIF.                                                    "1416226
+
+  COMMIT WORK.                                              "1340451
+
+ENDFORM.                    " NOTA_FISCAL_SEND
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_CONTINGENCY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM check_contingency .                                    "1362413
+*                                                  "1362413
+  DATA: ls_j_1baa TYPE j_1baa.                              "1362413
+*                                                  "1362413
+  CLEAR lv_conting_1a.                                      "1394582
+* check contingency                                "1362413
+  CALL FUNCTION 'J_1B_NFE_PROCESS_OUTBOUND'                 "1362413
+    EXPORTING                                               "1362413
+      i_docnum              = wk_header-docnum              "1362413
+      i_checkconting        = 'X'                           "1362413
+    CHANGING                                                "1362413
+      cs_header             = wk_header                     "1362413
+    EXCEPTIONS                                              "1362413
+      ex_contingency        = 1                             "1362413
+      OTHERS                = 2                             "1362413
+      .                                                     "1362413
+  IF sy-subrc <> 0.                                         "1362413
+* set contingency to avoit sending XML             "1362413
+    lv_contingency = 'X'.                                   "1362413
+*                                                  "1362413
+    CALL FUNCTION 'J_1B_NFE_ERROR_PROTOKOLL'                "1362413
+      EXPORTING                                             "1362413
+        i_docnum = wk_header-docnum.                        "1362413
+*                                                  "1362413
+    CALL FUNCTION 'J_1B_NFE_RFCBATCH_DELETE'                "1362413
+       IN UPDATE TASK                                       "1362413
+     EXPORTING                                              "1362413
+       i_docnum = wk_header-docnum                          "1362413
+       i_dontreadactive = 'X'                               "1362413
+       i_callrfc = ls_active-callrfc.                       "1362413
+*                                                  "1362413
+    CALL FUNCTION 'J_1BAA_READ'                             "1362413
+      EXPORTING                                             "1362413
+        nota_fiscal_type = wk_header-nftype                 "1362413
+      IMPORTING                                             "1362413
+        e_j_1baa         = ls_j_1baa                        "1362413
+      EXCEPTIONS                                            "1362413
+        not_found                  = 1                      "1362413
+        parameters_incorrect       = 2                      "1362413
+        OTHERS                     = 3                      "1362413
+          .                                                 "1362413
+    IF sy-subrc <> 0.                                       "1362413
+      MESSAGE ID sy-msgid                                   "1362413
+              TYPE sy-msgty                                 "1362413
+              NUMBER sy-msgno                               "1362413
+           WITH sy-msgv1 sy-msgv2                           "1362413
+                sy-msgv3 sy-msgv4.                          "1362413
+    ENDIF.                                                  "1362413
+*                                                  "1362413
+* set contingency only when it remains  NF-e       "1362413
+* for those which are switched to model 1/1A       "1362413
+* the switch must be done manually                 "1362413
+*                                                  "1362413
+    IF ls_j_1baa-nftypeconti IS INITIAL.                    "1362413
+      ls_active-conting = 'X'.                              "1362413
+      wk_header-conting = 'X'.                              "1362413
+      CALL FUNCTION 'J_1B_NFE_CONTIN_REASON_READ'           "1451966
+        EXPORTING                                           "1451966
+          is_header               = wk_header               "1451966
+        CHANGING                                            "1451966
+          cs_active               = ls_active               "1451966
+        EXCEPTIONS                                          "1451966
+          reason_not_determined   = 1                       "1451966
+          OTHERS                  = 2.                      "1451966
+
+      IF sy-subrc <> 0.                                     "1451966
+*          No handling for version 1,10               "1451966
+      ENDIF.                                                "1451966
+      CLEAR ls_active-callrfc.                              "1362413
+    ELSE.                                                   "1394582
+      lv_conting_1a = 'X'.                                  "1394582
+    ENDIF.                                                  "1362413
+  ENDIF.                                                    "1362413
+*                                                  "1362413
+ENDFORM.                    " CHECK_CONTINGENCY    "1362413
+
+
+*Selection texts
+*----------------------------------------------------------
+* SO_BRNCH D       .
+* SO_BUKRS D       .
+* SO_DOCNM D       .
+* SO_VSTEL D       .
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

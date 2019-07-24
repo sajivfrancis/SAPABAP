@@ -1,0 +1,93 @@
+*&---------------------------------------------------------------------*
+*& Report  J_1BNFECHECKNUMBERRANGES
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  J_1BNFECHECKNUMBERRANGES message-id j1b_nfe.
+* Select-options & data definitions
+include j_1bnfechecknumberranges_data.
+* Main Program
+include j_1bnfechecknumberranges_main.
+
+*======================================================================
+* S U B R O U T I N E S
+*======================================================================
+include j_1bnfechecknumberranges_f01.  "lock_view
+include j_1bnfechecknumberranges_f02.  "update_j_1bnfenumcheck
+include j_1bnfechecknumberranges_f03.  "read_nftypes
+include j_1bnfechecknumberranges_f04.  "read_used_number_ranges
+include j_1bnfechecknumberranges_f05.  "read_checked_numbers
+include j_1bnfechecknumberranges_f06.  "check_nfenum_in_db
+include j_1bnfechecknumberranges_f07.  "prepare_update
+include j_1bnfechecknumberranges_f08.  "read-branches
+include j_1bnfechecknumberranges_f09.  "fill_gaps
+include j_1bnfechecknumberranges_f10.  "read_nfe_customizing3
+include j_1bnfechecknumberranges_f11.  "fill_xml_interface
+include j_1bnfechecknumberranges_f12.  "read_jurisdiction_info
+include j_1bnfechecknumberranges_f13.  "check_right_boundary
+include j_1bnfechecknumberranges_f14.  "check_left_boundary
+include j_1bnfechecknumberranges_f15.  "check_leading_zeroes
+include j_1bnfechecknumberranges_f16.  "read_nfdoc
+include j_1bnfechecknumberranges_f17.  "compress_ranges
+include j_1bnfechecknumberranges_f18.  "call_rfc
+include j_1bnfechecknumberranges_f19.  "list_display
+
+*======================================================================
+* M O D U L E S
+*======================================================================
+include j_1bnfechecknumberranges_o10.  "create_objects
+include j_1bnfechecknumberranges_o20.  "status_0100
+include j_1bnfechecknumberranges_i10.  "exit_100
+
+INCLUDE J_1BNFECHECKNUMBERRANGES_F20.
+
+*GUI Texts
+*----------------------------------------------------------
+* 001 --> NF-e Number Gaps
+
+*Text elements
+*----------------------------------------------------------
+* 001 Organizational Data
+* 002 Request Data
+* 003 No valid Nota Fiscal Types maintained for processing
+* 004 Update error J_1BNFENUMCHECK
+* 005 No selection made for inserted options
+* 006 Update error J_1BNFENUMGAP
+* 007 Output
+* 008 Activate RFC
+* 009 List
+* 010 NF-e Number Gaps
+
+
+*Selection texts
+*----------------------------------------------------------
+* P_ALV         ALV-List
+* P_MODEL D       .
+* P_REASON D       .
+* P_RFCCAL         Execute RFC
+* P_RFC_AS         Asynchronous
+* P_RFC_SY         Synchronous
+* P_TEST         Test Run (No RFC Execution)
+* SO_BRANC D       .
+* SO_BUKRS D       .
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 00
+*368   &1 &2
+*398   & & & &
+*
+* Message class: SV
+*028   Table & not in DDIC
+*037   The maintenance dialog for & is incomplete or not defined
+*049   Data locked by user & (display only)
+*050   System error: Unable to lock table/view &
+*054   Maintenance of data in current client & not permitted
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

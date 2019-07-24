@@ -1,0 +1,178 @@
+*&---------------------------------------------------------------------*
+*& Report  RFIDESM340
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  RFIDESM340 LINE-SIZE 502 MESSAGE-ID IDFIES.
+
+INCLUDE <icon>.
+INCLUDE RPFIESM340_DATA.               "Data Declaration
+INCLUDE RPFIESM340_SELECTION.          "Selecetion screen
+INCLUDE RPFIESM340_MAIN.               "Main Processing
+INCLUDE RPFIESM340_FORMS.              "Subroutines
+INCLUDE MAKE_RLDNR_INVISIBLE.
+
+*Text elements
+*----------------------------------------------------------
+* 006 Only for repeat run:
+* 033 You are not authorized to execute the transaction SM30
+* 034 You are not authorized to execute the transaction TC_INCASH_M340_ES
+* 035 You are not authorized to execute the transaction TC_RENT_M340_ES
+* 036 You are not authorized to execute the transaction FB03
+* 056 Click to Display Incash History
+* 100 View Customizing Table for Operation Key
+* 101 Further Selections
+* 102 Tax Payable Postings
+* 103 Output Control
+* 104 Posting Parameters
+* 105 Output List
+* 106 General Selection Criteria
+* 109 Spain Model-340
+* 110 Document numbering
+* 111 Reporting Period
+* 112 /
+* 113 Declaration Type
+* 114 Output Medium
+* 115 Incash Payment
+* 116 Subsidies
+* 117 Sales of Building
+* 201 Rec Type
+* 202 Model
+* 203 Fiscal Year
+* 204 Declarer ID
+* 205 Declearer Name
+* 206 Op. Type
+* 207 Phone Number
+* 208 Contact Person Name
+* 209 Decleration ID
+* 210 Comp. Dec.
+* 211 Subs. Decl.
+* 212 Prev. Dec. ID.
+* 213 Period
+* 214 Total Record
+* 215 Sign
+* 216 Tax Base Amount
+* 217 Total Tax Amount
+* 218 Total Invoice Amount
+* 219 Minor FID. Num.
+* 220 Electronic Seal
+* 221 Fiscal Id. Nm
+* 222 Fid. Legal. Rep
+* 223 Business Partner Name
+* 224 Country
+* 225 Key Fid
+* 226 Fiscal Id. Res. Country.
+* 227 Book Type
+* 228 Operation Key
+* 229 Doc. Date
+* 230 VATDATE
+* 231 Rate
+* 232 Tax Amount At Cost
+* 233 Invoice Identification
+* 234 Document Number
+* 235 Number Of Invoices
+* 236 Number of Record
+* 237 First Interval
+* 238 Last Interval
+* 239 Identification Of Invoice Modified
+* 240 Eq. VAT Rt.
+* 241 Eq. Vat Amt
+* 242 Ded. VtAmt.
+* 243 Building location
+* 244 Cadastral reference
+* 245 Incash Amt
+* 246 Year
+* 247 Building Amt
+* 248 Fiscal year
+* 249 View History Table for Incash Payment
+* 250 View Customizing Table for Building Location
+* 251 Bussiness Partner Number
+* 252 Invoice Year
+* 253 BP Tax-Id
+* 254 Click to Download the File
+* 256 Pay.Date.
+* 257 Pay.Amnt.
+* 258 Pay.Meth.
+* 259 Pay.Meth. ID.
+
+
+*Selection texts
+*----------------------------------------------------------
+* BLD_NUM         Document Number
+* B_CHECK         Calculate Building Trans
+* DOC_NUM         Document Number
+* EXT_GRA         Document Type
+* EXT_LAN         Document Type
+* E_SEAL         Ele. Code for VAT Return
+* FILE_OP1         Normal Declaration
+* FILE_OP2         Complementary Declaration
+* FILE_OP3         Substitute Declaration
+* IC_CHECK         Calculate Incash Payment
+* IC_DET         Detailed List of Incash
+* IC_HIS         Update Incash History
+* IC_YEAR         Include Previous Years
+* OP_KEY         Operation Key
+* PAR_ADAT         Start Date
+* PAR_BDAT         Posting Date
+* PAR_BINA         Batch input session name
+* PAR_BINP         Batch input session required
+* PAR_BLAR         Document type
+* PAR_BSUD         Update documents: Update run
+* PAR_BUPL         Update documents: Test run
+* PAR_DEF         Select Deferred Tax
+* PAR_FDAT         Tax payable due on
+* PAR_FILE         File name
+* PAR_JAHR
+* PAR_KUKP         Do not update documents
+* PAR_LINE         Additional Heading
+* PAR_MONA         Posting period
+* PAR_NAVA         Increase base amount by non-de
+* PAR_NOHE         Short header will be output
+* PAR_QUAR
+* PAR_REID         Report number
+* PAR_SNIN         First number - Input tax
+* PAR_SNOU         First number - Output tax
+* PAR_SOFA         BI immed.
+* PAR_SORT         Sort indicator
+* PAR_STAT         No Print of Statistical Infos
+* PAR_UDTR         Save document and page numbers
+* PAR_VAR1         Output Tax Line Items
+* PAR_VAR2         Output Tax Total
+* PAR_VAR3         Input Tax Line Items
+* PAR_VAR4         Input Tax Total
+* PAR_VAR6         Balance Per Company Code
+* PAR_XADR         Read address data
+* PAR_XFWA         Read foreign currency
+* PAR_XSAU         Select Output Tax
+* PAR_XSHT         Divide totals by debit/credit
+* PAR_XSTW         Country C instead of local C
+* PAR_XSVO         Select Input Tax
+* PAR_ZEIT         Start time
+* PAR_ZKTO         Tx payable ac
+* P_DECL1         Previous Declaration C
+* P_DECL2         Previous Declaration S
+* P_FILE         Create File
+* P_IC         Cash Limit for Incash Tran.
+* P_VATRT         VAT Rate
+* SAKNR_IC         Cash G/L account
+* SEL_BLDT         Document Date
+* SEL_KTOS         Transaction
+* SEL_LSTM         Country for tax return
+* SEL_MONA         Posting Period
+* SEL_MWKZ         Tax on sales/purchases code
+* SEL_TMDT         Date of Tax Return
+* SEL_TMTI         Time of Tax Return
+* SEL_UKRS         Taxes on sales/purchase group
+* SEL_UMSK         Special G/L ind.
+* SEL_VTDT         Tax Reporting Date
+* SKONTO         G/L Account
+* S_CHECK         Calculate Subsidies
+* S_INCASH         Document Type
+* T_OPMD1         Compact Disk
+* T_OPMD2         Telematic
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

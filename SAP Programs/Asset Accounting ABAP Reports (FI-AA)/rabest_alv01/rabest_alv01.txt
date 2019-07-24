@@ -1,0 +1,572 @@
+*&---------------------------------------------------------------------*
+*& Report  rabest_ALV01                                                *
+*&         mit ALV Unterstützung                                       *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT rabest_alv01 MESSAGE-ID ab
+                    LINE-SIZE 130
+                    NO STANDARD PAGE HEADING.
+
+* Reportspezifische NODES Anweisungen
+NODES: anla0,               " Einstiegstabelle log.Datenbank ADA
+       anlav,               " Anlagenreporting: ANLA-Felder + Kst...
+       anlb,                           " Abschreibungsparameter
+       anek,                           " Belegkopf Anlagenbuchung
+       anepv,               " Anlagen-Einzelposten (ANEP + ANEA + ANEK)
+       anlcv.               " Anlagenreporting: ANLC-Felder + Summen
+
+
+* Allgemeine DATA-, TABLES-, ... Anweisungen.
+INCLUDE rasort_alv04.
+INCLUDE rasort_alv_data_fieldcat.
+INCLUDE ra_general_declaration.                           ">1496486
+
+* Start of note 1496486
+* Structur for fieldcatalog
+CONSTANTS: gc_salvtab_line  TYPE string VALUE 'FIAA_SALVTAB_RABEST'.
+CONSTANTS: gc_salvtab_sum   TYPE string VALUE 'FIAA_SALVTAB_SUMB'.
+* End of note 1496486
+
+* Feldgruppen definieren -> header für die Seitenüberschriften
+FIELD-GROUPS: header.
+
+DATA:
+*     Anzahl der im Anforderungsbild erlaubten AfA-Bereiche.
+      sav_anzbe(1) TYPE c VALUE '1',
+*     Flag: Postenausgabe Ja='1'/Nein='0'.
+      flg_postx(1) TYPE c VALUE '0',
+*     Summenbericht: Maximale Anzahl Wertfelder/Zeile.
+      con_wrtzl(2) TYPE p VALUE 3.
+
+* Ausgabe-Wertfelder.
+DATA: BEGIN OF x,
+*       Kumulierter Anschaffungswert einschliesslich Inv-Zus und Aufw.
+        kansw       LIKE anlcv-answ_gje,
+*       Kumulierte Gesamt-AfA einschliesslich Aufw N-AfA.
+        kumafa      LIKE rarep-kumafa,
+*       Restbuchwert einschliesslich Inv-Zus und Aufw.
+        bchwrt      LIKE anlcv-bchwrt_gje,
+      END OF x.
+
+* Beginn der Beschreibung des Bildschirmes für die Dateneingabe
+
+* Block 'Weitere Selektionen'
+***************************************************************
+
+SELECTION-SCREEN BEGIN OF BLOCK bl0 WITH FRAME TITLE text-bl0.
+PARAMETERS: p_vari TYPE disvariant-variant,
+            p_grid TYPE xgrid.
+SELECTION-SCREEN END OF BLOCK bl0.
+
+SELECTION-SCREEN BEGIN OF BLOCK bl1                         "VCL
+                 WITH FRAME                                 "VCL
+                 TITLE text-bl1.                            "VCL
+SELECT-OPTIONS:
+*                 Anlagenbestandkonto.
+                so_ktanw FOR anlav-ktansw NO DATABASE SELECTION,
+*                 Aktivierungsdatum.
+                so_aktiv FOR anlav-aktiv,
+*                 Aktueller Anschaffungswert.
+                so_kansw FOR x-kansw,
+*                 Kumulierte gesamte AfA.
+                so_kumaf FOR x-kumafa,
+*                 Aktueller Buchwert.
+                so_bchwr FOR x-bchwrt.
+SELECTION-SCREEN END   OF BLOCK bl1.                        "VCL
+
+SELECTION-SCREEN SKIP.
+
+* Block "Weitere Einstellungen"
+***************************************************************
+SELECTION-SCREEN BEGIN OF BLOCK bl2                         "AB
+                 WITH FRAME                                 "AB
+                 TITLE text-bl2.                            "AB
+PARAMETERS:
+* Gitterversion.
+          pa_xgbaf LIKE anla0-xgbaf.
+SELECTION-SCREEN END   OF BLOCK bl2.                        "AB
+SELECTION-SCREEN SKIP.
+
+* Block "Zusatzangaben Batchlauf"
+***************************************************************
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN BEGIN OF BLOCK bl4                         "AB
+                 WITH FRAME                                 "AB
+                 TITLE text-c03.                            "AB
+PARAMETERS:
+*             Zusatzueberschrift.
+            pa_titel LIKE rarep-titel DEFAULT space,
+*             Flag: Listseparation gemaess Tabelle TLSEP.
+*            pa_lssep LIKE bhdgd-separ,               "no 394136
+*             Flag: Mikrofichezeile ausgeben.
+            pa_mikro LIKE bhdgd-miffl.
+SELECTION-SCREEN END   OF BLOCK bl4.                        "VCL
+* SAP-Intern
+SELECT-OPTIONS: so_deakt FOR anlav-deakt DEFAULT '18000101'
+                                              TO '18000101'
+                                         SIGN     e
+                                         OPTION   bt
+                                         NO-DISPLAY.
+
+INITIALIZATION.
+* Titel setzen bei Workflow.
+  IF sy-tcode = 'AR32'.                " Erzeugen Arbeitsvorrat
+    SET TITLEBAR '004' OF PROGRAM 'SAPLAREP'.
+  ENDIF.
+
+* Sortiervariante vorschlagen.
+  MOVE: '0001' TO srtvr.
+* ALV Grid NICHT als Standard vorschlagen
+*  MOVE: ' '    TO p_grid.
+
+* Report wird nicht von außen aufgerufen. Lesen der PickUp-Informationen
+* aus dem Memory d.h. der ursprünglich eingegebenen Programmabgrenzungen
+  IMPORT flg_not_first FROM MEMORY ID 'flg'.
+
+* Allgemeine Verarbeitung der PA/SO-Eingaben.
+  INCLUDE rasort_alv08.
+* Bei Gebuchtwerten auch deaktive Anlagen anzeigen
+  if not pa_xgbaf is initial.
+     refresh so_deakt.
+  endif.
+
+* Process on value request
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_vari.
+  PERFORM varianten_auswahl CHANGING p_vari.
+
+* Pruefung, Berichtsdatum bei Gebuchtwerten
+AT SELECTION-SCREEN ON pa_xgbaf.
+  IF not pa_xgbaf is initial.
+     *anla0-xgbaf = anla0-xgbaf = pa_xgbaf.
+  ENDIF.
+
+AT SELECTION-SCREEN ON berdatum.
+* Berichtsdatum als Abgrenzung für Deaktivierung
+  anlav-deakt     = berdatum - 1.
+  so_deakt-high   = anlav-deakt.
+  MODIFY  so_deakt INDEX 1 TRANSPORTING high.
+  IF sy-subrc <> 0.                                            "> 778287
+    INSERT so_deakt INDEX 1.                                   "> 778287
+  ENDIF.                                                       "> 778287
+
+AT SELECTION-SCREEN OUTPUT.
+* Ausblenden des Feldes XUNTNR und des dazugehörigen Textfeldes
+*  PERFORM felder_ausblenden USING 'XUNTNR' '%F301122_1000'.
+*
+
+*---------------------------------------------------------------------*
+
+START-OF-SELECTION.
+
+* Titel ändern bei gebuchter Abschreibung
+  IF sy-tcode <> 'AR32'.
+    IF not pa_xgbaf is initial.
+      SET TITLEBAR 'POS' OF PROGRAM 'SAPLAREP'.
+    ENDIF.
+  ENDIF.
+
+* Sichern der Selektionsoptionen bzw. Einlesen der Sortierwerte bei
+* PickUp.
+  PERFORM info_pick_up.
+
+* Bestimmung des Sortierfeldes auf unterster Gruppenstufe.
+  ASSIGN sav_dummy TO <b>.
+* Bestimmung des Sortierfeldes fuer Gitterposition oder Einzelposten.
+  ASSIGN sav_dummy TO <p>.
+  ASSIGN sav_dummy TO <q>.
+
+* Allgemeines Coding nach START-OF-SELECTION.
+  INCLUDE rasort_alv10.
+
+* Steuerungskennzeichen für LDB setzen
+   *anla0-xgbaf = pa_xgbaf.
+
+* Setzen der UserStrukturen für die log. Datenbank
+* (2 Stück - für Header und Item Tabelle)
+   *anla0-selfield_structure1 = 'CI_REPRABEST'.
+   *anla0-selfield_structure2 = ''.
+
+* Start of note 1496486
+*  Create outfile for ALV - Header-Line and
+*  field catalog for this report
+   IF summb IS INITIAL.
+     gd_linetyp = gc_header.
+     PERFORM init_fieldcat.
+     PERFORM create_outfile_alv USING gd_linetyp
+                                      p_table              ">spc_1751706
+                                      srtvr
+                                      gc_salvtab_line.
+   ELSE.
+     IF p_table = con_x.                                   ">spc_1751706
+       MESSAGE E825(AA).                                   ">spc_1751706
+     ENDIF.                                                ">spc_1751706
+     gd_linetyp = gc_header.
+     PERFORM init_fieldcat_sum.
+     PERFORM create_outfile_alv USING gd_linetyp
+                                      p_table               ">spc_1751706
+                                      srtvr
+                                      gc_salvtab_sum.
+     CALL FUNCTION 'FIAA_FIELDCAT_READ_VALUE'
+         TABLES  t_fieldcat_value = gt_fieldcat_value.
+   ENDIF.
+* End of note 1496486
+
+GET anla0.
+
+* Angabe der NICHT-KEY-Felder aus der Datenbank
+GET anlav FIELDS aktiv  ktogr  txt50
+                 txa50  zugdt  deakt  xanlgr.
+
+  CHECK SELECT-OPTIONS.
+
+* sollte Folgendes nicht lieber in die logische DB?
+* Nur Anlagen seleketieren, die aktiviert wurden ...
+  CHECK not anlav-zugdt is initial.
+* ... und zwar vor dem Berichtsdatum.
+  CHECK     anlav-zugdt le berdatum.
+
+* Verarbeitungen ON CHANGE OF ANLAV-XXXXX.
+  INCLUDE rasort14.
+
+* Im VJ deaktivierte Anlagen nicht selektieren.
+  IF not anlav-deakt is initial.
+    CHECK anlav-deakt ge sav_gjbeg.
+* Zeitpunktbezogene Liste -- alle deaktivierten vor dem Berichtsdatum
+* nicht selektieren
+    IF pa_xgbaf is initial.
+      IF berdatum ne sav_gjbeg.
+        CHECK anlav-deakt gt berdatum.
+      ELSE.
+* Falls Berichtsdatum = Jahresbeginn müssen auch am 01.01 deaktivierte
+* reinfließen
+        CHECK anlav-deakt ge berdatum.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  ON CHANGE OF anlav-bukrs.
+*   Individueller Teil des Headers
+    WRITE: '-'       TO head-info1,
+           bereich1  TO head-info2,
+           sav_afbe1 TO head-info3.
+*
+    CONDENSE head.
+  ENDON.
+
+* keine Bereichsdaten erforderlich
+GET anlb FIELDS anln1.
+
+GET anlcv.
+
+
+* Kumulierter Anschaffungswert einschliesslich Inv-Zus und Aufw.
+  x-kansw     = anlcv-answ_gje.
+* Kumulierte Gesamt-AfA als Differenz.
+  x-kumafa    = anlcv-afa_gje.         " x-bchwrt - x-kansw.
+* Buchwert GJ-Ende.
+  x-bchwrt    = anlcv-bchwrt_gje.
+
+  CHECK x-kansw  in SO_KANSW.
+  CHECK x-kumafa in SO_Kumaf.
+  CHECK x-bchwrt in SO_bchwr.
+
+* Start of note 1496486
+* Daten gegen Sortierwerte beim PickUp checken.
+* passiert in "prepare_sort_fields"
+*** PERFORM sort_check.
+
+  PERFORM prepare_sort_fields.
+  PERFORM fill_outtab_line.                               "
+* End of note 1496486
+
+END-OF-SELECTION.
+
+*---------------------------------------------------------------------*
+
+************************************************************************
+* Ausgabe der internen Tabelle mit dem ALV *****************************
+************************************************************************
+
+  PERFORM tcollect_fuellen.
+
+* Start of note 1496486
+  IF summb eq space.
+    gd_tabname_header = gc_tabname_header.
+  ELSE.
+    gd_tabname_header = gc_tabname_sum.
+  ENDIF.
+
+  CALL FUNCTION 'FIAA_ALV_DISPLAY'
+       EXPORTING
+            use_alv_grid       = p_grid
+            variante           = p_vari
+            tabname_header     = gd_tabname_header
+            summen_bericht     = summb
+            x_t086             = t086
+            tcollect           = tcollect
+       TABLES
+            itab_header        = <itab_data>[]
+            bukrs              = bukrs[]
+            sortfeld           = feld[]
+            itab_errors        = gt_anfm[].                 "> 1002552
+* End of noter 1496486
+
+
+*---------------------------------------------------------------------*
+*       FORM INIT_FIELDCAT                                            *
+*---------------------------------------------------------------------*
+*       Feldkatalog für den ABAP Listviewer aufbauen.                 *
+*       Dies ist der Default-Feldkatalog, der in der Auslieferung     *
+*       vorgegeben wird. Das Aussehen kann speziell mit den Anzeige-  *
+*       varianten angepasst werden. Welche Felder überhaupt zur       *
+*       Verfügung stehen, _muss_ hier definiert werden.               *
+*---------------------------------------------------------------------*
+FORM init_fieldcat.
+
+* Es wird nicht mehr der Standard Feldkatalog für die internen
+* Tabellen benutzt, sondern dieser selbst aufgebaut!
+
+**********
+* Field catalog - sort fields S1 - max. S5 from sort variant
+  PERFORM fieldcat_s_fields_define2 USING 'ITAB_DATA'     ">1496486
+                                           'S'.           ">1868621
+*
+**********
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'ANLN0'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'ANLAV'.
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING
+            fieldcat_line = x_fieldcat.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'ANLN2'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'ANLAV'.
+  if XUNTNR = 'X'.                                           "no 332180
+    x_fieldcat-no_out        = 'X'.                          "no 332180
+  endif.                                                     "no 332180
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING
+            fieldcat_line = x_fieldcat.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'AKTIV'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'ANLAV'.
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING
+            fieldcat_line = x_fieldcat.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'TXT50'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'ANLAV'.
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING
+            fieldcat_line = x_fieldcat.
+
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_BTR'
+       EXPORTING
+            num     = 1
+            text    = text-w01
+            tabname = 'ITAB_DATA'.
+
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_BTR'
+       EXPORTING
+            num     = 2
+            text    = text-w02
+            tabname = 'ITAB_DATA'.
+
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_BTR'
+       EXPORTING
+            num     = 3
+            text    = text-w03
+            tabname = 'ITAB_DATA'.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'WAERS'.
+  x_fieldcat-tabname       = 'ITAB_DATA'.
+  x_fieldcat-ref_tabname   = 'T093B'.
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING
+            fieldcat_line = x_fieldcat.
+
+* Field catalog - field from the dynamic selection
+  PERFORM fieldcat_s_fields_define2 USING 'ITAB_DATA'      ">1868621
+                                          'D'.             ">1868621
+
+
+* User Felder an den Feldkatalog anhängen.
+* ACHTUNG: Auf korrekten Struktur- und Tabellen-Namen achten!
+  PERFORM fieldcat_user_fields_append USING *anla0-selfield_structure1
+                                            'ITAB_DATA'.
+
+ENDFORM.
+
+*---------------------------------------------------------------------*
+*       FORM INIT_FIELDCAT_SUM                                        *
+*---------------------------------------------------------------------*
+*       Feldkatalog für Gruppensummen definieren                      *
+*---------------------------------------------------------------------*
+FORM init_fieldcat_sum.
+
+* Pflichtteil!
+  PERFORM fieldcat_s_fields_define2 USING 'SUMTAB_DATA_S'  ">1496486
+                                          'S'.             ">1868621
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'TEXT'.
+  x_fieldcat-seltext_l     = text-004.
+  x_fieldcat-reptext_ddic  = text-004.
+  x_fieldcat-tabname       = 'SUMTAB_DATA_S'.
+  x_fieldcat-outputlen     = 30.
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING
+            fieldcat_line = x_fieldcat.
+
+* Kürteil!
+* Jetzt folgen die individuellen Betragsfelder
+
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_BTR'
+       EXPORTING
+            num     = 1
+            text    = text-w01
+            tabname = 'SUMTAB_DATA_S'.
+
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_BTR'
+       EXPORTING
+            num     = 2
+            text    = text-w02
+            tabname = 'SUMTAB_DATA_S'.
+
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_BTR'
+       EXPORTING
+            num     = 3
+            text    = text-w03
+            tabname = 'SUMTAB_DATA_S'.
+
+  CLEAR x_fieldcat.
+  x_fieldcat-fieldname     = 'WAERS'.
+  x_fieldcat-tabname       = 'SUMTAB_DATA_S'.
+  x_fieldcat-ref_tabname   = 'T093B'.
+  CALL FUNCTION 'FIAA_FIELDCAT_ADD_FIELD'
+       EXPORTING
+            fieldcat_line = x_fieldcat.
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_OUTTAB_LINE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+* Start of Note 1496486
+FORM FILL_OUTTAB_LINE.
+
+  MOVE-CORRESPONDING anlb TO  <itab_line>.
+  MOVE-CORRESPONDING anlav TO <itab_line>.
+
+* Die 3 Wertfelder zur Ausgabe
+  ASSIGN COMPONENT 'BTR1' OF STRUCTURE <itab_line> TO <field>.
+    <field> = x-kansw.
+  ASSIGN COMPONENT 'BTR2' OF STRUCTURE <itab_line> TO <field>.
+    <field> = x-kumafa.
+  ASSIGN COMPONENT 'BTR3' OF STRUCTURE <itab_line> TO <field>.
+    <field> = x-bchwrt.
+* Die Währung zur Ausgabe
+  ASSIGN COMPONENT 'WAERS' OF STRUCTURE <itab_line> TO <field>.
+    <field> = sav_waer1.
+* Alles in der Tabelle ist auswählbar!
+  ASSIGN COMPONENT 'FLG_PICK_UP' OF STRUCTURE <itab_line> TO <field>.
+    <field> = con_x.
+* Alle Einträge in der ersten Stufe
+  ASSIGN COMPONENT 'RANGE' OF STRUCTURE <itab_line> TO <field>.
+    <field> = 1.
+* Die Datenzeilen sind immer in der vollen Sortierung
+* == Anzahl Summenstufen
+  ASSIGN COMPONENT 'HLP_LEVEL' OF STRUCTURE <itab_line> TO <field>.
+    <field> = con_srtst.
+
+
+* Bestand für Summenbericht aufbereiten
+  IF summb ne space.
+    PERFORM add_or_collect USING    <itab_line>
+                                    gt_fieldcat_value
+                           CHANGING <itab_data>.
+  ELSE.
+    APPEND <itab_line> TO <itab_data>.
+  ENDIF.
+
+  PERFORM store_errors.
+
+ENDFORM.                    " FILL_OUTTAB_LINE
+* End of Note 1496486
+
+
+* Allgemeine FORM-Routinen.
+INCLUDE rasort_alv_misc.
+
+* start of note 1496486
+* Formroutinen für den ABAP List Viewer (neue variable Ausgabe für ALV)
+INCLUDE rasort_alv_prepare_table2.      " Feldcatalog/Layout/Sort vorber.
+INCLUDE rasort_alv_tools2.              " diverse Forms
+* End of note 1496486
+
+*Text elements
+*----------------------------------------------------------
+* 001 Main number
+* 002 SNo
+* 003 Cap.date
+* 004 Description
+* 024 Generated variant
+* AV1 Add to worklist
+* AV2 Which assets
+* AV3 would you like
+* AV4 to add to the worklist?
+* AV5 Selected asset
+* AV6 All assets
+* BL0 Display options
+* BL1 Further selections
+* BL2 Further settings
+* C03 Add. Batch Run Specif.
+* F10 Error Message Long Text
+* U01 Report date:
+* U02 Date created:
+* W01     Acquis.val.
+* W02      Accum.dep.
+* W03       Book val.
+
+
+*Selection texts
+*----------------------------------------------------------
+* PA_LSSEP         List Separation
+* PA_MIKRO         Print microfiche line
+* PA_TITEL         Additional heading
+* PA_XGBAF         Current book value
+* P_GRID         Use ALV grid
+* P_VARI         Display variant
+* SO_AKTIV         Capitalization date
+* SO_BCHWR         Book value
+* SO_KANSW         Acquisition value
+* SO_KTANW         Balance sheet account
+* SO_KUMAF         Accumulated depreciation
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: AA
+*825   Either incorrect entry or incorrect function
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

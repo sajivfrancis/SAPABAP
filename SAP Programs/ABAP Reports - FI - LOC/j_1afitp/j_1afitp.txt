@@ -1,0 +1,166 @@
+*----------------------------------------------------------------------*
+*   INCLUDE J_1AFITP                                                   *
+*----------------------------------------------------------------------*
+TABLES: T001,
+        T009,
+        SKA1,
+        SKB1,
+        *SKB1,
+        GLT0,
+        SKC1A,
+        SKC1C,
+        BSIS,
+        BSAS,
+        J_1ASKCLS,
+        J_1ASKCLST.
+
+*  constants ---------------------------------------------------------
+
+CONSTANTS:    CON_APPL    LIKE J_1AINFT10-J_1AAPPLKP VALUE '01'.
+
+*  types -------------------------------------------------------------
+
+TYPES: BEGIN OF PERIOD_DATES_TYPE,
+         PERIOD      LIKE BKPF-MONAT,
+         FIRST_DATE  LIKE BKPF-BUDAT,
+         LAST_DATE   LIKE BKPF-BUDAT,
+      END OF PERIOD_DATES_TYPE.
+
+
+TYPES: BEGIN OF TOTAL_TYPE,
+        J_1ASKCLS   LIKE SKB1-J_1ASKCLSS,         "account class
+        GSBER       LIKE SKC1A-GSBER,
+        KOSTL       LIKE BSEG-KOSTL,
+        SAKNR       LIKE SKB1-SAKNR,
+        BELNR       LIKE BSEG-BELNR,   "for item calculation
+        GJAHR       LIKE BSEG-GJAHR,   "   ...
+        BUZEI       LIKE BSEG-BUZEI,   "   ...
+        POSTI       LIKE SKB1-J_1APOSTI,
+        J_1AMONACC  LIKE SKB1-J_1AMONACC,
+        J_1ASPINF   LIKE SKB1-J_1ASPINF,
+        J_1AGLINF   LIKE SKB1-J_1AGLINF,
+        J_1AINDXSP  LIKE SKB1-J_1AINDXSP,       "specific index
+        REI_ACCOUNT LIKE J_1ASKCLS-J_1ADREI,
+        J_1AIPMNG   LIKE T001-J_1AIPMNG, "general index
+        RT_ACCOUNT  LIKE J_1ASKCLS-J_1ADRT,
+        TAX_CODE1   LIKE BSEG-MWSKZ,
+        TAX_CODE2   LIKE BSEG-MWSKZ,
+        REI_AMOUNT  LIKE BSEG-DMBTR,
+        RT_AMOUNT   LIKE BSEG-DMBTR,
+        J_1ACBSCHL  LIKE T001-J_1ACBSCHL,
+        J_1ADBSCHL  LIKE T001-J_1ADBSCHL,
+        ERROR(1)    TYPE C,                    "error has occurred
+     END OF TOTAL_TYPE.
+
+TYPES: BEGIN OF PERIOD_BALANCE_TYPE,
+          STARTCALC LIKE BKPF-BUDAT,   "start date for calc.
+                                       " = first day of per. - 1
+          ENDCALC   LIKE BKPF-BUDAT,   "end date = last date of period
+          SALDO     LIKE SKC1A-UM01O,
+       END OF PERIOD_BALANCE_TYPE.
+
+TYPES: BEGIN OF ITEM_LIST_TYPE,
+          BUKRS    LIKE BSEG-BUKRS,
+          SAKNR    LIKE SKB1-SAKNR,
+          BELNR    LIKE BSEG-BELNR,
+          GJAHR    LIKE BSEG-GJAHR,
+          BUZEI    LIKE BSEG-BUZEI,
+          GSBER    LIKE BSEG-GSBER,
+     END OF ITEM_LIST_TYPE.
+
+TYPES: TOTAL_TABLE TYPE TOTAL_TYPE OCCURS 100.
+TYPES: PERIOD_BALANCE_TABLE TYPE PERIOD_BALANCE_TYPE OCCURS 10.
+
+TYPES: PERIOD_DATES_TABLE TYPE PERIOD_DATES_TYPE OCCURS 10.
+
+*-- internal table of all periods of the year with first and last date
+DATA: PERIOD_DATES TYPE PERIOD_DATES_TABLE WITH HEADER LINE.
+
+*-- internal buffer table of account classes
+DATA: I_1ASKCLS LIKE J_1ASKCLS OCCURS 100 WITH HEADER LINE.
+
+DATA: I_T001 LIKE T001 OCCURS 10 WITH HEADER LINE.
+
+*-- internal table of all rei/rt accounts with the tax codes to be used
+DATA: BEGIN OF REI_RT_TAXCODES OCCURS 100,
+         ACCOUNT LIKE SKA1-SAKNR,
+         TAXCODE LIKE BSEG-MWSKZ,
+      END OF REI_RT_TAXCODES.
+
+*----------------- adjustment data for postings
+*----------------- lines that can be collected to one document
+DATA: TOTAL TYPE TOTAL_TABLE WITH HEADER LINE.
+*----------------- lines that lead to a single document
+DATA: TOTAL_SINGLE TYPE TOTAL_TABLE WITH HEADER LINE.
+
+*----------------- table of all balance amounts to be adjusted
+DATA: PERIOD_BALANCE TYPE PERIOD_BALANCE_TABLE WITH HEADER LINE.
+
+*----------------- table of all accounts wihhout skc1a values
+DATA: EMPTY_ACCOUNTS LIKE SKB1 OCCURS 100 WITH HEADER LINE.
+
+*----------------- batch input data
+DATA: XBDCDATA LIKE BDCDATA OCCURS 100 WITH HEADER LINE.
+
+DATA:  XREJECT(1) TYPE C,              "indicator: acc. not to processed
+*      values:      G    There is a gap in the adjustment process
+*                   N    Nothing to be adjusted
+*                   D    Definit. run must come next, prov. not possible
+       BUKRS      LIKE BKPF-BUKRS,     "only one company code allowed
+       YEAR       LIKE BKPF-GJAHR,     "only one year can be taken
+       KTOPL      LIKE SKA1-KTOPL,     "only one chart of acc. allowed
+       INITIAL_BALANCE LIKE SKC1A-UM01O,  "balance at beginning of calc.
+       COUNTER    TYPE I,
+       FIRST_DAY  LIKE BKPF-BUDAT,     "first day of current fisc. year
+       STARTDATE  LIKE BKPF-BUDAT,     "start date for calculation
+                                       "(= first day of unadj. period)
+       STARTCALC  LIKE BKPF-BUDAT,     "start date for calc. routine
+                                       "(= last day of adjusted period)
+       STARTPERIOD LIKE BKPF-MONAT,    "start period for calculation
+       ENDDATE    LIKE BKPF-BUDAT,     "end date for calculation
+       TAXCODE1   LIKE BSEG-MWSKZ,     "code for total inflation
+       TAXCODE2   LIKE BSEG-MWSKZ,     "code for general inflation part
+       REI_AMOUNT LIKE BSEG-DMBTR,
+       RT_AMOUNT  LIKE BSEG-DMBTR,
+       NO_AMOUNT(1)             TYPE C,     "no amount for account found
+       NUMBER_OF_PERIODS        LIKE T009-ANZBP,
+       NUMBER_OF_PERIODS_BEFORE LIKE T009-ANZBP,
+       FISCAL_VARIANT           LIKE T001-PERIV,
+*      error messages
+       X_FIMSG                  LIKE FIMSG,
+*      posting
+       X_POSTI                  LIKE SKB1-J_1APOSTI,
+       BUZEI_COUNTER            LIKE BSEG-BUZEI,
+       HEADER_TEXT              LIKE BKPF-BKTXT,
+       SALDO_SUM                LIKE BSEG-DMBTR,   "sum of balances
+       AMOUNT                   LIKE BSEG-DMBTR,
+       INFLATION_AMOUNT         LIKE BSEG-DMBTR,   "REI + RT
+       INFLA_CURR_AMOUNT        LIKE BSEG-DMBTR,   "amount in loc. curr.
+       SALDO                    LIKE SKC1A-UM01O,
+       TEXT                     LIKE BSEG-SGTXT,
+       TEXT1                    LIKE BSEG-SGTXT.
+
+*      data for subroutines: posting
+  DATA: GROUP          LIKE APQI-GROUPID,
+        REVERSE(1)     TYPE C,         "indicator: reverse posting
+        TOTAL_LINES    TYPE I,
+        POSTING_PERIOD LIKE BKPF-MONAT,
+        POSTING_YEAR   LIKE BKPF-GJAHR,
+        REI_SUM        LIKE BSEG-DMBTR,
+        RT_SUM         LIKE BSEG-DMBTR,
+        X_LAST_SCREEN(4) TYPE C,
+        CHAR_DATUM(10) TYPE C,
+        X_REI_ACCOUNT  LIKE SKA1-SAKNR,
+        X_RT_ACCOUNT   LIKE SKA1-SAKNR,
+        X_TAXCODE      LIKE BSEG-MWSKZ,
+        X_BSCHL        LIKE BSEG-BSCHL,
+        X_SKCLS        LIKE SKB1-J_1ASKCLSS,
+        X_GSBER        LIKE SKC1A-GSBER,
+        X_KOSTL        LIKE BSEG-KOSTL,
+        DOC_GSBER      LIKE COBL-GSBER,
+        DOC_KOSTL      LIKE COBL-KOSTL,
+        SESSION_OPEN(1)  TYPE C,
+        X_DOC_PROCESS(1) TYPE C.    "document is under 'construction'
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740

@@ -1,0 +1,503 @@
+*&---------------------------------------------------------------------*
+*& Report  RFBLBC00                                                    *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  RFBLBC00.
+
+*-- type pools ---------------------------------------------------------
+TYPE-POOLS: SLIS.
+
+TABLES: T001,
+        T012,
+        T012K.
+
+
+* internal tables
+DATA:
+BEGIN OF T_BUKRS OCCURS 0,
+  BUKRS LIKE PAYRQ-BUKRS,
+END OF T_BUKRS,
+T_HB  LIKE T012 OCCURS 0 WITH HEADER LINE,
+T_HBK LIKE T012K OCCURS 0 WITH HEADER LINE,
+T_SORT  TYPE SLIS_T_SORTINFO_ALV,
+T_EVENTS TYPE SLIS_T_EVENT,
+T_FIELDCAT TYPE SLIS_T_FIELDCAT_ALV.
+
+* further data
+DATA: HLP_FBTCH(2) TYPE C,
+      G_AKTYP(1) TYPE C,
+      G_CHANGED LIKE BOOLE-BOOLE.
+
+* selection screen parameters
+SELECTION-SCREEN BEGIN OF BLOCK 1 WITH FRAME TITLE TEXT-011.
+PARAMETERS: BUKRS LIKE T001-BUKRS.
+SELECTION-SCREEN END OF BLOCK 1.
+SELECTION-SCREEN BEGIN OF BLOCK 2 WITH FRAME TITLE TEXT-012.
+PARAMETERS: WAERS LIKE TBCHAIN21-WAERS,
+            UZAWE LIKE TBCHAIN21-UZAWE.
+SELECTION-SCREEN END OF BLOCK 2.
+SELECTION-SCREEN BEGIN OF BLOCK 3 WITH FRAME TITLE TEXT-014.
+SELECTION-SCREEN: BEGIN OF LINE.
+PARAMETERS: PAYM_OUT LIKE BOOLE-BOOLE RADIOBUTTON GROUP PAYM.
+SELECTION-SCREEN:
+  COMMENT (25)        TEXT-016 FOR FIELD PAYM_OUT,
+  END OF LINE,
+  BEGIN OF LINE.
+PARAMETERS: PAYM_IN LIKE BOOLE-BOOLE RADIOBUTTON GROUP PAYM.
+SELECTION-SCREEN:
+  COMMENT (25)        TEXT-015 FOR FIELD PAYM_IN,
+  END OF LINE.
+SELECTION-SCREEN END OF BLOCK 3.
+
+*-------- INITIALIZE ---------------------------------------------------
+INITIALIZATION.
+  if sy-tcode(4) ne 'FIBH'.
+    message e101(fibc).
+  endif.
+  IF SY-TCODE = 'FIBHU'.
+    SY-TITLE = TEXT-100.
+  ELSE.
+    SY-TITLE = TEXT-101.
+  ENDIF.
+  PERFORM BANKCHAIN_ACTIVE.
+
+*-------- AT SELECTION-SCEEN -------------------------------------------
+AT SELECTION-SCREEN.
+  PERFORM CHECK_AUTHORITY.
+
+*-------- TOP-OF-PAGE --------------------------------------------------
+*top-of-page.
+*  perform top_of_page.
+
+*-------- START OF SELECTION -------------------------------------------
+START-OF-SELECTION.
+  PERFORM SELECT_HOUSE_BANK.
+
+*-------- END OF SELECTION ---------------------------------------------
+END-OF-SELECTION.
+
+  PERFORM SORT_DATA TABLES T_SORT.
+
+  PERFORM FILL_EVENTS TABLES T_EVENTS.
+
+  PERFORM FILL_FIELDCAT.
+
+  CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+       EXPORTING
+            I_INTERFACE_CHECK        = ' '
+            I_CALLBACK_PROGRAM       = 'RFBLBC00'
+            I_CALLBACK_PF_STATUS_SET = 'PF_STATUS_SET'
+            I_CALLBACK_USER_COMMAND  = 'USER_COMMAND'
+*         I_STRUCTURE_NAME         =
+*         IS_LAYOUT                =
+            IT_FIELDCAT              = T_FIELDCAT
+*         IT_EXCLUDING             =
+*         IT_SPECIAL_GROUPS        =
+            IT_SORT                  = T_SORT
+*         IT_FILTER                =
+*         IS_SEL_HIDE              =
+*         I_DEFAULT                = 'X'
+            I_SAVE                   = 'A'
+*         IS_VARIANT               = ' '
+            IT_EVENTS                = T_EVENTS
+*         IT_EVENT_EXIT            =
+*         IS_PRINT                 =
+*         IS_REPREP_ID             =
+*         I_SCREEN_START_COLUMN    = 0
+*         I_SCREEN_START_LINE      = 0
+*         I_SCREEN_END_COLUMN      = 0
+*         I_SCREEN_END_LINE        = 0
+*    IMPORTING
+*         E_EXIT_CAUSED_BY_CALLER  =
+*         ES_EXIT_CAUSED_BY_USER   =
+       TABLES
+            T_OUTTAB                 = T_HBK
+       EXCEPTIONS
+            PROGRAM_ERROR            = 1
+            OTHERS                   = 2.
+  IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_AUTHORITY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM CHECK_AUTHORITY.
+
+  DATA: L_LINES LIKE SY-TABIX,
+        L_AUTH_FAILED LIKE BOOLE-BOOLE.
+
+* set aktyp
+  IF SY-TCODE = 'FIBHU'.
+    G_AKTYP = 'U'.
+    HLP_FBTCH = '02'.
+  ELSE.
+    G_AKTYP = 'S'.
+    HLP_FBTCH = '03'.
+  ENDIF.
+
+* get company codes
+  DESCRIBE TABLE T_BUKRS LINES L_LINES.
+  IF L_LINES IS INITIAL.
+    SELECT BUKRS FROM  T001 INTO CORRESPONDING FIELDS OF TABLE T_BUKRS
+           WHERE  BUKRS = BUKRS.
+  ENDIF.
+
+  SORT T_BUKRS.
+
+  LOOP AT T_BUKRS.
+    AUTHORITY-CHECK OBJECT 'F_BNKA_BUK'
+      ID 'BUKRS' FIELD T_BUKRS-BUKRS
+      ID 'ACTVT' FIELD HLP_FBTCH.
+    IF SY-SUBRC NE 0.
+      if HLP_FBTCH eq '03'.
+        message e218(F4) with T_BUKRS-BUKRS.
+      else.
+        message e219(F4) with T_BUKRS-BUKRS.
+      endif.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                               " CHECK_AUTHORITY
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_HOUSE_BANK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SELECT_HOUSE_BANK.
+
+  LOOP AT T_BUKRS.
+
+    SELECT * FROM  T012
+           WHERE  BUKRS       = T_BUKRS.
+
+      SELECT * FROM  T012K
+             WHERE  BUKRS       = T_BUKRS
+             AND    HBKID       = T012-HBKID.
+
+        MOVE-CORRESPONDING T012 TO T_HB.
+        APPEND T_HB.
+
+        MOVE-CORRESPONDING T012K TO T_HBK.
+        APPEND T_HBK.
+
+      ENDSELECT.
+    ENDSELECT.
+
+  ENDLOOP.
+
+  SORT T_HB.
+  SORT T_HBK.
+
+ENDFORM.                               " SELECT_HOUSE_BANK
+*&---------------------------------------------------------------------*
+*&      Form  SORT_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SORT_DATA TABLES C_T_SORT TYPE SLIS_T_SORTINFO_ALV.
+
+  REFRESH C_T_SORT.
+
+  CLEAR C_T_SORT.
+  C_T_SORT-SPOS       = 1.
+  C_T_SORT-UP         = 'X'.
+  C_T_SORT-FIELDNAME  = 'BUKRS'.
+  C_T_SORT-SUBTOT     = ' '.
+  C_T_SORT-COMP       = 'X'.
+  APPEND  C_T_SORT.
+
+  CLEAR C_T_SORT.
+  C_T_SORT-SPOS       = 2.
+  C_T_SORT-UP         = 'X'.
+  C_T_SORT-FIELDNAME  = 'HBKID'.
+  C_T_SORT-SUBTOT     = ' '.
+  C_T_SORT-COMP       = 'X'.
+  APPEND  C_T_SORT.
+
+  CLEAR C_T_SORT.
+  C_T_SORT-SPOS       = 3.
+  C_T_SORT-UP         = 'X'.
+  C_T_SORT-FIELDNAME  = 'HKTID'.
+  C_T_SORT-SUBTOT     = ' '.
+  C_T_SORT-COMP       = 'X'.
+  APPEND  C_T_SORT.
+
+  CLEAR C_T_SORT.
+  C_T_SORT-SPOS       = 4.
+  C_T_SORT-UP         = 'X'.
+  C_T_SORT-FIELDNAME  = 'BANKN'.
+  C_T_SORT-SUBTOT     = ' '.
+  C_T_SORT-COMP       = 'X'.
+  APPEND  C_T_SORT.
+
+ENDFORM.                               " SORT_DATA
+*&---------------------------------------------------------------------*
+*&      Form  FILL_EVENTS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM FILL_EVENTS TABLES T_EVENT TYPE SLIS_T_EVENT.
+
+  T_EVENT-NAME = 'TOP_OF_PAGE'.
+  T_EVENT-FORM = 'TOP_OF_PAGE'.
+  APPEND T_EVENT.
+
+ENDFORM.                               " FILL_EVENTS
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FIELDCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM FILL_FIELDCAT.
+
+  DATA: L_T_FIELDCAT TYPE SLIS_FIELDCAT_ALV OCCURS 0 WITH HEADER LINE.
+
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      I_PROGRAM_NAME         = 'RFBLBC00'
+      I_INTERNAL_TABNAME     = 'T_HB'
+      I_STRUCTURE_NAME       = 'T012K'
+      I_CLIENT_NEVER_DISPLAY = 'X'
+*     I_INCLNAME             =
+    CHANGING
+      CT_FIELDCAT            = T_FIELDCAT
+    EXCEPTIONS
+      INCONSISTENT_INTERFACE = 1
+      PROGRAM_ERROR          = 2
+      OTHERS                 = 3.
+  IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+  L_T_FIELDCAT[] = T_FIELDCAT[].
+
+  LOOP AT L_T_FIELDCAT.
+    IF L_T_FIELDCAT-FIELDNAME NE 'BUKRS' AND
+       L_T_FIELDCAT-FIELDNAME NE 'HBKID' AND
+       L_T_FIELDCAT-FIELDNAME NE 'HKTID' AND
+       L_T_FIELDCAT-FIELDNAME NE 'BANKN' AND
+       L_T_FIELDCAT-FIELDNAME NE 'BKONT' AND
+       L_T_FIELDCAT-FIELDNAME NE 'REFZL'.
+
+      L_T_FIELDCAT-NO_OUT = 'X'.
+      MODIFY L_T_FIELDCAT.
+    ELSE.
+      L_T_FIELDCAT-NO_OUT = '0'.
+      MODIFY L_T_FIELDCAT.
+    ENDIF.
+  ENDLOOP.
+
+  T_FIELDCAT[] = L_T_FIELDCAT[].
+
+ENDFORM.                               " FILL_FIELDCAT
+*&---------------------------------------------------------------------*
+*&      Form  PF_STATUS_SET
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM PF_STATUS_SET USING EXTAB TYPE SLIS_T_EXTAB.
+
+  DATA: L_T_EXTAB TYPE SLIS_T_EXTAB WITH HEADER LINE.
+
+  L_T_EXTAB-FCODE = '&ALL'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&SAL'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&ALL'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&UMC'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&SUM'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&ABC'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&KOM'. APPEND L_T_EXTAB.
+  L_T_EXTAB-FCODE = '&AUF'. APPEND L_T_EXTAB.
+
+  EXTAB[] = L_T_EXTAB[].
+
+  SET PF-STATUS 'RFBLBC00' EXCLUDING EXTAB.
+
+ENDFORM.                               " PF_STATUS_SET
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM USER_COMMAND USING U_UCOMM  LIKE SY-UCOMM
+                        SELFIELD TYPE SLIS_SELFIELD.
+
+  DATA: L_BANKN(35) TYPE C,
+        L_CHANGED   LIKE BOOLE-BOOLE,
+        L_ANSWER(1) TYPE C.
+
+
+  IF U_UCOMM EQ '&IC1' OR U_UCOMM EQ 'BCHA'.
+
+    READ TABLE T_HBK INDEX SELFIELD-TABINDEX.
+    IF SY-SUBRC NE 0.
+      MESSAGE E004(0K).
+    ENDIF.
+
+    READ TABLE T_HB WITH KEY MANDT = T_HBK-MANDT
+                             BUKRS = T_HBK-BUKRS
+                             HBKID = T_HBK-HBKID
+                    BINARY SEARCH.
+
+
+    IF PAYM_OUT IS INITIAL.
+* incoming payment
+      L_BANKN = T_HBK-BANKN.
+      CALL FUNCTION 'CONVERT_HOUSEBANK_ACCOUNT_NUM'
+        EXPORTING
+          I_LAND1      = T_HB-BANKS
+          I_BANKK      = T_HB-BANKL
+          I_BANKN      = T_HBK-BANKN
+          I_BKONT      = T_HBK-BKONT
+          I_REFZL      = T_HBK-REFZL
+*         I_BANKL      =
+        IMPORTING
+          E_BANKN_LONG = L_BANKN.
+
+      CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_MAINT'
+        EXPORTING
+          I_BANKS_REC = T_HB-BANKS
+          I_BANKK_REC = T_HB-BANKL
+          I_BANKN_REC = L_BANKN
+*         I_BANKS_SND =
+*         I_BANKK_SND =
+          I_WAERS     = WAERS
+          I_UZAWE     = UZAWE
+          I_AKTYP     = G_AKTYP
+        IMPORTING
+          E_XCHNG     = L_CHANGED.
+
+
+    ELSE.
+* outgoing payment
+      CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_MAINT'
+        EXPORTING
+*         i_banks_rec =
+*         i_bankk_rec =
+*         i_bankn_rec =
+          I_BANKS_SND = T_HB-BANKS
+          I_BANKK_SND = T_HB-BANKL
+          I_WAERS     = WAERS
+          I_UZAWE     = UZAWE
+          I_AKTYP     = G_AKTYP
+        IMPORTING
+          E_XCHNG     = L_CHANGED.
+
+    ENDIF.
+
+    IF NOT L_CHANGED IS INITIAL.
+
+      CALL FUNCTION 'POPUP_TO_CONFIRM_LOSS_OF_DATA'
+        EXPORTING
+          TEXTLINE1     = TEXT-003
+          TITEL         = TEXT-001
+          DEFAULTOPTION = 'J'
+        IMPORTING
+          ANSWER        = L_ANSWER
+        EXCEPTIONS
+          OTHERS        = 1.
+
+
+      IF L_ANSWER EQ 'J'.
+
+        CALL FUNCTION 'FI_BL_BANKCHAIN_ASSGNP_SAVE'
+          EXCEPTIONS
+            OTHERS = 1.
+
+        CLEAR L_ANSWER.
+
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                               " USER_COMMAND
+*&---------------------------------------------------------------------*
+*&      Form  BANKCHAIN_ACTIVE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM BANKCHAIN_ACTIVE.
+
+  CALL FUNCTION 'FI_BL_BANKCHAIN_ACTIVE'
+    EXCEPTIONS
+      BANKCHAIN_NOT_ACTIVE = 1
+      FATAL_ERROR          = 2
+      OTHERS               = 3.
+  IF SY-SUBRC <> 0.
+    MESSAGE E876(PZ).
+  ENDIF.
+
+ENDFORM.                               " BANKCHAIN_ACTIVE
+
+*Text elements
+*----------------------------------------------------------
+* 001 Exit maint.
+* 003 Save your changes first?
+* 011 House bnks
+* 012 Other limitations
+* 014 Payment direct.
+* 015 Incoming payment
+* 016 Outgoing payment
+* 100 Process bank chains for house banks
+* 101 Display bank chains for house banks
+
+
+*Selection texts
+*----------------------------------------------------------
+* BUKRS         Company code
+* UZAWE         Payment method supplement
+* WAERS         Payment currency
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: 0K
+*004   Position the cursor on a line in the list
+*
+* Message class: F4
+*218   No display authorization for company code &
+*219   No change authorization in company code &
+*
+* Message class: FIBC
+*101   This program can not be run with this transaction
+*
+* Message class: PZ
+*876   Bank chains are not active
+
+----------------------------------------------------------------------
+Extracted by Mass Download 1.4.4 - Sajiv Francis 2019 - 2019. Sap Release 740
